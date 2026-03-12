@@ -1,14 +1,21 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+use bevy::{
+    DefaultPlugins,
+    app::{App, Plugin, PluginGroup},
+    utils::default,
+    window::{Window, WindowPlugin},
+};
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+#[derive(Default)]
+pub struct EditorPlugin;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
+impl Plugin for EditorPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_plugins(DefaultPlugins.set(WindowPlugin {
+            primary_window: Some(Window {
+                title: "Bevy".into(),
+                ..default()
+            }),
+            ..default()
+        }));
     }
 }
