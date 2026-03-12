@@ -10,6 +10,7 @@ pub use selection::*;
 use bevy::{
     DefaultPlugins,
     app::{App, Plugin, PluginGroup, PostStartup, Startup},
+    asset::Assets,
     camera::Camera2d,
     ecs::{
         error::Result,
@@ -18,6 +19,7 @@ use bevy::{
         world::World,
     },
     log::LogPlugin,
+    scene::{DynamicScene, Scene, SceneRoot, SceneSpawner},
     utils::default,
     window::{Window, WindowPlugin},
 };
@@ -34,7 +36,7 @@ use egui::{
 use crate::{
     dock::{DockArea, Style},
     pane::{Docking, PaneViewer},
-    panes::{HierarchyPane, OutputPane, PropertiesPane, custom_layer, fmt_layer},
+    panes::{HierarchyPane, InspectedScene, OutputPane, PropertiesPane, custom_layer, fmt_layer},
     style::set_dark_style,
 };
 
@@ -64,6 +66,7 @@ impl Plugin for EditorPlugin {
         .init_resource::<Selection>()
         .add_systems(Startup, setup)
         .add_systems(Startup, setup_panes)
+        .add_systems(Startup, setup_default_scene)
         .add_systems(EguiPrimaryContextPass, ui);
     }
 }
@@ -96,6 +99,13 @@ fn setup_panes(mut panes: ResMut<Panes>) {
     panes.insert(OutputPane);
     panes.insert(HierarchyPane);
     panes.insert(PropertiesPane);
+}
+
+fn setup_default_scene(mut commands: Commands, mut scenes: ResMut<Assets<Scene>>) {
+    let root = commands
+        .spawn(SceneRoot(scenes.add(Scene::new(World::new()))))
+        .id();
+    commands.insert_resource(InspectedScene { root });
 }
 
 fn ui(
