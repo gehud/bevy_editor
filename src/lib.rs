@@ -12,6 +12,7 @@ use bevy::{
         system::{Commands, ResMut, Single, SystemState},
         world::World,
     },
+    log::LogPlugin,
     utils::default,
     window::{Window, WindowPlugin},
 };
@@ -27,7 +28,7 @@ use egui::{
 
 use crate::{
     dock::{DockArea, Style},
-    pane::{Docking, PaneViewer, Panes},
+    pane::{Docking, PaneViewer, Panes, custom_layer, fmt_layer},
     style::set_dark_style,
 };
 
@@ -36,13 +37,21 @@ pub struct EditorPlugin;
 
 impl Plugin for EditorPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                title: "Bevy".into(),
-                ..default()
-            }),
-            ..default()
-        }))
+        app.add_plugins(
+            DefaultPlugins
+                .set(WindowPlugin {
+                    primary_window: Some(Window {
+                        title: "Bevy".into(),
+                        ..default()
+                    }),
+                    ..default()
+                })
+                .set(LogPlugin {
+                    custom_layer: |app| Some(custom_layer()),
+                    fmt_layer: |app| Some(fmt_layer()),
+                    ..default()
+                }),
+        )
         .add_plugins(EguiPlugin::default())
         .init_resource::<Panes>()
         .init_resource::<Docking>()

@@ -1,3 +1,7 @@
+mod output;
+
+pub use output::*;
+
 use bevy::{
     ecs::{resource::Resource, world::World},
     log::warn,
@@ -7,20 +11,36 @@ use egui::{Ui, WidgetText};
 
 use crate::dock::{DockState, NodeIndex, TabViewer};
 
-pub trait Pane: Send + Sync {
+pub trait Pane: Send + Sync + 'static {
     fn name(&self) -> &str;
 
     fn ui(&mut self, world: &mut World, ui: &mut Ui);
 }
 
-#[derive(Default, Resource)]
+#[derive(Resource)]
 pub struct Panes {
     panes: HashMap<String, Box<dyn Pane>>,
+}
+
+impl Default for Panes {
+    fn default() -> Self {
+        let mut panes = Self {
+            panes: HashMap::new(),
+        };
+
+        panes.insert(OutputPane);
+
+        panes
+    }
 }
 
 impl Panes {
     pub fn get_mut(&mut self, tab: &Tab) -> Option<&mut Box<dyn Pane>> {
         self.panes.get_mut(tab)
+    }
+
+    pub fn insert(&mut self, pane: impl Pane) -> Option<Box<dyn Pane>> {
+        self.panes.insert(pane.name().into(), Box::new(pane))
     }
 }
 
