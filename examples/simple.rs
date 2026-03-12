@@ -1,5 +1,6 @@
 use bevy::{
-    app::{App, Plugin, Startup}, ecs::system::Commands, log::info
+    app::{App, Plugin, Startup},
+    log::info,
 };
 use bevy_editor::EditorPlugin;
 

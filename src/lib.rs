@@ -1,158 +1,509 @@
-mod dock;
-mod pane;
-mod panes;
-mod selection;
-mod style;
-
-pub use pane::*;
-pub use selection::*;
-
 use bevy::{
-    DefaultPlugins,
-    app::{App, Plugin, PluginGroup, PostStartup, Startup},
-    asset::Assets,
-    camera::Camera2d,
-    ecs::{
-        error::Result,
-        query::With,
-        system::{Commands, ResMut, Single, SystemState},
-        world::World,
+    color::palettes,
+    feathers::{
+        FeathersPlugins,
+        controls::{
+            ButtonProps, ButtonVariant, ColorChannel, ColorPlane, ColorPlaneValue, ColorSlider,
+            ColorSliderProps, ColorSwatch, ColorSwatchValue, SliderBaseColor, SliderProps, button,
+            checkbox, color_plane, color_slider, color_swatch, radio, slider, toggle_switch,
+        },
+        cursor::{EntityCursor, OverrideCursor},
+        dark_theme::create_dark_theme,
+        rounded_corners::RoundedCorners,
+        theme::{ThemeBackgroundColor, ThemedText, UiTheme},
+        tokens,
     },
-    log::LogPlugin,
-    scene::{DynamicScene, Scene, SceneRoot, SceneSpawner},
-    utils::default,
-    window::{Window, WindowPlugin},
-};
-use bevy_egui::{
-    EguiContext, EguiContexts, EguiGlobalSettings, EguiPlugin, EguiPrimaryContextPass,
-    PrimaryEguiContext,
-};
-use egui::{
-    CentralPanel, FontData, FontFamily, Frame, MenuBar, TopBottomPanel,
-    epaint::text::{FontInsert, FontPriority, InsertFontFamily},
-    panel::TopBottomSide,
+    input_focus::tab_navigation::TabGroup,
+    prelude::*,
+    ui::{Checked, InteractionDisabled},
+    ui_widgets::{
+        Activate, RadioButton, RadioGroup, SliderPrecision, SliderStep, SliderValue, ValueChange,
+        checkbox_self_update, observe, slider_self_update,
+    },
+    window::{PrimaryWindow, SystemCursorIcon},
 };
 
-use crate::{
-    dock::{DockArea, Style},
-    pane::{Docking, PaneViewer},
-    panes::{HierarchyPane, InspectedScene, OutputPane, PropertiesPane, custom_layer, fmt_layer},
-    style::set_dark_style,
-};
+#[derive(Resource)]
+struct DemoWidgetStates {
+    rgb_color: Srgba,
+    hsl_color: Hsla,
+}
+
+#[derive(Component, Clone, Copy, PartialEq)]
+enum SwatchType {
+    Rgb,
+    Hsl,
+}
+
+#[derive(Component, Clone, Copy)]
+struct DemoDisabledButton;
 
 #[derive(Default)]
 pub struct EditorPlugin;
 
 impl Plugin for EditorPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(
-            DefaultPlugins
-                .set(WindowPlugin {
-                    primary_window: Some(Window {
-                        title: "Bevy".into(),
-                        ..default()
-                    }),
-                    ..default()
-                })
-                .set(LogPlugin {
-                    custom_layer: |app| Some(custom_layer()),
-                    fmt_layer: |app| Some(fmt_layer()),
-                    ..default()
-                }),
-        )
-        .add_plugins(EguiPlugin::default())
-        .init_resource::<Panes>()
-        .init_resource::<Docking>()
-        .init_resource::<Selection>()
+        app.add_plugins(DefaultPlugins.set(WindowPlugin {
+            primary_window: Some(Window {
+                title: "Bevy".into(),
+                ..default()
+            }),
+            ..default()
+        }))
+        .add_plugins(FeathersPlugins)
+        .insert_resource(UiTheme(create_dark_theme()))
+        .insert_resource(DemoWidgetStates {
+            rgb_color: palettes::tailwind::EMERALD_800.with_alpha(0.7),
+            hsl_color: palettes::tailwind::AMBER_800.into(),
+        })
         .add_systems(Startup, setup)
-        .add_systems(Startup, setup_panes)
-        .add_systems(Startup, setup_default_scene)
-        .add_systems(EguiPrimaryContextPass, ui);
+        .add_systems(Update, update_colors);
     }
 }
 
-fn setup(mut commands: Commands, mut egui_global_settings: ResMut<EguiGlobalSettings>) {
-    egui_global_settings.auto_create_primary_context = false;
-    commands
-        .spawn((Camera2d::default(), PrimaryEguiContext))
-        .entry::<EguiContext>()
-        .and_modify(|mut ctx| {
-            ctx.get_mut().style_mut(|style| {
-                set_dark_style(style);
-            });
-
-            ctx.get_mut().all_styles_mut(|style| set_dark_style(style));
-            ctx.get_mut().add_font(FontInsert::new(
-                "fira",
-                FontData::from_static(include_bytes!(
-                    "./assets/fonts/fira_sans/FiraSans-Regular.ttf"
-                )),
-                vec![InsertFontFamily {
-                    family: FontFamily::Proportional,
-                    priority: FontPriority::Highest,
-                }],
-            ));
-        });
+fn setup(mut commands: Commands, mut primary_window: Single<&mut Window, With<PrimaryWindow>>) {
+    primary_window.set_maximized(true);
+    commands.spawn(Camera2d);
+    commands.spawn(demo_root());
 }
 
-fn setup_panes(mut panes: ResMut<Panes>) {
-    panes.insert(OutputPane);
-    panes.insert(HierarchyPane);
-    panes.insert(PropertiesPane);
+fn demo_root() -> impl Bundle {
+    (
+        Node {
+            width: percent(100),
+            height: percent(100),
+            align_items: AlignItems::Start,
+            justify_content: JustifyContent::Start,
+            display: Display::Flex,
+            flex_direction: FlexDirection::Column,
+            row_gap: px(10),
+            ..default()
+        },
+        TabGroup::default(),
+        ThemeBackgroundColor(tokens::WINDOW_BG),
+        children![(
+            Node {
+                display: Display::Flex,
+                flex_direction: FlexDirection::Column,
+                align_items: AlignItems::Stretch,
+                justify_content: JustifyContent::Start,
+                padding: UiRect::all(px(8)),
+                row_gap: px(8),
+                width: percent(30),
+                min_width: px(200),
+                ..default()
+            },
+            children![
+                (
+                    Node {
+                        display: Display::Flex,
+                        flex_direction: FlexDirection::Row,
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::Start,
+                        column_gap: px(8),
+                        ..default()
+                    },
+                    children![
+                        (
+                            button(
+                                ButtonProps::default(),
+                                (),
+                                Spawn((Text::new("Normal"), ThemedText))
+                            ),
+                            observe(|_activate: On<Activate>| {
+                                info!("Normal button clicked!");
+                            })
+                        ),
+                        (
+                            button(
+                                ButtonProps::default(),
+                                (InteractionDisabled, DemoDisabledButton),
+                                Spawn((Text::new("Disabled"), ThemedText))
+                            ),
+                            observe(|_activate: On<Activate>| {
+                                info!("Disabled button clicked!");
+                            })
+                        ),
+                        (
+                            button(
+                                ButtonProps {
+                                    variant: ButtonVariant::Primary,
+                                    ..default()
+                                },
+                                (),
+                                Spawn((Text::new("Primary"), ThemedText))
+                            ),
+                            observe(|_activate: On<Activate>| {
+                                info!("Disabled button clicked!");
+                            })
+                        ),
+                    ]
+                ),
+                (
+                    Node {
+                        display: Display::Flex,
+                        flex_direction: FlexDirection::Row,
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::Start,
+                        column_gap: px(1),
+                        ..default()
+                    },
+                    children![
+                        (
+                            button(
+                                ButtonProps {
+                                    corners: RoundedCorners::Left,
+                                    ..default()
+                                },
+                                (),
+                                Spawn((Text::new("Left"), ThemedText))
+                            ),
+                            observe(|_activate: On<Activate>| {
+                                info!("Left button clicked!");
+                            })
+                        ),
+                        (
+                            button(
+                                ButtonProps {
+                                    corners: RoundedCorners::None,
+                                    ..default()
+                                },
+                                (),
+                                Spawn((Text::new("Center"), ThemedText))
+                            ),
+                            observe(|_activate: On<Activate>| {
+                                info!("Center button clicked!");
+                            })
+                        ),
+                        (
+                            button(
+                                ButtonProps {
+                                    variant: ButtonVariant::Primary,
+                                    corners: RoundedCorners::Right,
+                                },
+                                (),
+                                Spawn((Text::new("Right"), ThemedText))
+                            ),
+                            observe(|_activate: On<Activate>| {
+                                info!("Right button clicked!");
+                            })
+                        ),
+                    ]
+                ),
+                (
+                    button(
+                        ButtonProps::default(),
+                        (),
+                        Spawn((Text::new("Toggle override"), ThemedText))
+                    ),
+                    observe(|_activate: On<Activate>, mut ovr: ResMut<OverrideCursor>| {
+                        ovr.0 = if ovr.0.is_some() {
+                            None
+                        } else {
+                            Some(EntityCursor::System(SystemCursorIcon::Wait))
+                        };
+                        info!("Override cursor button clicked!");
+                    })
+                ),
+                (
+                    checkbox(Checked, Spawn((Text::new("Checkbox"), ThemedText))),
+                    observe(
+                        |change: On<ValueChange<bool>>,
+                         query: Query<Entity, With<DemoDisabledButton>>,
+                         mut commands: Commands| {
+                            info!("Checkbox clicked!");
+                            let mut button = commands.entity(query.single().unwrap());
+                            if change.value {
+                                button.insert(InteractionDisabled);
+                            } else {
+                                button.remove::<InteractionDisabled>();
+                            }
+                            let mut checkbox = commands.entity(change.source);
+                            if change.value {
+                                checkbox.insert(Checked);
+                            } else {
+                                checkbox.remove::<Checked>();
+                            }
+                        }
+                    )
+                ),
+                (
+                    checkbox(
+                        InteractionDisabled,
+                        Spawn((Text::new("Disabled"), ThemedText))
+                    ),
+                    observe(|_change: On<ValueChange<bool>>| {
+                        warn!("Disabled checkbox clicked!");
+                    })
+                ),
+                (
+                    checkbox(
+                        (InteractionDisabled, Checked),
+                        Spawn((Text::new("Disabled+Checked"), ThemedText))
+                    ),
+                    observe(|_change: On<ValueChange<bool>>| {
+                        warn!("Disabled checkbox clicked!");
+                    })
+                ),
+                (
+                    Node {
+                        display: Display::Flex,
+                        flex_direction: FlexDirection::Column,
+                        row_gap: px(4),
+                        ..default()
+                    },
+                    RadioGroup,
+                    observe(
+                        |value_change: On<ValueChange<Entity>>,
+                         q_radio: Query<Entity, With<RadioButton>>,
+                         mut commands: Commands| {
+                            for radio in q_radio.iter() {
+                                if radio == value_change.value {
+                                    commands.entity(radio).insert(Checked);
+                                } else {
+                                    commands.entity(radio).remove::<Checked>();
+                                }
+                            }
+                        }
+                    ),
+                    children![
+                        radio(Checked, Spawn((Text::new("One"), ThemedText))),
+                        radio((), Spawn((Text::new("Two"), ThemedText))),
+                        radio((), Spawn((Text::new("Three"), ThemedText))),
+                        radio(
+                            InteractionDisabled,
+                            Spawn((Text::new("Disabled"), ThemedText))
+                        ),
+                    ]
+                ),
+                (
+                    Node {
+                        display: Display::Flex,
+                        flex_direction: FlexDirection::Row,
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::Start,
+                        column_gap: px(8),
+                        ..default()
+                    },
+                    children![
+                        (toggle_switch((),), observe(checkbox_self_update)),
+                        (
+                            toggle_switch(InteractionDisabled,),
+                            observe(checkbox_self_update)
+                        ),
+                        (
+                            toggle_switch((InteractionDisabled, Checked),),
+                            observe(checkbox_self_update)
+                        ),
+                    ]
+                ),
+                (
+                    slider(
+                        SliderProps {
+                            max: 100.0,
+                            value: 20.0,
+                            ..default()
+                        },
+                        (SliderStep(10.), SliderPrecision(2)),
+                    ),
+                    observe(slider_self_update)
+                ),
+                (
+                    Node {
+                        display: Display::Flex,
+                        flex_direction: FlexDirection::Row,
+                        justify_content: JustifyContent::SpaceBetween,
+                        ..default()
+                    },
+                    children![Text("Srgba".to_owned()), color_swatch(SwatchType::Rgb),]
+                ),
+                (
+                    color_plane(ColorPlane::RedBlue, ()),
+                    observe(
+                        |change: On<ValueChange<Vec2>>, mut color: ResMut<DemoWidgetStates>| {
+                            color.rgb_color.red = change.value.x;
+                            color.rgb_color.blue = change.value.y;
+                        }
+                    )
+                ),
+                (
+                    color_slider(
+                        ColorSliderProps {
+                            value: 0.5,
+                            channel: ColorChannel::Red
+                        },
+                        ()
+                    ),
+                    observe(
+                        |change: On<ValueChange<f32>>, mut color: ResMut<DemoWidgetStates>| {
+                            color.rgb_color.red = change.value;
+                        }
+                    )
+                ),
+                (
+                    color_slider(
+                        ColorSliderProps {
+                            value: 0.5,
+                            channel: ColorChannel::Green
+                        },
+                        ()
+                    ),
+                    observe(
+                        |change: On<ValueChange<f32>>, mut color: ResMut<DemoWidgetStates>| {
+                            color.rgb_color.green = change.value;
+                        },
+                    )
+                ),
+                (
+                    color_slider(
+                        ColorSliderProps {
+                            value: 0.5,
+                            channel: ColorChannel::Blue
+                        },
+                        ()
+                    ),
+                    observe(
+                        |change: On<ValueChange<f32>>, mut color: ResMut<DemoWidgetStates>| {
+                            color.rgb_color.blue = change.value;
+                        },
+                    )
+                ),
+                (
+                    color_slider(
+                        ColorSliderProps {
+                            value: 0.5,
+                            channel: ColorChannel::Alpha
+                        },
+                        ()
+                    ),
+                    observe(
+                        |change: On<ValueChange<f32>>, mut color: ResMut<DemoWidgetStates>| {
+                            color.rgb_color.alpha = change.value;
+                        },
+                    )
+                ),
+                (
+                    Node {
+                        display: Display::Flex,
+                        flex_direction: FlexDirection::Row,
+                        justify_content: JustifyContent::SpaceBetween,
+                        ..default()
+                    },
+                    children![Text("Hsl".to_owned()), color_swatch(SwatchType::Hsl),]
+                ),
+                (
+                    color_slider(
+                        ColorSliderProps {
+                            value: 0.5,
+                            channel: ColorChannel::HslHue
+                        },
+                        ()
+                    ),
+                    observe(
+                        |change: On<ValueChange<f32>>, mut color: ResMut<DemoWidgetStates>| {
+                            color.hsl_color.hue = change.value;
+                        },
+                    )
+                ),
+                (
+                    color_slider(
+                        ColorSliderProps {
+                            value: 0.5,
+                            channel: ColorChannel::HslSaturation
+                        },
+                        ()
+                    ),
+                    observe(
+                        |change: On<ValueChange<f32>>, mut color: ResMut<DemoWidgetStates>| {
+                            color.hsl_color.saturation = change.value;
+                        },
+                    )
+                ),
+                (
+                    color_slider(
+                        ColorSliderProps {
+                            value: 0.5,
+                            channel: ColorChannel::HslLightness
+                        },
+                        ()
+                    ),
+                    observe(
+                        |change: On<ValueChange<f32>>, mut color: ResMut<DemoWidgetStates>| {
+                            color.hsl_color.lightness = change.value;
+                        },
+                    )
+                )
+            ]
+        ),],
+    )
 }
 
-fn setup_default_scene(mut commands: Commands, mut scenes: ResMut<Assets<Scene>>) {
-    let root = commands
-        .spawn(SceneRoot(scenes.add(Scene::new(World::new()))))
-        .id();
-    commands.insert_resource(InspectedScene { root });
-}
+fn update_colors(
+    colors: Res<DemoWidgetStates>,
+    mut sliders: Query<(Entity, &ColorSlider, &mut SliderBaseColor)>,
+    mut swatches: Query<(&mut ColorSwatchValue, &SwatchType), With<ColorSwatch>>,
+    mut color_planes: Query<&mut ColorPlaneValue, With<ColorPlane>>,
+    mut commands: Commands,
+) {
+    if colors.is_changed() {
+        for (slider_ent, slider, mut base) in sliders.iter_mut() {
+            match slider.channel {
+                ColorChannel::Red => {
+                    base.0 = colors.rgb_color.into();
+                    commands
+                        .entity(slider_ent)
+                        .insert(SliderValue(colors.rgb_color.red));
+                }
+                ColorChannel::Green => {
+                    base.0 = colors.rgb_color.into();
+                    commands
+                        .entity(slider_ent)
+                        .insert(SliderValue(colors.rgb_color.green));
+                }
+                ColorChannel::Blue => {
+                    base.0 = colors.rgb_color.into();
+                    commands
+                        .entity(slider_ent)
+                        .insert(SliderValue(colors.rgb_color.blue));
+                }
+                ColorChannel::HslHue => {
+                    base.0 = colors.hsl_color.into();
+                    commands
+                        .entity(slider_ent)
+                        .insert(SliderValue(colors.hsl_color.hue));
+                }
+                ColorChannel::HslSaturation => {
+                    base.0 = colors.hsl_color.into();
+                    commands
+                        .entity(slider_ent)
+                        .insert(SliderValue(colors.hsl_color.saturation));
+                }
+                ColorChannel::HslLightness => {
+                    base.0 = colors.hsl_color.into();
+                    commands
+                        .entity(slider_ent)
+                        .insert(SliderValue(colors.hsl_color.lightness));
+                }
+                ColorChannel::Alpha => {
+                    base.0 = colors.rgb_color.into();
+                    commands
+                        .entity(slider_ent)
+                        .insert(SliderValue(colors.rgb_color.alpha));
+                }
+            }
+        }
 
-fn ui(
-    world: &mut World,
-    ctx: &mut SystemState<Single<&mut EguiContext, With<PrimaryEguiContext>>>,
-) -> Result {
-    let ctx = ctx.get_mut(world).get_mut().clone();
+        for (mut swatch_value, swatch_type) in swatches.iter_mut() {
+            swatch_value.0 = match swatch_type {
+                SwatchType::Rgb => colors.rgb_color.into(),
+                SwatchType::Hsl => colors.hsl_color.into(),
+            };
+        }
 
-    TopBottomPanel::new(TopBottomSide::Top, "header")
-        .show_separator_line(false)
-        .exact_height(34.0)
-        .show(&ctx, |ui| {
-            ui.horizontal_centered(|ui| {
-                MenuBar::new().ui(ui, |ui| {
-                    ui.menu_button("File", |ui| if ui.button("Open").clicked() {});
-
-                    ui.menu_button("View", |_ui| {});
-                });
-            });
-        });
-
-    TopBottomPanel::new(TopBottomSide::Bottom, "footer")
-        .show_separator_line(false)
-        .exact_height(24.0)
-        .show(&ctx, |_ui| {
-            // TODO: Make footer.
-        });
-
-    CentralPanel::default()
-        .frame(
-            Frame::central_panel(&ctx.style())
-                .inner_margin(0)
-                .outer_margin(0),
-        )
-        .show(&ctx, |ui| {
-            let style = Style::from_egui(ui.style());
-
-            world.resource_scope::<Docking, _>(|world, mut docking| {
-                let mut pane_viewer = PaneViewer { world };
-
-                DockArea::new(&mut docking.0)
-                    .style(style)
-                    .show_leaf_close_all_buttons(false)
-                    .show_leaf_collapse_buttons(false)
-                    .show_inside(ui, &mut pane_viewer);
-            });
-        });
-
-    Ok(())
+        for mut plane_value in color_planes.iter_mut() {
+            plane_value.0.x = colors.rgb_color.red;
+            plane_value.0.y = colors.rgb_color.blue;
+            plane_value.0.z = colors.rgb_color.green;
+        }
+    }
 }
