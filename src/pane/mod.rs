@@ -1,10 +1,5 @@
-mod output;
-
-pub use output::*;
-
 use bevy::{
     ecs::{resource::Resource, world::World},
-    log::warn,
     platform::collections::HashMap,
 };
 use egui::{Ui, WidgetText};
@@ -17,21 +12,9 @@ pub trait Pane: Send + Sync + 'static {
     fn ui(&mut self, world: &mut World, ui: &mut Ui);
 }
 
-#[derive(Resource)]
+#[derive(Default, Resource)]
 pub struct Panes {
     panes: HashMap<String, Box<dyn Pane>>,
-}
-
-impl Default for Panes {
-    fn default() -> Self {
-        let mut panes = Self {
-            panes: HashMap::new(),
-        };
-
-        panes.insert(OutputPane);
-
-        panes
-    }
 }
 
 impl Panes {
@@ -61,8 +44,6 @@ impl<'a> TabViewer for PaneViewer<'a> {
         self.world.resource_scope::<Panes, _>(|world, mut panes| {
             if let Some(pane) = panes.get_mut(tab) {
                 pane.ui(world, ui);
-            } else {
-                warn!("Missing pane: {}", tab);
             }
         });
     }

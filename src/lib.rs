@@ -1,6 +1,11 @@
 mod dock;
 mod pane;
+mod panes;
+mod selection;
 mod style;
+
+pub use pane::*;
+pub use selection::*;
 
 use bevy::{
     DefaultPlugins,
@@ -28,7 +33,8 @@ use egui::{
 
 use crate::{
     dock::{DockArea, Style},
-    pane::{Docking, PaneViewer, Panes, custom_layer, fmt_layer},
+    pane::{Docking, PaneViewer},
+    panes::{HierarchyPane, OutputPane, PropertiesPane, custom_layer, fmt_layer},
     style::set_dark_style,
 };
 
@@ -55,7 +61,9 @@ impl Plugin for EditorPlugin {
         .add_plugins(EguiPlugin::default())
         .init_resource::<Panes>()
         .init_resource::<Docking>()
+        .init_resource::<Selection>()
         .add_systems(Startup, setup)
+        .add_systems(Startup, setup_panes)
         .add_systems(EguiPrimaryContextPass, ui);
     }
 }
@@ -82,6 +90,12 @@ fn setup(mut commands: Commands, mut egui_global_settings: ResMut<EguiGlobalSett
                 }],
             ));
         });
+}
+
+fn setup_panes(mut panes: ResMut<Panes>) {
+    panes.insert(OutputPane);
+    panes.insert(HierarchyPane);
+    panes.insert(PropertiesPane);
 }
 
 fn ui(

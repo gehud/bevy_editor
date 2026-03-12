@@ -1,4 +1,6 @@
-use bevy::{app::{App, Plugin, Startup}, log::info};
+use bevy::{
+    app::{App, Plugin, Startup}, ecs::system::Commands, log::info
+};
 use bevy_editor::EditorPlugin;
 
 #[derive(Default)]
@@ -6,10 +8,12 @@ struct SimplePlugin;
 
 impl Plugin for SimplePlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, || {
-            info!("Hello, world!");
-        });
+        app.add_systems(Startup, setup);
     }
+}
+
+fn setup() {
+    info!("Hello, world!");
 }
 
 fn main() {

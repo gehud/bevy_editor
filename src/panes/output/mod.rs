@@ -7,9 +7,9 @@ use bevy::{
 };
 use egui::Ui;
 
-use crate::pane::{
-    Pane,
-    output::{collector::COLLECTOR, widget::Logs},
+use crate::{
+    pane::Pane,
+    panes::output::{collector::COLLECTOR, widget::Logs},
 };
 
 pub fn custom_layer() -> BoxedLayer {

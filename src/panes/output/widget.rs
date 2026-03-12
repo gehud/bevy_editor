@@ -5,7 +5,7 @@ use chrono::{DateTime, Local};
 use egui::{Color32, Grid, Label, Response, TextWrapMode, Ui, Widget};
 use serde::{Deserialize, Serialize};
 
-use crate::pane::output::collector::COLLECTOR;
+use crate::panes::output::collector::COLLECTOR;
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct LogsState {
