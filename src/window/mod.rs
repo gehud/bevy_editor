@@ -36,11 +36,13 @@ use crate::widget::{
     palette,
     rounded_corners::RoundedCorners,
     theme::{ThemeBackgroundColor, ThemeBorderColor},
-    tokens::{RADIO_BORDER, WINDOW_BG},
+    tokens::{BORDER, RADIO_BORDER, WINDOW_BG},
 };
 
 pub const WINDOW_RESIZE_GRIP_SIZE: f32 = 5.0;
 pub const WINDOW_BORDER_RADIUS: f32 = 8.0;
+pub const WINDOW_BUTTON_SIZE: f32 = 26.0;
+pub const WINDOW_BUTTON_RADIUS: f32 = WINDOW_BUTTON_SIZE / 2.0;
 
 pub struct DecoratedWindowPlugin;
 
@@ -141,7 +143,7 @@ fn configure_window(window: Entity, commands: &mut Commands, asset_server: &Asse
                 flex_direction: FlexDirection::Column,
                 ..default()
             },
-            ThemeBorderColor(RADIO_BORDER),
+            ThemeBorderColor(BORDER),
             ThemeBackgroundColor(WINDOW_BG),
         ))
         .id();
@@ -428,11 +430,11 @@ fn spawn_titlebar_button<'a>(
             DecoratedWindowRef(window),
             ChildOf(root),
             Node {
-                width: px(24),
-                height: px(24),
+                width: px(WINDOW_BUTTON_SIZE),
+                height: px(WINDOW_BUTTON_SIZE),
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
-                border_radius: RoundedCorners::All.to_border_radius(12.0),
+                border_radius: RoundedCorners::All.to_border_radius(WINDOW_BUTTON_RADIUS),
                 ..default()
             },
         ))

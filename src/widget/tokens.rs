@@ -9,6 +9,11 @@ use crate::widget::theme::ThemeToken;
 /// Window background
 pub const WINDOW_BG: ThemeToken = ThemeToken::new_static("editor.window.bg");
 
+// Border
+pub const BORDER: ThemeToken = ThemeToken::new_static("editor.border");
+
+pub const PANE_BG: ThemeToken = ThemeToken::new_static("pane.bg");
+
 /// Focus ring
 pub const FOCUS_RING: ThemeToken = ThemeToken::new_static("editor.focus");
 
