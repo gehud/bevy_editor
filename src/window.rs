@@ -1,9 +1,10 @@
 use bevy::{
-    app::{App, AppExit, Plugin, Update},
+    app::{App, AppExit, First, Plugin, Update},
     asset::{AssetServer, Handle, embedded_asset, load_embedded_asset},
     camera::{Camera2d, ClearColor, RenderTarget},
     color::Color,
     ecs::{
+        change_detection::DetectChangesMut,
         component::Component,
         entity::Entity,
         error::Result,
@@ -12,7 +13,8 @@ use bevy::{
         message::MessageWriter,
         observer::On,
         query::{Added, Changed, With},
-        system::{Commands, EntityCommands, Query, Res, Single},
+        system::{Commands, EntityCommands, In, Query, Res, Single, SystemState},
+        world::World,
     },
     feathers::{
         cursor::EntityCursor,
@@ -33,6 +35,7 @@ use bevy::{
     },
     utils::default,
     window::{PrimaryWindow, SystemCursorIcon, Window, WindowRef},
+    winit::WINIT_WINDOWS,
 };
 
 pub const WINDOW_RESIZE_GRIP_SIZE: Val = Val::Px(5.0);
@@ -43,6 +46,7 @@ pub struct DecoratedWindowPlugin;
 impl Plugin for DecoratedWindowPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(ClearColor(Color::NONE))
+            .add_systems(First, check_actually_maximized)
             .add_systems(Update, configure_windows)
             .add_systems(Update, maximize_windows);
 
@@ -174,63 +178,76 @@ fn configure_window(window: Entity, commands: &mut Commands, asset_server: &Asse
 
                     // User titlebar
                     titlebar = commands
-                        .spawn((Node {
-                            width: percent(100),
-                            height: percent(100),
-                            ..default()
-                        }, Pickable::IGNORE))
+                        .spawn((
+                            Node {
+                                width: percent(100),
+                                height: percent(100),
+                                ..default()
+                            },
+                            Pickable::IGNORE,
+                        ))
                         .id();
 
                     // Window controls
                     commands
-                        .spawn((Node {
-                            width: px(136),
-                            height: percent(100),
-                            right: px(0),
-                            ..default()
-                        }, Pickable::IGNORE))
+                        .spawn((
+                            Node {
+                                width: px(136),
+                                height: percent(100),
+                                right: px(0),
+                                ..default()
+                            },
+                            Pickable::IGNORE,
+                        ))
                         .with_children(|commands| {
                             spawn_titlebar_button(
                                 commands.target_entity(),
                                 &mut commands.commands(),
                                 window,
-                                load_embedded_asset!(
-                                    asset_server,
-                                    "icons/window/minimize.png"
-                            ))
-                            .observe(|_: On<Pointer<Click>>, mut window: Single<&mut Window, With<PrimaryWindow>>| {
-                                window.set_minimized(true);
-                            });
+                                load_embedded_asset!(asset_server, "icons/window/minimize.png"),
+                            )
+                            .observe(
+                                |trigger: On<Pointer<Click>>,
+                                 window_refs: Query<&DecoratedWindowRef>,
+                                 mut windows: Query<&mut Window>|
+                                 -> Result {
+                                    let mut window =
+                                        windows.get_mut(window_refs.get(trigger.entity)?.0)?;
+                                    window.set_minimized(true);
+                                    Ok(())
+                                },
+                            );
 
                             maximize = spawn_titlebar_button(
                                 commands.target_entity(),
                                 &mut commands.commands(),
                                 window,
-                                load_embedded_asset!(
-                                    asset_server,
-                                    "icons/window/maximize.png"
-                            ))
-                            .observe(|trigger: On<Pointer<Click>>,
-                                window_refs: Query<&DecoratedWindowRef>,
-                                mut windows: Query<&mut IsWindowMaximized>|
-                                -> Result {
+                                load_embedded_asset!(asset_server, "icons/window/maximize.png"),
+                            )
+                            .observe(
+                                |trigger: On<Pointer<Click>>,
+                                 window_refs: Query<&DecoratedWindowRef>,
+                                 mut windows: Query<&mut IsWindowMaximized>|
+                                 -> Result {
                                     let mut is_window_maximized =
                                         windows.get_mut(window_refs.get(trigger.entity)?.0)?;
                                     is_window_maximized.0 = !is_window_maximized.0;
                                     Ok(())
                                 },
-                            ).id();
+                            )
+                            .id();
 
                             spawn_titlebar_button(
                                 commands.target_entity(),
                                 &mut commands.commands(),
                                 window,
-                                load_embedded_asset!(
-                                    asset_server,
-                                    "icons/window/close.png"
-                            )).observe(|_: On<Pointer<Click>>, mut exit: MessageWriter<AppExit>| {
-                                exit.write(AppExit::Success);
-                            });
+                                load_embedded_asset!(asset_server, "icons/window/close.png"),
+                            )
+                            .observe(
+                                |_: On<Pointer<Click>>, mut exit: MessageWriter<AppExit>| {
+                                    exit.write(AppExit::Success);
+                                },
+                            );
                         });
                 });
 
@@ -449,22 +466,57 @@ fn spawn_titlebar_button<'a>(
     commands.entity(button)
 }
 
-fn maximize_windows(
-    windows: Query<(&mut Window, &IsWindowMaximized, &DecoratedWindow), Changed<IsWindowMaximized>>,
+fn set_maximize_icon(
+    In((window, is_maximized)): In<(Entity, bool)>,
     children: Query<&Children>,
+    decorated: Query<&DecoratedWindow>,
     mut image_nodes: Query<&mut ImageNode>,
     asset_server: Res<AssetServer>,
 ) -> Result {
-    for (mut window, is_maximized, decorated) in windows {
+    let mut image = image_nodes.get_mut(children.get(decorated.get(window)?.maximize)?[0])?;
+
+    image.image = if is_maximized {
+        load_embedded_asset!(asset_server.as_ref(), "icons/window/restore.png")
+    } else {
+        load_embedded_asset!(asset_server.as_ref(), "icons/window/maximize.png")
+    };
+
+    Ok(())
+}
+
+/// We need exclusive system to access [winit windows](bevy::winit::WINIT_WINDOWS)
+fn check_actually_maximized(
+    world: &mut World,
+    state: &mut SystemState<(Commands, Query<(Entity, &mut IsWindowMaximized)>)>,
+) -> Result {
+    WINIT_WINDOWS.with_borrow(|winit_windows| {
+        let (mut commands, windows) = state.get_mut(world);
+
+        for (window, mut is_maximized) in windows {
+            let Some(winit_window) = winit_windows.get_window(window) else {
+                continue;
+            };
+
+            let is_actually_maximized = winit_window.is_maximized();
+            if is_actually_maximized != is_maximized.0 {
+                is_maximized.bypass_change_detection().0 = is_actually_maximized;
+                commands.run_system_cached_with(set_maximize_icon, (window, is_actually_maximized));
+            }
+        }
+
+        state.apply(world);
+    });
+
+    Ok(())
+}
+
+fn maximize_windows(
+    windows: Query<(Entity, &mut Window, &IsWindowMaximized), Changed<IsWindowMaximized>>,
+    mut commands: Commands,
+) -> Result {
+    for (entity, mut window, is_maximized) in windows {
         window.set_maximized(is_maximized.0);
-
-        let mut image = image_nodes.get_mut(children.get(decorated.maximize)?[0])?;
-
-        image.image = if is_maximized.0 {
-            load_embedded_asset!(asset_server.as_ref(), "icons/window/restore.png")
-        } else {
-            load_embedded_asset!(asset_server.as_ref(), "icons/window/maximize.png")
-        };
+        commands.run_system_cached_with(set_maximize_icon, (entity, is_maximized.0));
     }
 
     Ok(())

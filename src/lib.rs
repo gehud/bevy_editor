@@ -8,6 +8,7 @@ use bevy::{
         tokens::WINDOW_BG,
     },
     prelude::*,
+    winit::WinitPlugin,
 };
 
 use crate::window::{DecoratedWindow, DecoratedWindowPlugin, PrimaryWindowDecorated};
