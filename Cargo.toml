@@ -3,5 +3,11 @@ name = "bevy_editor"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+default = ["custom_cursor"]
+custom_cursor = ["bevy/custom_cursor"]
+
 [dependencies]
-bevy = { version = "0.18.1", features = ["debug", "experimental_bevy_feathers"] }
+bevy = { version = "0.18.1", features = ["debug", "experimental_bevy_ui_widgets"] }
+smol_str = { version = "0.2", default-features = false }
+accesskit = { version = "0.21" }

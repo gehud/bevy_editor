@@ -1,17 +1,22 @@
+pub mod widget;
 mod window;
 
 use bevy::{
-    feathers::{
-        FeathersPlugins,
-        dark_theme::create_dark_theme,
-        theme::{ThemeBackgroundColor, UiTheme},
-        tokens::WINDOW_BG,
+    DefaultPlugins,
+    app::{App, Plugin, PluginGroup},
+    ecs::{
+        error::Result,
+        observer::On,
+        system::{Commands, Query},
     },
-    prelude::*,
-    winit::WinitPlugin,
+    utils::default,
+    window::{Window, WindowPlugin},
 };
 
-use crate::window::{DecoratedWindow, DecoratedWindowPlugin, PrimaryWindowDecorated};
+use crate::{
+    widget::{WidgetPlugins, dark_theme::create_dark_theme, theme::UiTheme},
+    window::{DecoratedWindow, DecoratedWindowPlugin, PrimaryWindowDecorated},
+};
 
 #[derive(Default)]
 pub struct EditorPlugin;
@@ -27,7 +32,7 @@ impl Plugin for EditorPlugin {
             ..default()
         }))
         .add_plugins(DecoratedWindowPlugin)
-        .add_plugins(FeathersPlugins)
+        .add_plugins(WidgetPlugins)
         .insert_resource(UiTheme(create_dark_theme()))
         .add_observer(setup);
     }
@@ -45,9 +50,7 @@ fn setup(
 
     commands
         .entity(decorated_window.content())
-        .with_children(|commands| {
-
-        });
+        .with_children(|commands| {});
 
     Ok(())
 }

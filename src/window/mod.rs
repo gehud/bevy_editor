@@ -1,6 +1,6 @@
 use bevy::{
     app::{App, AppExit, First, Plugin, Update},
-    asset::{AssetServer, Handle, embedded_asset, load_embedded_asset},
+    asset::{AssetServer, Handle, embedded_asset},
     camera::{Camera2d, ClearColor, RenderTarget},
     color::Color,
     ecs::{
@@ -16,13 +16,6 @@ use bevy::{
         system::{Commands, EntityCommands, In, Query, Res, Single, SystemState},
         world::World,
     },
-    feathers::{
-        cursor::EntityCursor,
-        palette,
-        rounded_corners::RoundedCorners,
-        theme::{ThemeBackgroundColor, ThemeBorderColor},
-        tokens::{RADIO_BORDER, WINDOW_BG},
-    },
     image::Image,
     math::CompassOctant,
     picking::{
@@ -30,12 +23,20 @@ use bevy::{
         events::{Click, Out, Over, Pointer, Press},
     },
     ui::{
-        AlignItems, BackgroundColor, FlexDirection, JustifyContent, Node, OverflowClipMargin,
-        PositionType, UiRect, UiTargetCamera, Val, ZIndex, percent, px, widget::ImageNode,
+        AlignItems, BackgroundColor, FlexDirection, JustifyContent, Node, PositionType, UiRect,
+        UiTargetCamera, Val, percent, px, widget::ImageNode,
     },
     utils::default,
     window::{PrimaryWindow, SystemCursorIcon, Window, WindowRef},
     winit::WINIT_WINDOWS,
+};
+
+use crate::widget::{
+    cursor::EntityCursor,
+    palette,
+    rounded_corners::RoundedCorners,
+    theme::{ThemeBackgroundColor, ThemeBorderColor},
+    tokens::{RADIO_BORDER, WINDOW_BG},
 };
 
 pub const WINDOW_RESIZE_GRIP_SIZE: f32 = 5.0;
@@ -50,10 +51,10 @@ impl Plugin for DecoratedWindowPlugin {
             .add_systems(Update, configure_windows)
             .add_systems(Update, maximize_windows);
 
-        embedded_asset!(app, "icons/window/close.png");
-        embedded_asset!(app, "icons/window/maximize.png");
-        embedded_asset!(app, "icons/window/minimize.png");
-        embedded_asset!(app, "icons/window/restore.png");
+        embedded_asset!(app, "src/window", "assets/window/icons/close.png");
+        embedded_asset!(app, "src/window", "assets/window/icons/maximize.png");
+        embedded_asset!(app, "src/window", "assets/window/icons/minimize.png");
+        embedded_asset!(app, "src/window", "assets/window/icons/restore.png");
     }
 }
 
@@ -203,7 +204,8 @@ fn configure_window(window: Entity, commands: &mut Commands, asset_server: &Asse
                             commands.target_entity(),
                             &mut commands.commands(),
                             window,
-                            load_embedded_asset!(asset_server, "icons/window/minimize.png"),
+                            asset_server
+                                .load("embedded://bevy_editor/assets/window/icons/minimize.png"),
                         )
                         .observe(
                             |trigger: On<Pointer<Click>>,
@@ -221,7 +223,8 @@ fn configure_window(window: Entity, commands: &mut Commands, asset_server: &Asse
                             commands.target_entity(),
                             &mut commands.commands(),
                             window,
-                            load_embedded_asset!(asset_server, "icons/window/maximize.png"),
+                            asset_server
+                                .load("embedded://bevy_editor/assets/window/icons/maximize.png"),
                         )
                         .observe(
                             |trigger: On<Pointer<Click>>,
@@ -240,7 +243,8 @@ fn configure_window(window: Entity, commands: &mut Commands, asset_server: &Asse
                             commands.target_entity(),
                             &mut commands.commands(),
                             window,
-                            load_embedded_asset!(asset_server, "icons/window/close.png"),
+                            asset_server
+                                .load("embedded://bevy_editor/assets/window/icons/close.png"),
                         )
                         .observe(
                             |_: On<Pointer<Click>>, mut exit: MessageWriter<AppExit>| {
@@ -469,9 +473,9 @@ fn set_maximize_style(
     let mut image = image_nodes.get_mut(children.get(decorated.maximize)?[0])?;
 
     image.image = if is_maximized {
-        load_embedded_asset!(asset_server.as_ref(), "icons/window/restore.png")
+        asset_server.load("embedded://bevy_editor/assets/window/icons/restore.png")
     } else {
-        load_embedded_asset!(asset_server.as_ref(), "icons/window/maximize.png")
+        asset_server.load("embedded://bevy_editor/assets/window/icons/maximize.png")
     };
 
     let border_radius = if is_maximized {
