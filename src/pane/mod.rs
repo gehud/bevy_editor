@@ -1,9 +1,12 @@
 use bevy::{
     app::{App, Plugin, Update},
+    asset::AssetServer,
     ecs::{
+        bundle::Bundle,
+        children,
         component::Component,
         entity::Entity,
-        error::{BevyError, Result},
+        error::Result,
         event::EntityEvent,
         hierarchy::{ChildOf, Children},
         lifecycle::Add,
@@ -12,7 +15,8 @@ use bevy::{
         resource::Resource,
         schedule::IntoScheduleConfigs,
         system::{
-            BoxedSystem, Commands, EntityCommands, In, IntoSystem, Local, Query, ResMut, SystemId,
+            BoxedSystem, Commands, EntityCommands, In, IntoSystem, Local, Query, Res, ResMut,
+            SystemId,
         },
         world::{Mut, World},
     },
@@ -22,14 +26,23 @@ use bevy::{
         pointer::PointerButton,
     },
     platform::collections::HashMap,
-    ui::{ComputedNode, FlexDirection, Node, UiRect, Val, ZIndex, percent, px},
+    text::TextFont,
+    ui::{
+        AlignItems, ComputedNode, FlexDirection, JustifyContent, Node, UiRect, percent, px,
+        widget::Text,
+    },
     utils::default,
     window::SystemCursorIcon,
 };
 
 use crate::widget::{
-    cursor::EntityCursor, rounded_corners::RoundedCorners, theme::ThemeBackgroundColor,
-    tokens::PANE_BG,
+    constants::fonts::REGULAR,
+    cursor::EntityCursor,
+    font_styles::InheritableFont,
+    palette::ACCENT,
+    rounded_corners::RoundedCorners,
+    theme::{ThemeBackgroundColor, ThemeBorderColor, ThemeFontColor},
+    tokens::{PANE_BG, PANE_TAB_ACTIVE, TEXT_MAIN, WINDOW_BG},
 };
 
 pub const PANE_BORDER_RADIUS: f32 = 6.0;
@@ -42,81 +55,161 @@ impl Plugin for PanePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<PaneRegistry>()
             .init_resource::<DragState>()
-            .add_systems(Update, on_pane_creation)
+            // .add_systems(Update, on_show_tab)
             .add_systems(Update, (cleanup_divider_single_child, apply_size).chain())
             .add_observer(init);
     }
 }
 
 #[derive(Component)]
-pub struct PaneLayoutRoot;
+pub(crate) struct PaneLayoutRoot;
 
 #[derive(Component)]
-struct PaneRootNode {
-    name: String,
+struct PaneTab {
+    root: Entity,
+    tab: String,
 }
 
 fn spawn_pane<'a>(
     commands: &'a mut Commands,
+    asset_server: &AssetServer,
     size: f32,
-    name: impl Into<String>,
+    tabs: Vec<String>,
 ) -> EntityCommands<'a> {
-    let name: String = name.into();
+    let root = commands.spawn((Node::default(), Size(size))).id();
 
-    let root = commands
+    commands
         .spawn((
-            Node::default(),
-            Size(size),
-            PaneRootNode { name: name.clone() },
+            ChildOf(root),
+            Node {
+                width: percent(100),
+                height: percent(100),
+                flex_direction: FlexDirection::Column,
+                border_radius: RoundedCorners::All.to_border_radius(PANE_BORDER_RADIUS),
+                ..default()
+            },
+            ThemeBackgroundColor(PANE_BG),
         ))
-        .id();
+        .with_children(|commands| {
+            // Tabbar
+            commands
+                .spawn((
+                    Node {
+                        width: percent(100),
+                        height: px(30),
+                        padding: UiRect::top(px(1)).with_left(px(6)).with_right(px(8)),
+                        border: UiRect::horizontal(px(1)).with_top(px(1)),
+                        border_radius: RoundedCorners::Top.to_border_radius(PANE_BORDER_RADIUS),
+                        justify_content: JustifyContent::SpaceBetween,
+                        ..default()
+                    },
+                    ThemeBackgroundColor(WINDOW_BG),
+                    ThemeBorderColor(PANE_BG),
+                ))
+                .with_children(|commands| {
+                    // Tab group
+                    commands
+                        .spawn(Node {
+                            column_gap: px(5),
+                            height: percent(100),
+                            ..default()
+                        })
+                        .with_children(|commands| {
+                            let group = commands.target_entity();
+                            let mut first = true;
+                            for tab in tabs {
+                                spawn_tab(commands.commands_mut(), asset_server, tab, first)
+                                    .insert(ChildOf(group));
+                                first = false;
+                            }
+                        });
 
-    commands.spawn((
-        ChildOf(root),
-        Node {
-            width: percent(100),
-            height: percent(100),
-            border_radius: RoundedCorners::All.to_border_radius(PANE_BORDER_RADIUS),
-            ..default()
-        },
-        ThemeBackgroundColor(PANE_BG),
-    ));
+                    // Menu
+                    commands.spawn(Node {
+                        width: px(12),
+                        height: px(12),
+                        ..default()
+                    });
+                });
+
+            // Content area
+            commands.spawn(Node {
+                width: percent(100),
+                height: percent(100),
+                padding: UiRect::all(px(6)),
+                ..default()
+            });
+        });
 
     commands.entity(root).insert(PaneStructure { root });
 
     commands.entity(root)
 }
 
-fn on_pane_creation(
-    world: &mut World,
-    roots_query: &mut QueryState<Entity, Added<PaneRootNode>>,
-    pane_root_node_query: &mut QueryState<(&PaneRootNode, &PaneStructure)>,
-    mut system_ids: Local<HashMap<String, SystemId<In<PaneStructure>>>>,
-) {
-    let roots: Vec<_> = roots_query.iter(world).collect();
-    for entity in roots {
-        world.resource_scope(|world, mut pane_registry: Mut<PaneRegistry>| {
-            let (pane_root, &structure) = pane_root_node_query.get(world, entity).unwrap();
-            let pane = pane_registry
-                .panes
-                .iter_mut()
-                .find(|pane| pane.name == pane_root.name);
+fn spawn_tab<'a>(
+    commands: &'a mut Commands,
+    asset_server: &AssetServer,
+    tab: String,
+    active: bool,
+) -> EntityCommands<'a> {
+    let root = commands
+        .spawn((
+            Node {
+                height: percent(100),
+                padding: UiRect::horizontal(px(8)),
+                border: UiRect::top(px(2)),
+                align_items: AlignItems::Center,
+                ..default()
+            },
+            ThemeBackgroundColor(if active { PANE_BG } else { WINDOW_BG }),
+            ThemeBorderColor(if active { PANE_TAB_ACTIVE } else { WINDOW_BG }),
+        ))
+        .id();
 
-            if let Some(pane) = pane {
-                let id = system_ids.entry(pane.name.clone()).or_insert_with(|| {
-                    world.register_boxed_system(pane.creation_callback.take().unwrap())
-                });
+    commands.spawn((
+        ChildOf(root),
+        Text::new(tab),
+        TextFont {
+            font: asset_server.load(REGULAR),
+            font_size: 12.0,
+            ..default()
+        },
+        ThemeFontColor(TEXT_MAIN),
+    ));
 
-                world.run_system_with(*id, structure).unwrap();
-            } else {
-                warn!(
-                    "No pane found in the registry with name: '{}'",
-                    pane_root.name
-                );
-            }
-        });
-    }
+    commands.entity(root)
 }
+
+// fn on_show_tab(
+//     world: &mut World,
+//     roots_query: &mut QueryState<Entity, Added<PaneRoot>>,
+//     pane_root_node_query: &mut QueryState<(&PaneRoot, &PaneStructure)>,
+//     mut system_ids: Local<HashMap<String, SystemId<In<PaneStructure>>>>,
+// ) {
+//     let roots: Vec<_> = roots_query.iter(world).collect();
+//     for entity in roots {
+//         world.resource_scope(|world, mut pane_registry: Mut<PaneRegistry>| {
+//             let (pane_root, &structure) = pane_root_node_query.get(world, entity).unwrap();
+//             let pane = pane_registry
+//                 .panes
+//                 .iter_mut()
+//                 .find(|pane| pane.name == pane_root.name);
+
+//             if let Some(pane) = pane {
+//                 let id = system_ids.entry(pane.name.clone()).or_insert_with(|| {
+//                     world.register_boxed_system(pane.creation_callback.take().unwrap())
+//                 });
+
+//                 world.run_system_with(*id, structure).unwrap();
+//             } else {
+//                 warn!(
+//                     "No pane found in the registry with name: '{}'",
+//                     pane_root.name
+//                 );
+//             }
+//         });
+//     }
+// }
 
 #[derive(Component, Clone, Copy)]
 pub struct PaneStructure {
@@ -237,7 +330,6 @@ fn apply_size(
     Ok(())
 }
 
-/// A node that divides an area into multiple areas along an axis.
 #[derive(Component, Clone, Copy, PartialEq, Eq)]
 enum Divider {
     Horizontal,
@@ -247,7 +339,6 @@ enum Divider {
 #[derive(Component)]
 struct ResizeHandle;
 
-/// The fraction of space this element takes up in the [`Divider`] it's a child of.
 #[derive(Component)]
 struct Size(f32);
 
@@ -390,7 +481,7 @@ fn spawn_resize_handle<'a>(commands: &'a mut Commands, divider: Divider) -> Enti
     handle
 }
 
-fn init(trigger: On<Add, PaneLayoutRoot>, mut commands: Commands) {
+fn init(trigger: On<Add, PaneLayoutRoot>, mut commands: Commands, asset_server: Res<AssetServer>) {
     let root = trigger.entity;
 
     let divider = spawn_divider(&mut commands, Divider::Horizontal, 1.)
@@ -401,9 +492,11 @@ fn init(trigger: On<Add, PaneLayoutRoot>, mut commands: Commands) {
         .insert(ChildOf(divider))
         .id();
 
-    spawn_pane(&mut commands, 0.4, "Scene Tree").insert(ChildOf(sub_divider));
+    spawn_pane(&mut commands, &asset_server, 0.4, vec!["Scene Tree".into()])
+        .insert(ChildOf(sub_divider));
     spawn_resize_handle(&mut commands, Divider::Vertical).insert(ChildOf(sub_divider));
-    spawn_pane(&mut commands, 0.6, "Properties").insert(ChildOf(sub_divider));
+    spawn_pane(&mut commands, &asset_server, 0.6, vec!["Properties".into()])
+        .insert(ChildOf(sub_divider));
 
     spawn_resize_handle(&mut commands, Divider::Horizontal).insert(ChildOf(divider));
 
@@ -411,7 +504,19 @@ fn init(trigger: On<Add, PaneLayoutRoot>, mut commands: Commands) {
         .insert(ChildOf(divider))
         .id();
 
-    spawn_pane(&mut commands, 0.70, "Viewport 3D").insert(ChildOf(asset_browser_divider));
+    spawn_pane(
+        &mut commands,
+        &asset_server,
+        0.70,
+        vec!["Viewport 3D".into()],
+    )
+    .insert(ChildOf(asset_browser_divider));
     spawn_resize_handle(&mut commands, Divider::Vertical).insert(ChildOf(asset_browser_divider));
-    spawn_pane(&mut commands, 0.30, "Asset Browser").insert(ChildOf(asset_browser_divider));
+    spawn_pane(
+        &mut commands,
+        &asset_server,
+        0.30,
+        vec!["Asset Browser".into()],
+    )
+    .insert(ChildOf(asset_browser_divider));
 }

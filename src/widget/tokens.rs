@@ -13,6 +13,7 @@ pub const WINDOW_BG: ThemeToken = ThemeToken::new_static("editor.window.bg");
 pub const BORDER: ThemeToken = ThemeToken::new_static("editor.border");
 
 pub const PANE_BG: ThemeToken = ThemeToken::new_static("pane.bg");
+pub const PANE_TAB_ACTIVE: ThemeToken = ThemeToken::new_static("pane.tab.active");
 
 /// Focus ring
 pub const FOCUS_RING: ThemeToken = ThemeToken::new_static("editor.focus");

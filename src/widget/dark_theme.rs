@@ -11,7 +11,12 @@ pub fn create_dark_theme() -> ThemeProps {
         color: HashMap::from([
             (tokens::WINDOW_BG, palette::GRAY_0),
             (tokens::BORDER, palette::WARM_GRAY_1),
+            // Pane
             (tokens::PANE_BG, palette::GRAY_1),
+            (tokens::PANE_TAB_ACTIVE, palette::ACCENT),
+            // Text
+            (tokens::TEXT_MAIN, palette::LIGHT_GRAY_1),
+            (tokens::TEXT_DIM, palette::LIGHT_GRAY_2),
             // Button
             (tokens::BUTTON_BG, palette::GRAY_3),
             (tokens::BUTTON_BG_HOVER, palette::GRAY_3.lighter(0.05)),

@@ -7,7 +7,6 @@ use bevy::{
     app::{App, Plugin, PluginGroup},
     ecs::{
         error::Result,
-        hierarchy::ChildOf,
         observer::On,
         system::{Commands, Query},
     },
