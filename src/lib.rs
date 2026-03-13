@@ -36,21 +36,17 @@ impl Plugin for EditorPlugin {
 fn setup(
     trigger: On<PrimaryWindowDecorated>,
     decorated_windows: Query<&DecoratedWindow>,
+    mut windows: Query<&mut Window>,
     mut commands: Commands,
 ) -> Result {
+    windows.get_mut(trigger.entity)?.set_maximized(true);
+
     let decorated_window = decorated_windows.get(trigger.entity)?;
 
     commands
         .entity(decorated_window.content())
         .with_children(|commands| {
-            commands.spawn((
-                Node {
-                    width: percent(100),
-                    height: percent(100),
-                    ..default()
-                },
-                ThemeBackgroundColor(WINDOW_BG),
-            ));
+
         });
 
     Ok(())
