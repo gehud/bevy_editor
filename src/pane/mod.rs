@@ -45,7 +45,7 @@ use crate::{
         palette::ACCENT,
         tokens::{PANE_BG, PANE_TAB_ACTIVE, TEXT_MAIN, WINDOW_BG},
     },
-    widget::EntityCursor,
+    widget::{EntityCursor, OverrideCursor},
     window::DecoratedWindow,
 };
 
@@ -128,7 +128,8 @@ fn spawn_pane<'a>(
                                     .insert(ChildOf(group))
                                     .observe(on_tab_drag_start)
                                     .observe(on_tab_drag)
-                                    .observe(on_tab_drag_end);
+                                    .observe(on_tab_drag_end)
+                                    .observe(on_tab_drag_cancel);
 
                                 first = false;
                             }
@@ -157,9 +158,7 @@ fn spawn_pane<'a>(
 }
 
 #[derive(Component)]
-struct TabDragIndicator {
-    root: Entity,
-}
+struct TabDragIndicator;
 
 fn on_tab_drag_start(
     trigger: On<Pointer<DragStart>>,
@@ -167,6 +166,7 @@ fn on_tab_drag_start(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     tabs: Query<&PaneTab>,
+    mut override_cursor: ResMut<OverrideCursor>,
 ) -> Result {
     let NormalizedRenderTarget::Window(window) = trigger.pointer_location.target else {
         return Ok(());
@@ -176,23 +176,6 @@ fn on_tab_drag_start(
         return Ok(());
     };
 
-    let root = commands
-        .spawn((
-            ChildOf(decorated.root()),
-            Node {
-                width: percent(100),
-                height: percent(100),
-                position_type: PositionType::Absolute,
-                ..default()
-            },
-            Pickable {
-                should_block_lower: false,
-                ..default()
-            },
-            EntityCursor::System(SystemCursorIcon::Grabbing),
-        ))
-        .id();
-
     let tab = tabs.get(trigger.event_target())?;
     spawn_tab(
         &mut commands,
@@ -201,15 +184,17 @@ fn on_tab_drag_start(
         tab.tab.clone(),
         true,
     )
-    .insert(ChildOf(root))
+    .insert(ChildOf(decorated.root()))
     .insert(Pickable::IGNORE)
-    .insert(TabDragIndicator { root })
+    .insert(TabDragIndicator)
     .entry::<Node>()
     .and_modify(|mut node| {
         node.position_type = PositionType::Absolute;
         node.border = UiRect::all(px(2));
         node.border_radius = RoundedCorners::All.to_border_radius(2.0);
     });
+
+    override_cursor.0 = Some(EntityCursor::System(SystemCursorIcon::Grabbing));
 
     Ok(())
 }
@@ -224,10 +209,22 @@ fn on_tab_drag(
 
 fn on_tab_drag_end(
     _: On<Pointer<DragEnd>>,
-    indicator: Single<&TabDragIndicator>,
+    indicator: Single<Entity, With<TabDragIndicator>>,
     mut commands: Commands,
+    mut override_cursor: ResMut<OverrideCursor>,
 ) {
-    commands.entity(indicator.root).despawn();
+    commands.entity(*indicator).despawn();
+    override_cursor.0 = None;
+}
+
+fn on_tab_drag_cancel(
+    _: On<Pointer<Cancel>>,
+    indicator: Single<Entity, With<TabDragIndicator>>,
+    mut commands: Commands,
+    mut override_cursor: ResMut<OverrideCursor>,
+) {
+    commands.entity(*indicator).despawn();
+    override_cursor.0 = None;
 }
 
 fn spawn_tab<'a>(
@@ -474,8 +471,8 @@ fn spawn_resize_handle<'a>(commands: &'a mut Commands, divider: Divider) -> Enti
             },
             ..default()
         },
-        ResizeHandle,
         EntityCursor::System(cursor_icon),
+        ResizeHandle,
     ));
 
     handle
@@ -485,11 +482,14 @@ fn spawn_resize_handle<'a>(commands: &'a mut Commands, divider: Divider) -> Enti
                   parents: Query<&ChildOf>,
                   children: Query<&Children>,
                   computed_nodes: Query<&ComputedNode>,
-                  sizes: Query<&Size>|
+                  sizes: Query<&Size>,
+                  mut override_cursor: ResMut<OverrideCursor>|
                   -> Result {
                 if trigger.button != PointerButton::Primary {
                     return Ok(());
                 }
+
+                override_cursor.0 = Some(EntityCursor::System(cursor_icon));
 
                 drag_state.is_dragging = true;
 
@@ -511,7 +511,7 @@ fn spawn_resize_handle<'a>(commands: &'a mut Commands, divider: Divider) -> Enti
                 let size_a = sizes.get(siblings[index - 1])?.0;
                 let size_b = sizes.get(siblings[index + 1])?.0;
 
-                drag_state.offset = 0.;
+                drag_state.offset = 0.0;
                 drag_state.min = (-size_a * parent_node_size) + MIN_PANE_SIZE;
                 drag_state.max = (size_b * parent_node_size) - MIN_PANE_SIZE;
                 drag_state.parent_node_size = parent_node_size;
@@ -562,15 +562,21 @@ fn spawn_resize_handle<'a>(commands: &'a mut Commands, divider: Divider) -> Enti
             },
         )
         .observe(
-            move |_: On<Pointer<DragEnd>>, mut drag_state: ResMut<DragState>| {
+            |_: On<Pointer<DragEnd>>,
+             mut drag_state: ResMut<DragState>,
+             mut override_cursor: ResMut<OverrideCursor>| {
+                override_cursor.0 = None;
                 drag_state.is_dragging = false;
-                drag_state.offset = 0.;
+                drag_state.offset = 0.0;
             },
         )
         .observe(
-            |_: On<Pointer<Cancel>>, mut drag_state: ResMut<DragState>| {
+            |_: On<Pointer<Cancel>>,
+             mut drag_state: ResMut<DragState>,
+             mut override_cursor: ResMut<OverrideCursor>| {
+                override_cursor.0 = None;
                 drag_state.is_dragging = false;
-                drag_state.offset = 0.;
+                drag_state.offset = 0.0;
             },
         );
 
