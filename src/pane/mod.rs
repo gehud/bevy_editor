@@ -1,11 +1,13 @@
+use accesskit::Point;
 use bevy::{
     app::{App, Plugin, Update},
     asset::AssetServer,
+    camera::NormalizedRenderTarget,
     ecs::{
         bundle::Bundle,
         children,
         component::Component,
-        entity::Entity,
+        entity::{ContainsEntity, Entity},
         error::Result,
         event::EntityEvent,
         hierarchy::{ChildOf, Children},
@@ -16,21 +18,21 @@ use bevy::{
         schedule::IntoScheduleConfigs,
         system::{
             BoxedSystem, Commands, EntityCommands, In, IntoSystem, Local, Query, Res, ResMut,
-            SystemId,
+            Single, SystemId,
         },
         world::{Mut, World},
     },
     log::{info, warn},
     picking::{
         Pickable,
-        events::{Cancel, Drag, DragEnd, DragStart, Pointer},
+        events::{Cancel, Drag, DragDrop, DragEnd, DragOver, DragStart, Pointer},
         pointer::PointerButton,
     },
     platform::collections::HashMap,
     text::TextFont,
     ui::{
         AlignItems, ComputedNode, FlexDirection, JustifyContent, Node, Overflow,
-        OverflowClipMargin, UiRect, percent, px, widget::Text,
+        OverflowClipMargin, PositionType, UiRect, percent, px, widget::Text,
     },
     utils::default,
     window::SystemCursorIcon,
@@ -44,6 +46,7 @@ use crate::{
         tokens::{PANE_BG, PANE_TAB_ACTIVE, TEXT_MAIN, WINDOW_BG},
     },
     widget::EntityCursor,
+    window::DecoratedWindow,
 };
 
 pub const PANE_BORDER_RADIUS: f32 = 6.0;
@@ -98,7 +101,7 @@ fn spawn_pane<'a>(
                     Node {
                         width: percent(100),
                         height: px(30),
-                        padding: UiRect::top(px(1)).with_left(px(6)).with_right(px(8)),
+                        padding: UiRect::left(px(6)).with_right(px(8)),
                         overflow: Overflow::clip(),
                         border: UiRect::horizontal(px(1)).with_top(px(1)),
                         flex_shrink: 0.0,
@@ -122,7 +125,11 @@ fn spawn_pane<'a>(
                             let mut first = true;
                             for tab in tabs {
                                 spawn_tab(commands.commands_mut(), asset_server, root, tab, first)
-                                    .insert(ChildOf(group));
+                                    .insert(ChildOf(group))
+                                    .observe(on_tab_drag_start)
+                                    .observe(on_tab_drag)
+                                    .observe(on_tab_drag_end);
+
                                 first = false;
                             }
                         });
@@ -149,10 +156,78 @@ fn spawn_pane<'a>(
     commands.entity(root)
 }
 
-#[derive(Resource)]
-struct DraggedTab {
-    pane: Entity,
-    tab: Entity,
+#[derive(Component)]
+struct TabDragIndicator {
+    root: Entity,
+}
+
+fn on_tab_drag_start(
+    trigger: On<Pointer<DragStart>>,
+    decorated: Query<&DecoratedWindow>,
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    tabs: Query<&PaneTab>,
+) -> Result {
+    let NormalizedRenderTarget::Window(window) = trigger.pointer_location.target else {
+        return Ok(());
+    };
+
+    let Ok(decorated) = decorated.get(window.entity()) else {
+        return Ok(());
+    };
+
+    let root = commands
+        .spawn((
+            ChildOf(decorated.root()),
+            Node {
+                width: percent(100),
+                height: percent(100),
+                position_type: PositionType::Absolute,
+                ..default()
+            },
+            Pickable {
+                should_block_lower: false,
+                ..default()
+            },
+            EntityCursor::System(SystemCursorIcon::Grabbing),
+        ))
+        .id();
+
+    let tab = tabs.get(trigger.event_target())?;
+    spawn_tab(
+        &mut commands,
+        &asset_server,
+        tab.pane,
+        tab.tab.clone(),
+        true,
+    )
+    .insert(ChildOf(root))
+    .insert(Pickable::IGNORE)
+    .insert(TabDragIndicator { root })
+    .entry::<Node>()
+    .and_modify(|mut node| {
+        node.position_type = PositionType::Absolute;
+        node.border = UiRect::all(px(2));
+        node.border_radius = RoundedCorners::All.to_border_radius(2.0);
+    });
+
+    Ok(())
+}
+
+fn on_tab_drag(
+    trigger: On<Pointer<Drag>>,
+    mut indicator: Single<&mut Node, With<TabDragIndicator>>,
+) {
+    indicator.left = px(trigger.pointer_location.position.x);
+    indicator.top = px(trigger.pointer_location.position.y);
+}
+
+fn on_tab_drag_end(
+    _: On<Pointer<DragEnd>>,
+    indicator: Single<&TabDragIndicator>,
+    mut commands: Commands,
+) {
+    commands.entity(indicator.root).despawn();
 }
 
 fn spawn_tab<'a>(
@@ -169,9 +244,10 @@ fn spawn_tab<'a>(
                 tab: tab.clone(),
             },
             Node {
-                height: percent(100),
+                height: px(30),
                 padding: UiRect::horizontal(px(8)),
                 border: UiRect::top(px(2)),
+                border_radius: RoundedCorners::Top.to_border_radius(2.0),
                 align_items: AlignItems::Center,
                 ..default()
             },
@@ -183,9 +259,6 @@ fn spawn_tab<'a>(
             },
             EntityCursor::System(SystemCursorIcon::Pointer),
         ))
-        .observe(|_: On<Pointer<DragStart>>| {
-            info!("Start drag");
-        })
         .id();
 
     commands.spawn((

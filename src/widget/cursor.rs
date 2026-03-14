@@ -1,18 +1,18 @@
 //! Provides a way to automatically set the mouse cursor based on hovered entity.
+
 use bevy::app::{App, Plugin, PreUpdate};
 use bevy::ecs::{
     component::Component,
     entity::Entity,
-    hierarchy::ChildOf,
     query::{With, Without},
     reflect::{ReflectComponent, ReflectResource},
     resource::Resource,
     schedule::IntoScheduleConfigs,
     system::{Commands, Query, Res},
 };
-use bevy::picking::{hover::HoverMap, pointer::PointerId, PickingSystems};
+use bevy::picking::{PickingSystems, hover::HoverMap, pointer::PointerId};
 use bevy::prelude::Deref;
-use bevy::reflect::{std_traits::ReflectDefault, Reflect};
+use bevy::reflect::{Reflect, std_traits::ReflectDefault};
 #[cfg(feature = "custom_cursor")]
 use bevy::window::CustomCursor;
 use bevy::window::{CursorIcon, SystemCursorIcon, Window};
@@ -84,7 +84,6 @@ impl Default for EntityCursor {
 pub(crate) fn update_cursor(
     mut commands: Commands,
     hover_map: Option<Res<HoverMap>>,
-    parent_query: Query<&ChildOf>,
     cursor_query: Query<&EntityCursor, Without<Window>>,
     q_windows: Query<(Entity, Option<&CursorIcon>), With<Window>>,
     r_default_cursor: Res<DefaultCursor>,
@@ -93,13 +92,13 @@ pub(crate) fn update_cursor(
     let cursor = r_override_cursor.0.as_ref().unwrap_or_else(|| {
         hover_map
             .and_then(|hover_map| match hover_map.get(&PointerId::Mouse) {
-                Some(hover_set) => hover_set.keys().find_map(|entity| {
-                    cursor_query.get(*entity).ok().or_else(|| {
-                        parent_query
-                            .iter_ancestors(*entity)
-                            .find_map(|e| cursor_query.get(e).ok())
-                    })
-                }),
+                Some(hover_set) => {
+                    let mut hover_set = hover_set.iter().collect::<Vec<_>>();
+                    hover_set.sort_by(|a, b| a.1.depth.total_cmp(&b.1.depth));
+                    hover_set
+                        .iter()
+                        .find_map(|(entity, _)| cursor_query.get(**entity).ok())
+                }
                 None => None,
             })
             .unwrap_or(&r_default_cursor)
