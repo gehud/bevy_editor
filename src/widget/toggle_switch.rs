@@ -15,16 +15,14 @@ use bevy::ecs::{
     world::Mut,
 };
 use bevy::input_focus::tab_navigation::TabIndex;
-use bevy::picking::{hover::Hovered, PickingSystems};
-use bevy::reflect::{prelude::ReflectDefault, Reflect};
+use bevy::picking::{PickingSystems, hover::Hovered};
+use bevy::reflect::{Reflect, prelude::ReflectDefault};
 use bevy::ui::{BorderRadius, Checked, InteractionDisabled, Node, PositionType, UiRect, Val};
 use bevy::ui_widgets::Checkbox;
 
-use crate::widget::{
-    constants::size,
-    cursor::EntityCursor,
-    theme::{ThemeBackgroundColor, ThemeBorderColor},
-    tokens,
+use crate::{
+    theme::{ThemeBackgroundColor, ThemeBorderColor, constants::size, tokens},
+    widget::EntityCursor,
 };
 
 /// Marker for the toggle switch outline

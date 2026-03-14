@@ -12,19 +12,18 @@ use bevy::ecs::{
     system::{Commands, Query},
 };
 use bevy::input_focus::tab_navigation::TabIndex;
-use bevy::picking::{hover::Hovered, PickingSystems};
-use bevy::reflect::{prelude::ReflectDefault, Reflect};
+use bevy::picking::{PickingSystems, hover::Hovered};
+use bevy::reflect::{Reflect, prelude::ReflectDefault};
 use bevy::ui::{AlignItems, InteractionDisabled, JustifyContent, Node, Pressed, UiRect, Val};
 use bevy::ui_widgets::Button;
 
-use crate::widget::{
-    constants::{fonts, size},
-    cursor::EntityCursor,
-    font_styles::InheritableFont,
-    handle_or_path::HandleOrPath,
-    rounded_corners::RoundedCorners,
-    theme::{ThemeBackgroundColor, ThemeFontColor},
-    tokens,
+use crate::{
+    theme::{
+        HandleOrPath, InheritableFont, RoundedCorners, ThemeBackgroundColor, ThemeFontColor,
+        constants::{fonts, size},
+        tokens,
+    },
+    widget::EntityCursor,
 };
 
 /// Color variants for buttons. This also functions as a component used by the dynamic styling

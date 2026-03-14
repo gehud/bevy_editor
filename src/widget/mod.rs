@@ -18,59 +18,67 @@
 //! Please report issues, submit fixes and propose changes.
 //! Thanks for stress-testing; let's build something better together.
 
-use bevy::app::{
-    HierarchyPropagatePlugin, Plugin, PluginGroup, PluginGroupBuilder, PostUpdate, PropagateSet,
-};
+use bevy::app::{Plugin, PluginGroup, PluginGroupBuilder, PostUpdate, PropagateSet};
 use bevy::asset::embedded_asset;
-use bevy::ecs::{query::With, schedule::IntoScheduleConfigs};
-use bevy::input_focus::{tab_navigation::TabNavigationPlugin, InputDispatchPlugin};
-use bevy::text::{TextColor, TextFont};
+use bevy::ecs::schedule::IntoScheduleConfigs;
+use bevy::input_focus::{InputDispatchPlugin, tab_navigation::TabNavigationPlugin};
+use bevy::text::TextFont;
 use bevy::ui::UiSystems;
 use bevy::ui_render::UiMaterialPlugin;
 use bevy::ui_widgets::UiWidgetsPlugins;
 
-use crate::widget::{
-    alpha_pattern::{AlphaPatternMaterial, AlphaPatternResource},
-    controls::ControlsPlugin,
-    cursor::{CursorIconPlugin, DefaultCursor, EntityCursor},
-    theme::{ThemedText, UiTheme},
-};
-
 mod alpha_pattern;
-pub mod constants;
-pub mod controls;
-pub mod cursor;
-pub mod dark_theme;
-pub mod font_styles;
-pub mod handle_or_path;
-pub mod palette;
-pub mod rounded_corners;
-pub mod theme;
-pub mod tokens;
+mod button;
+mod checkbox;
+mod color_plane;
+mod color_slider;
+mod color_swatch;
+mod cursor;
+mod radio;
+mod slider;
+mod toggle_switch;
+mod virtual_keyboard;
+
+pub use alpha_pattern::*;
+pub use button::*;
+pub use checkbox::*;
+pub use color_plane::*;
+pub use color_slider::*;
+pub use color_swatch::*;
+pub use cursor::*;
+pub use radio::*;
+pub use slider::*;
+pub use toggle_switch::*;
+pub use virtual_keyboard::*;
+
+use crate::widget::alpha_pattern::{
+    AlphaPatternMaterial, AlphaPatternPlugin, AlphaPatternResource,
+};
 
 /// Plugin which installs observers and systems for editor themes, cursors, and all controls.
 pub struct WidgetPlugin;
 
 impl Plugin for WidgetPlugin {
     fn build(&self, app: &mut bevy::app::App) {
-        app.init_resource::<UiTheme>();
-
-        // Embedded font
-        embedded_asset!(app, "src/widget", "assets/widget/fonts/FiraSans-Bold.ttf");
-        embedded_asset!(app, "src/widget", "assets/widget/fonts/FiraSans-BoldItalic.ttf");
-        embedded_asset!(app, "src/widget", "assets/widget/fonts/FiraSans-Regular.ttf");
-        embedded_asset!(app, "src/widget", "assets/widget/fonts/FiraSans-Italic.ttf");
-        embedded_asset!(app, "src/widget", "assets/widget/fonts/FiraMono-Medium.ttf");
-
         // Embedded shader
-        embedded_asset!(app, "src/widget", "assets/widget/shaders/alpha_pattern.wgsl");
+        embedded_asset!(
+            app,
+            "src/widget",
+            "assets/widget/shaders/alpha_pattern.wgsl"
+        );
         embedded_asset!(app, "src/widget", "assets/widget/shaders/color_plane.wgsl");
 
         app.add_plugins((
-            ControlsPlugin,
+            AlphaPatternPlugin,
+            ButtonPlugin,
+            CheckboxPlugin,
+            ColorPlanePlugin,
+            ColorSliderPlugin,
+            ColorSwatchPlugin,
+            RadioPlugin,
+            SliderPlugin,
+            ToggleSwitchPlugin,
             CursorIconPlugin,
-            HierarchyPropagatePlugin::<TextColor, With<ThemedText>>::new(PostUpdate),
-            HierarchyPropagatePlugin::<TextFont, With<ThemedText>>::new(PostUpdate),
             UiMaterialPlugin::<AlphaPatternMaterial>::default(),
         ));
 
@@ -84,12 +92,6 @@ impl Plugin for WidgetPlugin {
         app.insert_resource(DefaultCursor(EntityCursor::System(
             bevy::window::SystemCursorIcon::Default,
         )));
-
-        app.add_systems(PostUpdate, theme::update_theme)
-            .add_observer(theme::on_changed_background)
-            .add_observer(theme::on_changed_border)
-            .add_observer(theme::on_changed_font_color)
-            .add_observer(font_styles::on_changed_font);
 
         app.init_resource::<AlphaPatternResource>();
     }

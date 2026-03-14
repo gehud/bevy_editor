@@ -1,6 +1,7 @@
 pub mod pane;
+pub mod theme;
 pub mod widget;
-mod window;
+pub mod window;
 
 use bevy::{
     DefaultPlugins,
@@ -17,7 +18,8 @@ use bevy::{
 
 use crate::{
     pane::{PaneLayoutRoot, PanePlugin},
-    widget::{WidgetPlugins, dark_theme::create_dark_theme, theme::UiTheme},
+    theme::{ThemePlugin, UiTheme, create_dark_theme},
+    widget::WidgetPlugins,
     window::{DecoratedWindow, DecoratedWindowPlugin, IsWindowMaximized, PrimaryWindowDecorated},
 };
 
@@ -34,6 +36,7 @@ impl Plugin for EditorPlugin {
             }),
             ..default()
         }))
+        .add_plugins(ThemePlugin)
         .add_plugins(DecoratedWindowPlugin)
         .add_plugins(WidgetPlugins)
         .add_plugins(PanePlugin)

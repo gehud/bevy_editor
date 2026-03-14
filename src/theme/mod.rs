@@ -1,21 +1,36 @@
-//! A framework for theming.
-use bevy::app::{Propagate, PropagateOver};
-use bevy::color::{palettes, Color};
-use bevy::ecs::{
-    change_detection::DetectChanges,
-    component::Component,
-    lifecycle::Insert,
-    observer::On,
-    query::Changed,
-    reflect::{ReflectComponent, ReflectResource},
-    resource::Resource,
-    system::{Commands, Query, Res},
+pub mod constants;
+mod dark_theme;
+mod font_styles;
+mod handle_or_path;
+pub mod palette;
+mod rounded_corners;
+pub mod tokens;
+
+pub use dark_theme::*;
+pub use font_styles::*;
+pub use handle_or_path::*;
+pub use rounded_corners::*;
+
+use bevy::{
+    app::{App, HierarchyPropagatePlugin, Plugin, PostUpdate, Propagate, PropagateOver},
+    asset::embedded_asset,
+    color::{Color, palettes},
+    ecs::{
+        change_detection::DetectChanges,
+        component::Component,
+        lifecycle::Insert,
+        observer::On,
+        query::{Changed, With},
+        reflect::{ReflectComponent, ReflectResource},
+        resource::Resource,
+        system::{Commands, Query, Res},
+    },
+    log::warn_once,
+    platform::collections::HashMap,
+    reflect::{Reflect, prelude::ReflectDefault},
+    text::{TextColor, TextFont},
+    ui::{BackgroundColor, BorderColor},
 };
-use bevy::log::warn_once;
-use bevy::platform::collections::HashMap;
-use bevy::reflect::{prelude::ReflectDefault, Reflect};
-use bevy::text::TextColor;
-use bevy::ui::{BackgroundColor, BorderColor};
 use smol_str::SmolStr;
 
 /// A design token for the theme. This serves as the lookup key for the theme properties.
@@ -114,7 +129,7 @@ pub struct ThemeFontColor(pub ThemeToken);
 #[reflect(Component)]
 pub struct ThemedText;
 
-pub(crate) fn update_theme(
+fn update_theme(
     mut q_background: Query<(&mut BackgroundColor, &ThemeBackgroundColor)>,
     mut q_border: Query<(&mut BorderColor, &ThemeBorderColor)>,
     theme: Res<UiTheme>,
@@ -132,7 +147,7 @@ pub(crate) fn update_theme(
     }
 }
 
-pub(crate) fn on_changed_background(
+fn on_changed_background(
     insert: On<Insert, ThemeBackgroundColor>,
     mut q_background: Query<
         (&mut BackgroundColor, &ThemeBackgroundColor),
@@ -146,7 +161,7 @@ pub(crate) fn on_changed_background(
     }
 }
 
-pub(crate) fn on_changed_border(
+fn on_changed_border(
     insert: On<Insert, ThemeBorderColor>,
     mut q_border: Query<(&mut BorderColor, &ThemeBorderColor), Changed<ThemeBorderColor>>,
     theme: Res<UiTheme>,
@@ -159,7 +174,7 @@ pub(crate) fn on_changed_border(
 
 /// An observer which looks for changes to the [`ThemeFontColor`] component on an entity, and
 /// propagates downward the text color to all participating text entities.
-pub(crate) fn on_changed_font_color(
+fn on_changed_font_color(
     insert: On<Insert, ThemeFontColor>,
     font_color: Query<&ThemeFontColor>,
     theme: Res<UiTheme>,
@@ -170,5 +185,33 @@ pub(crate) fn on_changed_font_color(
         commands
             .entity(insert.entity)
             .insert(Propagate(TextColor(color)));
+    }
+}
+
+pub struct ThemePlugin;
+
+impl Plugin for ThemePlugin {
+    fn build(&self, app: &mut App) {
+        // Embedded font
+        embedded_asset!(app, "src/theme", "assets/theme/fonts/FiraSans-Bold.ttf");
+        embedded_asset!(
+            app,
+            "src/theme",
+            "assets/theme/fonts/FiraSans-BoldItalic.ttf"
+        );
+        embedded_asset!(app, "src/theme", "assets/theme/fonts/FiraSans-Regular.ttf");
+        embedded_asset!(app, "src/theme", "assets/theme/fonts/FiraSans-Italic.ttf");
+        embedded_asset!(app, "src/theme", "assets/theme/fonts/FiraMono-Medium.ttf");
+
+        app.add_plugins((
+            HierarchyPropagatePlugin::<TextColor, With<ThemedText>>::new(PostUpdate),
+            HierarchyPropagatePlugin::<TextFont, With<ThemedText>>::new(PostUpdate),
+        ))
+        .init_resource::<UiTheme>()
+        .add_systems(PostUpdate, update_theme)
+        .add_observer(on_changed_background)
+        .add_observer(on_changed_border)
+        .add_observer(on_changed_font_color)
+        .add_observer(on_changed_font);
     }
 }

@@ -16,22 +16,21 @@ use bevy::ecs::{
 };
 use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::picking::PickingSystems;
-use bevy::reflect::{prelude::ReflectDefault, Reflect};
+use bevy::reflect::{Reflect, prelude::ReflectDefault};
 use bevy::ui::{
-    widget::Text, AlignItems, BackgroundGradient, ColorStop, Display, FlexDirection, Gradient,
+    AlignItems, BackgroundGradient, ColorStop, Display, FlexDirection, Gradient,
     InteractionDisabled, InterpolationColorSpace, JustifyContent, LinearGradient, Node,
-    PositionType, UiRect, Val,
+    PositionType, UiRect, Val, widget::Text,
 };
 use bevy::ui_widgets::{Slider, SliderPrecision, SliderRange, SliderValue, TrackClick};
 
-use crate::widget::{
-    constants::{fonts, size},
-    cursor::EntityCursor,
-    font_styles::InheritableFont,
-    handle_or_path::HandleOrPath,
-    rounded_corners::RoundedCorners,
-    theme::{ThemeFontColor, ThemedText, UiTheme},
-    tokens,
+use crate::{
+    theme::{
+        HandleOrPath, InheritableFont, RoundedCorners, ThemeFontColor, ThemedText, UiTheme,
+        constants::{fonts, size},
+        tokens,
+    },
+    widget::EntityCursor,
 };
 
 /// Slider template properties, passed to [`slider`] function.

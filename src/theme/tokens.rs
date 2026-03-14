@@ -4,7 +4,7 @@
 //! similar in concept to a CSS variable. Each token represents an assignment of a color or
 //! value to a specific visual aspect of a widget, such as background or border.
 
-use crate::widget::theme::ThemeToken;
+use crate::theme::ThemeToken;
 
 /// Window background
 pub const WINDOW_BG: ThemeToken = ThemeToken::new_static("editor.window.bg");
@@ -68,16 +68,14 @@ pub const SLIDER_BAR_DISABLED: ThemeToken = ThemeToken::new_static("editor.slide
 /// Background for slider text
 pub const SLIDER_TEXT: ThemeToken = ThemeToken::new_static("editor.slider.text");
 /// Background for slider text (disabled)
-pub const SLIDER_TEXT_DISABLED: ThemeToken =
-    ThemeToken::new_static("editor.slider.text.disabled");
+pub const SLIDER_TEXT_DISABLED: ThemeToken = ThemeToken::new_static("editor.slider.text.disabled");
 
 // Checkbox
 
 /// Checkbox background around the checkmark
 pub const CHECKBOX_BG: ThemeToken = ThemeToken::new_static("editor.checkbox.bg");
 /// Checkbox border around the checkmark (disabled)
-pub const CHECKBOX_BG_DISABLED: ThemeToken =
-    ThemeToken::new_static("editor.checkbox.bg.disabled");
+pub const CHECKBOX_BG_DISABLED: ThemeToken = ThemeToken::new_static("editor.checkbox.bg.disabled");
 /// Checkbox background around the checkmark
 pub const CHECKBOX_BG_CHECKED: ThemeToken = ThemeToken::new_static("editor.checkbox.bg.checked");
 /// Checkbox border around the checkmark (disabled)

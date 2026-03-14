@@ -2,10 +2,10 @@ use bevy::ecs::prelude::*;
 use bevy::input_focus::tab_navigation::TabGroup;
 use bevy::ui::Node;
 use bevy::ui::Val;
-use bevy::ui::{widget::Text, FlexDirection};
-use bevy::ui_widgets::{observe, Activate};
+use bevy::ui::{FlexDirection, widget::Text};
+use bevy::ui_widgets::{Activate, observe};
 
-use crate::widget::controls::{button, ButtonProps};
+use crate::widget::{ButtonProps, button};
 
 /// Fired whenever a virtual key is pressed.
 #[derive(EntityEvent)]

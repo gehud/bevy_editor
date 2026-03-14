@@ -27,7 +27,11 @@ use bevy::ui::{
 use bevy::ui_render::{UiMaterialPlugin, prelude::UiMaterial, ui_material::MaterialNode};
 use bevy::ui_widgets::ValueChange;
 
-use crate::widget::{cursor::EntityCursor, palette, theme::ThemeBackgroundColor, tokens};
+use crate::theme::palette;
+use crate::{
+    theme::{ThemeBackgroundColor, tokens},
+    widget::EntityCursor,
+};
 
 /// Marker identifying a color plane widget.
 ///

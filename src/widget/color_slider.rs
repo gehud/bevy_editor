@@ -24,11 +24,9 @@ use bevy::ui::{
 use bevy::ui_render::ui_material::MaterialNode;
 use bevy::ui_widgets::{Slider, SliderRange, SliderThumb, SliderValue, TrackClick};
 
-use crate::widget::{
-    alpha_pattern::{AlphaPattern, AlphaPatternMaterial},
-    cursor::EntityCursor,
-    palette,
-    rounded_corners::RoundedCorners,
+use crate::{
+    theme::{RoundedCorners, palette},
+    widget::{AlphaPattern, AlphaPatternMaterial, EntityCursor},
 };
 
 const SLIDER_HEIGHT: f32 = 16.0;

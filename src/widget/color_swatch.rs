@@ -10,14 +10,14 @@ use bevy::ecs::{
     reflect::ReflectComponent,
     system::{Commands, Query},
 };
-use bevy::reflect::{prelude::ReflectDefault, Reflect};
+use bevy::reflect::{Reflect, prelude::ReflectDefault};
 use bevy::ui::{BackgroundColor, BorderRadius, Node, PositionType, Val};
 use bevy::ui_render::ui_material::MaterialNode;
 
-use crate::widget::{
-    alpha_pattern::{AlphaPattern, AlphaPatternMaterial},
-    constants::size,
-    palette,
+use crate::widget::AlphaPattern;
+use crate::{
+    theme::{constants::size, palette},
+    widget::AlphaPatternMaterial,
 };
 
 /// Marker identifying a color swatch.

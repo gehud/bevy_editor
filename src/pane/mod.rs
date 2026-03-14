@@ -20,33 +20,34 @@ use bevy::{
         },
         world::{Mut, World},
     },
-    log::warn,
+    log::{info, warn},
     picking::{
+        Pickable,
         events::{Cancel, Drag, DragEnd, DragStart, Pointer},
         pointer::PointerButton,
     },
     platform::collections::HashMap,
     text::TextFont,
     ui::{
-        AlignItems, ComputedNode, FlexDirection, JustifyContent, Node, UiRect, percent, px,
-        widget::Text,
+        AlignItems, ComputedNode, FlexDirection, JustifyContent, Node, Overflow,
+        OverflowClipMargin, UiRect, percent, px, widget::Text,
     },
     utils::default,
     window::SystemCursorIcon,
 };
 
-use crate::widget::{
-    constants::fonts::REGULAR,
-    cursor::EntityCursor,
-    font_styles::InheritableFont,
-    palette::ACCENT,
-    rounded_corners::RoundedCorners,
-    theme::{ThemeBackgroundColor, ThemeBorderColor, ThemeFontColor},
-    tokens::{PANE_BG, PANE_TAB_ACTIVE, TEXT_MAIN, WINDOW_BG},
+use crate::{
+    theme::{
+        InheritableFont, RoundedCorners, ThemeBackgroundColor, ThemeBorderColor, ThemeFontColor,
+        constants::fonts::REGULAR,
+        palette::ACCENT,
+        tokens::{PANE_BG, PANE_TAB_ACTIVE, TEXT_MAIN, WINDOW_BG},
+    },
+    widget::EntityCursor,
 };
 
 pub const PANE_BORDER_RADIUS: f32 = 6.0;
-pub const MIN_PANE_SIZE: f32 = 20.0;
+pub const MIN_PANE_SIZE: f32 = 45.0;
 pub const RESIZE_HANDLE_SIZE: f32 = 4.0;
 
 pub struct PanePlugin;
@@ -66,7 +67,7 @@ pub(crate) struct PaneLayoutRoot;
 
 #[derive(Component)]
 struct PaneTab {
-    root: Entity,
+    pane: Entity,
     tab: String,
 }
 
@@ -98,7 +99,9 @@ fn spawn_pane<'a>(
                         width: percent(100),
                         height: px(30),
                         padding: UiRect::top(px(1)).with_left(px(6)).with_right(px(8)),
+                        overflow: Overflow::clip(),
                         border: UiRect::horizontal(px(1)).with_top(px(1)),
+                        flex_shrink: 0.0,
                         border_radius: RoundedCorners::Top.to_border_radius(PANE_BORDER_RADIUS),
                         justify_content: JustifyContent::SpaceBetween,
                         ..default()
@@ -118,7 +121,7 @@ fn spawn_pane<'a>(
                             let group = commands.target_entity();
                             let mut first = true;
                             for tab in tabs {
-                                spawn_tab(commands.commands_mut(), asset_server, tab, first)
+                                spawn_tab(commands.commands_mut(), asset_server, root, tab, first)
                                     .insert(ChildOf(group));
                                 first = false;
                             }
@@ -146,14 +149,25 @@ fn spawn_pane<'a>(
     commands.entity(root)
 }
 
+#[derive(Resource)]
+struct DraggedTab {
+    pane: Entity,
+    tab: Entity,
+}
+
 fn spawn_tab<'a>(
     commands: &'a mut Commands,
     asset_server: &AssetServer,
+    pane: Entity,
     tab: String,
     active: bool,
 ) -> EntityCommands<'a> {
     let root = commands
         .spawn((
+            PaneTab {
+                pane,
+                tab: tab.clone(),
+            },
             Node {
                 height: percent(100),
                 padding: UiRect::horizontal(px(8)),
@@ -163,10 +177,19 @@ fn spawn_tab<'a>(
             },
             ThemeBackgroundColor(if active { PANE_BG } else { WINDOW_BG }),
             ThemeBorderColor(if active { PANE_TAB_ACTIVE } else { WINDOW_BG }),
+            Pickable {
+                should_block_lower: false,
+                ..default()
+            },
+            EntityCursor::System(SystemCursorIcon::Pointer),
         ))
+        .observe(|_: On<Pointer<DragStart>>| {
+            info!("Start drag");
+        })
         .id();
 
     commands.spawn((
+        Pickable::IGNORE,
         ChildOf(root),
         Text::new(tab),
         TextFont {

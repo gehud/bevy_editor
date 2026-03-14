@@ -14,46 +14,52 @@ use bevy::ecs::{
     system::{Commands, Query},
 };
 use bevy::input_focus::tab_navigation::TabIndex;
-use bevy::picking::{hover::Hovered, PickingSystems};
-use bevy::reflect::{prelude::ReflectDefault, Reflect};
+use bevy::math::Rot2;
+use bevy::picking::{PickingSystems, hover::Hovered};
+use bevy::reflect::{Reflect, prelude::ReflectDefault};
 use bevy::ui::{
     AlignItems, BorderRadius, Checked, Display, FlexDirection, InteractionDisabled, JustifyContent,
-    Node, UiRect, Val,
+    Node, PositionType, UiRect, UiTransform, Val,
 };
-use bevy::ui_widgets::RadioButton;
+use bevy::ui_widgets::Checkbox;
 
-use crate::widget::{
-    constants::{fonts, size},
-    cursor::EntityCursor,
-    font_styles::InheritableFont,
-    handle_or_path::HandleOrPath,
-    theme::{ThemeBackgroundColor, ThemeBorderColor, ThemeFontColor},
-    tokens,
+use crate::{
+    theme::{
+        HandleOrPath, InheritableFont, ThemeBackgroundColor, ThemeBorderColor,
+        ThemeFontColor,
+        constants::{fonts, size},
+        tokens,
+    },
+    widget::EntityCursor,
 };
 
-/// Marker for the radio outline
+/// Marker for the checkbox frame (contains both checkbox and label)
 #[derive(Component, Default, Clone, Reflect)]
 #[reflect(Component, Clone, Default)]
-struct RadioOutline;
+struct CheckboxFrame;
 
-/// Marker for the radio check mark
+/// Marker for the checkbox outline
 #[derive(Component, Default, Clone, Reflect)]
 #[reflect(Component, Clone, Default)]
-struct RadioMark;
+struct CheckboxOutline;
 
-/// Template function to spawn a radio.
+/// Marker for the checkbox check mark
+#[derive(Component, Default, Clone, Reflect)]
+#[reflect(Component, Clone, Default)]
+struct CheckboxMark;
+
+/// Template function to spawn a checkbox.
 ///
 /// # Arguments
-/// * `props` - construction properties for the radio.
-/// * `overrides` - a bundle of components that are merged in with the normal radio components.
-/// * `label` - the label of the radio.
+/// * `props` - construction properties for the checkbox.
+/// * `overrides` - a bundle of components that are merged in with the normal checkbox components.
+/// * `label` - the label of the checkbox.
 ///
 /// # Emitted events
-/// * [`bevy::ui_widgets::ValueChange<bool>`] with the value true when it becomes checked.
-/// * [`bevy::ui_widgets::ValueChange<Entity>`] with the selected entity's id when a new radio button is selected.
+/// * [`bevy::ui_widgets::ValueChange<bool>`] with the new value when the checkbox changes state.
 ///
 ///  These events can be disabled by adding an [`bevy::ui::InteractionDisabled`] component to the entity
-pub fn radio<C: SpawnableList<ChildOf> + Send + Sync + 'static, B: Bundle>(
+pub fn checkbox<C: SpawnableList<ChildOf> + Send + Sync + 'static, B: Bundle>(
     overrides: B,
     label: C,
 ) -> impl Bundle {
@@ -66,11 +72,12 @@ pub fn radio<C: SpawnableList<ChildOf> + Send + Sync + 'static, B: Bundle>(
             column_gap: Val::Px(4.0),
             ..Default::default()
         },
-        RadioButton,
+        Checkbox,
+        CheckboxFrame,
         Hovered::default(),
         EntityCursor::System(bevy::window::SystemCursorIcon::Pointer),
         TabIndex(0),
-        ThemeFontColor(tokens::RADIO_TEXT),
+        ThemeFontColor(tokens::CHECKBOX_TEXT),
         InheritableFont {
             font: HandleOrPath::Path(fonts::REGULAR.to_owned()),
             font_size: 14.0,
@@ -79,27 +86,33 @@ pub fn radio<C: SpawnableList<ChildOf> + Send + Sync + 'static, B: Bundle>(
         Children::spawn((
             Spawn((
                 Node {
-                    display: Display::Flex,
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::Center,
-                    width: size::RADIO_SIZE,
-                    height: size::RADIO_SIZE,
+                    width: size::CHECKBOX_SIZE,
+                    height: size::CHECKBOX_SIZE,
                     border: UiRect::all(Val::Px(2.0)),
-                    border_radius: BorderRadius::MAX,
+                    border_radius: BorderRadius::all(Val::Px(4.0)),
                     ..Default::default()
                 },
-                RadioOutline,
-                ThemeBorderColor(tokens::RADIO_BORDER),
+                CheckboxOutline,
+                ThemeBackgroundColor(tokens::CHECKBOX_BG),
+                ThemeBorderColor(tokens::CHECKBOX_BORDER),
                 children![(
                     // Cheesy checkmark: rotated node with L-shaped border.
                     Node {
-                        width: Val::Px(8.),
-                        height: Val::Px(8.),
-                        border_radius: BorderRadius::MAX,
+                        position_type: PositionType::Absolute,
+                        left: Val::Px(4.0),
+                        top: Val::Px(0.0),
+                        width: Val::Px(6.),
+                        height: Val::Px(11.),
+                        border: UiRect {
+                            bottom: Val::Px(2.0),
+                            right: Val::Px(2.0),
+                            ..Default::default()
+                        },
                         ..Default::default()
                     },
-                    RadioMark,
-                    ThemeBackgroundColor(tokens::RADIO_MARK),
+                    UiTransform::from_rotation(Rot2::FRAC_PI_4),
+                    CheckboxMark,
+                    ThemeBorderColor(tokens::CHECKBOX_MARK),
                 )],
             )),
             label,
@@ -107,8 +120,8 @@ pub fn radio<C: SpawnableList<ChildOf> + Send + Sync + 'static, B: Bundle>(
     )
 }
 
-fn update_radio_styles(
-    q_radioes: Query<
+fn update_checkbox_styles(
+    q_checkboxes: Query<
         (
             Entity,
             Has<InteractionDisabled>,
@@ -117,37 +130,38 @@ fn update_radio_styles(
             &ThemeFontColor,
         ),
         (
-            With<RadioButton>,
+            With<CheckboxFrame>,
             Or<(Changed<Hovered>, Added<Checked>, Added<InteractionDisabled>)>,
         ),
     >,
     q_children: Query<&Children>,
-    mut q_outline: Query<&ThemeBorderColor, With<RadioOutline>>,
-    mut q_mark: Query<&ThemeBackgroundColor, With<RadioMark>>,
+    mut q_outline: Query<(&ThemeBackgroundColor, &ThemeBorderColor), With<CheckboxOutline>>,
+    mut q_mark: Query<&ThemeBorderColor, With<CheckboxMark>>,
     mut commands: Commands,
 ) {
-    for (radio_ent, disabled, checked, hovered, font_color) in q_radioes.iter() {
+    for (checkbox_ent, disabled, checked, hovered, font_color) in q_checkboxes.iter() {
         let Some(outline_ent) = q_children
-            .iter_descendants(radio_ent)
+            .iter_descendants(checkbox_ent)
             .find(|en| q_outline.contains(*en))
         else {
             continue;
         };
         let Some(mark_ent) = q_children
-            .iter_descendants(radio_ent)
+            .iter_descendants(checkbox_ent)
             .find(|en| q_mark.contains(*en))
         else {
             continue;
         };
-        let outline_border = q_outline.get_mut(outline_ent).unwrap();
+        let (outline_bg, outline_border) = q_outline.get_mut(outline_ent).unwrap();
         let mark_color = q_mark.get_mut(mark_ent).unwrap();
-        set_radio_styles(
-            radio_ent,
+        set_checkbox_styles(
+            checkbox_ent,
             outline_ent,
             mark_ent,
             disabled,
             checked,
             hovered.0,
+            outline_bg,
             outline_border,
             mark_color,
             font_color,
@@ -156,8 +170,8 @@ fn update_radio_styles(
     }
 }
 
-fn update_radio_styles_remove(
-    q_radioes: Query<
+fn update_checkbox_styles_remove(
+    q_checkboxes: Query<
         (
             Entity,
             Has<InteractionDisabled>,
@@ -165,11 +179,11 @@ fn update_radio_styles_remove(
             &Hovered,
             &ThemeFontColor,
         ),
-        With<RadioButton>,
+        With<CheckboxFrame>,
     >,
     q_children: Query<&Children>,
-    mut q_outline: Query<&ThemeBorderColor, With<RadioOutline>>,
-    mut q_mark: Query<&ThemeBackgroundColor, With<RadioMark>>,
+    mut q_outline: Query<(&ThemeBackgroundColor, &ThemeBorderColor), With<CheckboxOutline>>,
+    mut q_mark: Query<&ThemeBorderColor, With<CheckboxMark>>,
     mut removed_disabled: RemovedComponents<InteractionDisabled>,
     mut removed_checked: RemovedComponents<Checked>,
     mut commands: Commands,
@@ -178,28 +192,31 @@ fn update_radio_styles_remove(
         .read()
         .chain(removed_checked.read())
         .for_each(|ent| {
-            if let Ok((radio_ent, disabled, checked, hovered, font_color)) = q_radioes.get(ent) {
+            if let Ok((checkbox_ent, disabled, checked, hovered, font_color)) =
+                q_checkboxes.get(ent)
+            {
                 let Some(outline_ent) = q_children
-                    .iter_descendants(radio_ent)
+                    .iter_descendants(checkbox_ent)
                     .find(|en| q_outline.contains(*en))
                 else {
                     return;
                 };
                 let Some(mark_ent) = q_children
-                    .iter_descendants(radio_ent)
+                    .iter_descendants(checkbox_ent)
                     .find(|en| q_mark.contains(*en))
                 else {
                     return;
                 };
-                let outline_border = q_outline.get_mut(outline_ent).unwrap();
+                let (outline_bg, outline_border) = q_outline.get_mut(outline_ent).unwrap();
                 let mark_color = q_mark.get_mut(mark_ent).unwrap();
-                set_radio_styles(
-                    radio_ent,
+                set_checkbox_styles(
+                    checkbox_ent,
                     outline_ent,
                     mark_ent,
                     disabled,
                     checked,
                     hovered.0,
+                    outline_bg,
                     outline_border,
                     mark_color,
                     font_color,
@@ -209,38 +226,53 @@ fn update_radio_styles_remove(
         });
 }
 
-fn set_radio_styles(
-    radio_ent: Entity,
+fn set_checkbox_styles(
+    checkbox_ent: Entity,
     outline_ent: Entity,
     mark_ent: Entity,
     disabled: bool,
     checked: bool,
     hovered: bool,
+    outline_bg: &ThemeBackgroundColor,
     outline_border: &ThemeBorderColor,
-    mark_color: &ThemeBackgroundColor,
+    mark_color: &ThemeBorderColor,
     font_color: &ThemeFontColor,
     commands: &mut Commands,
 ) {
     let outline_border_token = match (disabled, hovered) {
-        (true, _) => tokens::RADIO_BORDER_DISABLED,
-        (false, true) => tokens::RADIO_BORDER_HOVER,
-        _ => tokens::RADIO_BORDER,
+        (true, _) => tokens::CHECKBOX_BORDER_DISABLED,
+        (false, true) => tokens::CHECKBOX_BORDER_HOVER,
+        _ => tokens::CHECKBOX_BORDER,
+    };
+
+    let outline_bg_token = match (disabled, checked) {
+        (true, true) => tokens::CHECKBOX_BG_CHECKED_DISABLED,
+        (true, false) => tokens::CHECKBOX_BG_DISABLED,
+        (false, true) => tokens::CHECKBOX_BG_CHECKED,
+        (false, false) => tokens::CHECKBOX_BG,
     };
 
     let mark_token = match disabled {
-        true => tokens::RADIO_MARK_DISABLED,
-        false => tokens::RADIO_MARK,
+        true => tokens::CHECKBOX_MARK_DISABLED,
+        false => tokens::CHECKBOX_MARK,
     };
 
     let font_color_token = match disabled {
-        true => tokens::RADIO_TEXT_DISABLED,
-        false => tokens::RADIO_TEXT,
+        true => tokens::CHECKBOX_TEXT_DISABLED,
+        false => tokens::CHECKBOX_TEXT,
     };
 
     let cursor_shape = match disabled {
         true => bevy::window::SystemCursorIcon::NotAllowed,
         false => bevy::window::SystemCursorIcon::Pointer,
     };
+
+    // Change outline background
+    if outline_bg.0 != outline_bg_token {
+        commands
+            .entity(outline_ent)
+            .insert(ThemeBackgroundColor(outline_bg_token));
+    }
 
     // Change outline border
     if outline_border.0 != outline_border_token {
@@ -265,24 +297,24 @@ fn set_radio_styles(
     // Change font color
     if font_color.0 != font_color_token {
         commands
-            .entity(radio_ent)
+            .entity(checkbox_ent)
             .insert(ThemeFontColor(font_color_token));
     }
 
     // Change cursor shape
     commands
-        .entity(radio_ent)
+        .entity(checkbox_ent)
         .insert(EntityCursor::System(cursor_shape));
 }
 
-/// Plugin which registers the systems for updating the radio styles.
-pub struct RadioPlugin;
+/// Plugin which registers the systems for updating the checkbox styles.
+pub struct CheckboxPlugin;
 
-impl Plugin for RadioPlugin {
+impl Plugin for CheckboxPlugin {
     fn build(&self, app: &mut bevy::app::App) {
         app.add_systems(
             PreUpdate,
-            (update_radio_styles, update_radio_styles_remove).in_set(PickingSystems::Last),
+            (update_checkbox_styles, update_checkbox_styles_remove).in_set(PickingSystems::Last),
         );
     }
 }

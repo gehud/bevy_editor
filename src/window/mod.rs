@@ -31,12 +31,12 @@ use bevy::{
     winit::WINIT_WINDOWS,
 };
 
-use crate::widget::{
-    cursor::EntityCursor,
-    palette,
-    rounded_corners::RoundedCorners,
-    theme::{ThemeBackgroundColor, ThemeBorderColor},
-    tokens::{BORDER, RADIO_BORDER, WINDOW_BG},
+use crate::{
+    theme::{
+        RoundedCorners, ThemeBackgroundColor, ThemeBorderColor, palette,
+        tokens::{BORDER, WINDOW_BG},
+    },
+    widget::EntityCursor,
 };
 
 pub const WINDOW_RESIZE_GRIP_SIZE: f32 = 5.0;

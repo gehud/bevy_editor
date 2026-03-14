@@ -1,9 +1,10 @@
 //! The standard `bevy_editor` dark theme.
-use crate::widget::{palette, tokens};
-use bevy::color::{Alpha, Luminance};
-use bevy::platform::collections::HashMap;
+use bevy::{
+    color::{Alpha, Luminance},
+    platform::collections::HashMap,
+};
 
-use crate::widget::theme::ThemeProps;
+use crate::theme::{ThemeProps, palette, tokens};
 
 /// Create a [`ThemeProps`] object and populate it with the colors for the default dark theme.
 pub fn create_dark_theme() -> ThemeProps {

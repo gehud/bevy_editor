@@ -8,10 +8,10 @@ use bevy::ecs::{
     reflect::ReflectComponent,
     system::{Commands, Query, Res},
 };
-use bevy::reflect::{prelude::ReflectDefault, Reflect};
+use bevy::reflect::{Reflect, prelude::ReflectDefault};
 use bevy::text::{Font, TextFont};
 
-use crate::widget::{handle_or_path::HandleOrPath, theme::ThemedText};
+use crate::theme::{handle_or_path::HandleOrPath, ThemedText};
 
 /// A component which, when inserted on an entity, will load the given font and propagate it
 /// downward to any child text entity that has the [`ThemedText`] marker.
