@@ -64,6 +64,7 @@ impl Plugin for PanePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<PaneRegistry>()
             .init_resource::<ResizeHandleDragState>()
+            .init_resource::<TabbarDropState>()
             // .add_systems(Update, on_show_tab)
             .add_systems(Update, cleanup_divider_single_child)
             .add_systems(PostUpdate, apply_size.before(UiSystems::Layout))
@@ -129,7 +130,6 @@ fn spawn_pane<'a>(
                     let tabgroup = commands
                         .spawn((
                             Node {
-                                column_gap: px(5),
                                 height: percent(100),
                                 ..default()
                             },
@@ -213,11 +213,27 @@ fn spawn_pane<'a>(
     commands.entity(root)
 }
 
+#[derive(Resource)]
+struct TabbarDropState {
+    initial_tabgroup: Entity,
+    drop_index: usize,
+}
+
+impl Default for TabbarDropState {
+    fn default() -> Self {
+        Self {
+            initial_tabgroup: Entity::PLACEHOLDER,
+            drop_index: 0,
+        }
+    }
+}
+
 fn on_tabbar_drag_enter(
     trigger: On<Pointer<DragEnter>>,
     tabbars: Query<&PaneTabbar>,
     tabs: Query<&PaneTab>,
     mut commands: Commands,
+    mut tabbar_drop_state: ResMut<TabbarDropState>,
 ) -> Result {
     let tabbar = tabbars.get(trigger.entity)?;
 
@@ -232,6 +248,8 @@ fn on_tabbar_drag_enter(
             *visibility = Visibility::Inherited;
         });
 
+    tabbar_drop_state.initial_tabgroup = tabbar.tabgroup;
+
     Ok(())
 }
 
@@ -242,7 +260,7 @@ fn on_tabbar_drag_over(
     children: Query<&Children>,
     computed_nodes: Query<&ComputedNode>,
     mut nodes: Query<&mut Node>,
-    mut commands: Commands,
+    mut tabbar_drop_state: ResMut<TabbarDropState>,
 ) -> Result {
     let tabbar = tabbars.get(trigger.entity)?;
 
@@ -250,7 +268,6 @@ fn on_tabbar_drag_over(
         return Ok(());
     };
 
-    let tabs = children.get(tabbar.tabgroup)?;
     let tabbar_size = computed_nodes.get(trigger.entity)?.size().x;
 
     let mut indicator = nodes.get_mut(tabbar.drop_indicator)?;
@@ -262,6 +279,8 @@ fn on_tabbar_drag_over(
         .unwrap_or_default();
 
     let mut indicator_position = 0.0;
+    tabbar_drop_state.drop_index = 0;
+    let tabs = children.get(tabbar.tabgroup)?;
     for tab in tabs {
         let size = computed_nodes.get(*tab)?.size().x;
 
@@ -270,6 +289,7 @@ fn on_tabbar_drag_over(
         }
 
         indicator_position += size;
+        tabbar_drop_state.drop_index += 1;
     }
 
     indicator.left = percent(indicator_position / tabbar_size * 100.0);
@@ -278,16 +298,25 @@ fn on_tabbar_drag_over(
 }
 
 fn on_tabbar_drag_drop(
-    trigger: On<Pointer<DragOver>>,
+    trigger: On<Pointer<DragDrop>>,
     tabbars: Query<&PaneTabbar>,
     tabs: Query<&PaneTab>,
+    tabbar_drop_state: Res<TabbarDropState>,
     mut commands: Commands,
 ) -> Result {
     let tabbar = tabbars.get(trigger.entity)?;
 
-    let Ok(tab) = tabs.get(trigger.dragged) else {
+    let Ok(tab) = tabs.get(trigger.dropped) else {
         return Ok(());
     };
+
+    commands
+        .entity(tabbar_drop_state.initial_tabgroup)
+        .detach_child(trigger.dropped);
+
+    commands
+        .entity(tabbar.tabgroup)
+        .insert_child(tabbar_drop_state.drop_index, trigger.dropped);
 
     Ok(())
 }
@@ -753,11 +782,21 @@ fn init(trigger: On<Add, PaneLayoutRoot>, mut commands: Commands, asset_server: 
         .insert(ChildOf(divider))
         .id();
 
-    spawn_pane(&mut commands, &asset_server, 0.4, vec!["Scene Tree".into()])
-        .insert(ChildOf(sub_divider));
+    spawn_pane(
+        &mut commands,
+        &asset_server,
+        0.4,
+        vec!["Scene Tree".into(), "Scene Tree".into()],
+    )
+    .insert(ChildOf(sub_divider));
     spawn_resize_handle(&mut commands, Divider::Vertical).insert(ChildOf(sub_divider));
-    spawn_pane(&mut commands, &asset_server, 0.6, vec!["Properties".into()])
-        .insert(ChildOf(sub_divider));
+    spawn_pane(
+        &mut commands,
+        &asset_server,
+        0.6,
+        vec!["Properties".into(), "Properties".into()],
+    )
+    .insert(ChildOf(sub_divider));
 
     spawn_resize_handle(&mut commands, Divider::Horizontal).insert(ChildOf(divider));
 
@@ -769,7 +808,12 @@ fn init(trigger: On<Add, PaneLayoutRoot>, mut commands: Commands, asset_server: 
         &mut commands,
         &asset_server,
         0.70,
-        vec!["Viewport 3D".into()],
+        vec![
+            "Viewport 3D".into(),
+            "Viewport 3D".into(),
+            "Viewport 3D".into(),
+            "Viewport 3D".into(),
+        ],
     )
     .insert(ChildOf(asset_browser_divider));
     spawn_resize_handle(&mut commands, Divider::Vertical).insert(ChildOf(asset_browser_divider));
@@ -777,7 +821,12 @@ fn init(trigger: On<Add, PaneLayoutRoot>, mut commands: Commands, asset_server: 
         &mut commands,
         &asset_server,
         0.30,
-        vec!["Asset Browser".into()],
+        vec![
+            "Asset Browser".into(),
+            "Asset Browser".into(),
+            "Asset Browser".into(),
+            "Asset Browser".into(),
+        ],
     )
     .insert(ChildOf(asset_browser_divider));
 }
