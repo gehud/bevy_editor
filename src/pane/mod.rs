@@ -12,7 +12,7 @@ use bevy::{
         error::Result,
         event::EntityEvent,
         hierarchy::{ChildOf, Children},
-        lifecycle::Add,
+        lifecycle::{Add, Remove},
         observer::On,
         query::{Added, Changed, QueryState, With},
         resource::Resource,
@@ -28,6 +28,7 @@ use bevy::{
         Pickable,
         events::{
             Cancel, Drag, DragDrop, DragEnd, DragEnter, DragLeave, DragOver, DragStart, Pointer,
+            Press,
         },
         pointer::PointerButton,
     },
@@ -93,6 +94,8 @@ fn spawn_pane<'a>(
     size: f32,
     tabs: Vec<String>,
 ) -> EntityCommands<'a> {
+    assert!(tabs.len() != 0, "Cannot spawn pane with no tabs.");
+
     let root = commands.spawn((Node::default(), Size(size))).id();
 
     commands
@@ -137,17 +140,23 @@ fn spawn_pane<'a>(
                         ))
                         .id();
 
-                    let mut first = true;
+                    let mut first_tab = None;
                     for tab in tabs {
-                        spawn_tab(commands.commands_mut(), asset_server, root, tab, first)
+                        let id = spawn_tab(commands.commands_mut(), asset_server, root, tab, false)
                             .insert(ChildOf(tabgroup))
+                            .observe(on_tab_press)
                             .observe(on_tab_drag_start)
                             .observe(on_tab_drag)
                             .observe(on_tab_drag_end)
-                            .observe(on_tab_drag_cancel);
+                            .observe(on_tab_drag_cancel)
+                            .id();
 
-                        first = false;
+                        first_tab.get_or_insert(id);
                     }
+
+                    commands
+                        .commands_mut()
+                        .run_system_cached_with(set_tab_active, (tabgroup, first_tab.unwrap()));
 
                     // Menu
                     commands.spawn(Node {
@@ -211,9 +220,43 @@ fn spawn_pane<'a>(
     commands.entity(root)
 }
 
-#[derive(Default, Resource)]
+fn stylize_tab(commands: &mut Commands, root: Entity, active: bool) {
+    commands.entity(root).insert((
+        ThemeBackgroundColor(if active { PANE_BG } else { WINDOW_BG }),
+        ThemeBorderColor(if active { PANE_TAB_ACTIVE } else { WINDOW_BG }),
+    ));
+}
+
+fn set_tab_active(
+    In((tabgroup, active_tab)): In<(Entity, Entity)>,
+    children: Query<&Children>,
+    mut commands: Commands,
+) -> Result {
+    let tabs = children.get(tabgroup)?;
+
+    for tab in tabs {
+        let active = *tab == active_tab;
+        stylize_tab(&mut commands, *tab, active);
+    }
+
+    Ok(())
+}
+
+#[derive(Resource)]
 struct TabbarDropState {
+    start_pane: Entity,
+    start_tabgroup: Entity,
     drop_index: usize,
+}
+
+impl Default for TabbarDropState {
+    fn default() -> Self {
+        Self {
+            start_pane: Entity::PLACEHOLDER,
+            start_tabgroup: Entity::PLACEHOLDER,
+            drop_index: 0,
+        }
+    }
 }
 
 fn on_tabbar_drag_enter(
@@ -221,11 +264,10 @@ fn on_tabbar_drag_enter(
     tabbars: Query<&PaneTabbar>,
     tabs: Query<&PaneTab>,
     mut commands: Commands,
-    mut tabbar_drop_state: ResMut<TabbarDropState>,
 ) -> Result {
     let tabbar = tabbars.get(trigger.entity)?;
 
-    let Ok(tab) = tabs.get(trigger.dragged) else {
+    let Ok(_) = tabs.get(trigger.dragged) else {
         return Ok(());
     };
 
@@ -250,7 +292,7 @@ fn on_tabbar_drag_over(
 ) -> Result {
     let tabbar = tabbars.get(trigger.entity)?;
 
-    let Ok(tab) = tabs.get(trigger.dragged) else {
+    let Ok(_) = tabs.get(trigger.dragged) else {
         return Ok(());
     };
 
@@ -297,18 +339,47 @@ fn on_tabbar_drag_drop(
     trigger: On<Pointer<DragDrop>>,
     tabbars: Query<&PaneTabbar>,
     tabs: Query<&PaneTab>,
+    children: Query<&Children>,
     tabbar_drop_state: Res<TabbarDropState>,
     mut commands: Commands,
 ) -> Result {
     let tabbar = tabbars.get(trigger.entity)?;
 
-    let Ok(tab) = tabs.get(trigger.dropped) else {
+    let Ok(_) = tabs.get(trigger.dropped) else {
         return Ok(());
     };
 
     commands
         .entity(tabbar.tabgroup)
         .insert_child(tabbar_drop_state.drop_index, trigger.dropped);
+
+    commands.run_system_cached_with(set_tab_active, (tabbar.tabgroup, trigger.dropped));
+
+    if tabbar.tabgroup != tabbar_drop_state.start_tabgroup {
+        let remove_pane = {
+            if let Ok(tabbgroup_tabs) = children.get(tabbar_drop_state.start_tabgroup) {
+                if let Some(last) = tabbgroup_tabs
+                    .iter()
+                    .find(|entity| **entity != trigger.dropped)
+                {
+                    commands.run_system_cached_with(
+                        set_tab_active,
+                        (tabbar_drop_state.start_tabgroup, *last),
+                    );
+
+                    false
+                } else {
+                    true
+                }
+            } else {
+                true
+            }
+        };
+
+        if remove_pane {
+            commands.entity(tabbar_drop_state.start_pane).despawn();
+        }
+    }
 
     Ok(())
 }
@@ -321,7 +392,7 @@ fn on_tabbar_drag_leave(
 ) -> Result {
     let tabbar = tabbars.get(trigger.entity)?;
 
-    let Ok(tab) = tabs.get(trigger.dragged) else {
+    let Ok(_) = tabs.get(trigger.dragged) else {
         return Ok(());
     };
 
@@ -338,12 +409,26 @@ fn on_tabbar_drag_leave(
 #[derive(Component)]
 struct TabDragIndicator;
 
+fn on_tab_press(
+    trigger: On<Pointer<Press>>,
+    parents: Query<&ChildOf>,
+    mut commands: Commands,
+) -> Result {
+    commands.run_system_cached_with(
+        set_tab_active,
+        (parents.get(trigger.entity)?.parent(), trigger.entity),
+    );
+    Ok(())
+}
+
 fn on_tab_drag_start(
     trigger: On<Pointer<DragStart>>,
     decorated: Query<&DecoratedWindow>,
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     tabs: Query<&PaneTab>,
+    parents: Query<&ChildOf>,
+    mut tabbar_drag_state: ResMut<TabbarDropState>,
     mut override_cursor: ResMut<OverrideCursor>,
 ) -> Result {
     let NormalizedRenderTarget::Window(window) = trigger.pointer_location.target else {
@@ -354,7 +439,7 @@ fn on_tab_drag_start(
         return Ok(());
     };
 
-    let tab = tabs.get(trigger.event_target())?;
+    let tab = tabs.get(trigger.entity)?;
     spawn_tab(
         &mut commands,
         &asset_server,
@@ -372,6 +457,8 @@ fn on_tab_drag_start(
         node.border_radius = RoundedCorners::All.to_border_radius(2.0);
     });
 
+    tabbar_drag_state.start_pane = tab.pane;
+    tabbar_drag_state.start_tabgroup = parents.get(trigger.entity)?.parent();
     override_cursor.0 = Some(EntityCursor::System(SystemCursorIcon::Grabbing));
 
     Ok(())
@@ -427,8 +514,6 @@ fn spawn_tab<'a>(
                 align_items: AlignItems::Center,
                 ..default()
             },
-            ThemeBackgroundColor(if active { PANE_BG } else { WINDOW_BG }),
-            ThemeBorderColor(if active { PANE_TAB_ACTIVE } else { WINDOW_BG }),
             Pickable {
                 should_block_lower: false,
                 ..default()
@@ -436,6 +521,8 @@ fn spawn_tab<'a>(
             EntityCursor::System(SystemCursorIcon::Pointer),
         ))
         .id();
+
+    stylize_tab(commands, root, active);
 
     commands.spawn((
         Pickable::IGNORE,
