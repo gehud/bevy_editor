@@ -1,13 +1,13 @@
 use accesskit::Point;
 use bevy::{
-    app::{App, Plugin, Update},
+    app::{App, Plugin, PostUpdate, Update},
     asset::AssetServer,
     camera::NormalizedRenderTarget,
     ecs::{
         bundle::Bundle,
         children,
         component::Component,
-        entity::{ContainsEntity, Entity},
+        entity::{self, ContainsEntity, Entity},
         error::Result,
         event::EntityEvent,
         hierarchy::{ChildOf, Children},
@@ -31,8 +31,9 @@ use bevy::{
     platform::collections::HashMap,
     text::TextFont,
     ui::{
-        AlignItems, ComputedNode, FlexDirection, JustifyContent, Node, Overflow,
-        OverflowClipMargin, PositionType, UiRect, percent, px, widget::Text,
+        AlignItems, AlignSelf, ComputedNode, FlexDirection, JustifyContent, Node, Overflow,
+        OverflowClipMargin, PositionType, UiGlobalTransform, UiRect, UiScale, UiSystems, percent,
+        px, widget::Text,
     },
     utils::default,
     window::SystemCursorIcon,
@@ -41,6 +42,7 @@ use bevy::{
 use crate::{
     theme::{
         InheritableFont, RoundedCorners, ThemeBackgroundColor, ThemeBorderColor, ThemeFontColor,
+        ThemedText,
         constants::fonts::REGULAR,
         palette::ACCENT,
         tokens::{PANE_BG, PANE_TAB_ACTIVE, TEXT_MAIN, WINDOW_BG},
@@ -60,7 +62,8 @@ impl Plugin for PanePlugin {
         app.init_resource::<PaneRegistry>()
             .init_resource::<DragState>()
             // .add_systems(Update, on_show_tab)
-            .add_systems(Update, (cleanup_divider_single_child, apply_size).chain())
+            .add_systems(Update, cleanup_divider_single_child)
+            .add_systems(PostUpdate, apply_size.before(UiSystems::Layout))
             .add_observer(init);
     }
 }
@@ -202,9 +205,10 @@ fn on_tab_drag_start(
 fn on_tab_drag(
     trigger: On<Pointer<Drag>>,
     mut indicator: Single<&mut Node, With<TabDragIndicator>>,
+    ui_scale: Res<UiScale>,
 ) {
-    indicator.left = px(trigger.pointer_location.position.x);
-    indicator.top = px(trigger.pointer_location.position.y);
+    indicator.left = px(trigger.pointer_location.position.x / ui_scale.0);
+    indicator.top = px(trigger.pointer_location.position.y / ui_scale.0);
 }
 
 fn on_tab_drag_end(
@@ -353,15 +357,6 @@ impl RegisterPane for App {
     }
 }
 
-#[derive(Resource, Default)]
-struct DragState {
-    is_dragging: bool,
-    offset: f32,
-    min: f32,
-    max: f32,
-    parent_node_size: f32,
-}
-
 fn cleanup_divider_single_child(
     mut commands: Commands,
     mut dividers: Query<(Entity, &Children, &ChildOf), (Changed<Children>, With<Divider>)>,
@@ -453,6 +448,12 @@ fn spawn_divider<'a>(
     ))
 }
 
+#[derive(Resource, Default)]
+struct DragState {
+    is_dragging: bool,
+    parent_node_size: f32,
+}
+
 fn spawn_resize_handle<'a>(commands: &'a mut Commands, divider: Divider) -> EntityCommands<'a> {
     let cursor_icon = match divider {
         Divider::Horizontal => SystemCursorIcon::EwResize,
@@ -480,9 +481,7 @@ fn spawn_resize_handle<'a>(commands: &'a mut Commands, divider: Divider) -> Enti
             move |trigger: On<Pointer<DragStart>>,
                   mut drag_state: ResMut<DragState>,
                   parents: Query<&ChildOf>,
-                  children: Query<&Children>,
                   computed_nodes: Query<&ComputedNode>,
-                  sizes: Query<&Size>,
                   mut override_cursor: ResMut<OverrideCursor>|
                   -> Result {
                 if trigger.button != PointerButton::Primary {
@@ -502,18 +501,6 @@ fn spawn_resize_handle<'a>(commands: &'a mut Commands, divider: Divider) -> Enti
                     Divider::Vertical => parent_node_size.y,
                 };
 
-                let siblings = children.get(parent)?;
-                let index = siblings
-                    .iter()
-                    .position(|entity| *entity == target)
-                    .unwrap();
-
-                let size_a = sizes.get(siblings[index - 1])?.0;
-                let size_b = sizes.get(siblings[index + 1])?.0;
-
-                drag_state.offset = 0.0;
-                drag_state.min = (-size_a * parent_node_size) + MIN_PANE_SIZE;
-                drag_state.max = (size_b * parent_node_size) - MIN_PANE_SIZE;
                 drag_state.parent_node_size = parent_node_size;
 
                 Ok(())
@@ -521,9 +508,10 @@ fn spawn_resize_handle<'a>(commands: &'a mut Commands, divider: Divider) -> Enti
         )
         .observe(
             move |trigger: On<Pointer<Drag>>,
-                  mut drag_state: ResMut<DragState>,
+                  drag_state: ResMut<DragState>,
                   parents: Query<&ChildOf>,
                   children: Query<&Children>,
+                  ui_global_transforms: Query<&UiGlobalTransform>,
                   mut sizes: Query<&mut Size>|
                   -> Result {
                 if !drag_state.is_dragging {
@@ -539,24 +527,42 @@ fn spawn_resize_handle<'a>(commands: &'a mut Commands, divider: Divider) -> Enti
                     .position(|entity| *entity == target)
                     .unwrap();
 
-                let delta = trigger.event().delta;
-                let delta = match divider {
-                    Divider::Horizontal => delta.x,
-                    Divider::Vertical => delta.y,
+                let min_size = MIN_PANE_SIZE / drag_state.parent_node_size;
+
+                let pointer_position = match divider {
+                    Divider::Horizontal => trigger.pointer_location.position.x,
+                    Divider::Vertical => trigger.pointer_location.position.y,
                 };
 
-                let previous_offset = drag_state.offset;
+                let handle_position = match divider {
+                    Divider::Horizontal => ui_global_transforms.get(target)?.translation.x,
+                    Divider::Vertical => ui_global_transforms.get(target)?.translation.y,
+                };
 
-                drag_state.offset += delta;
+                let delta = match divider {
+                    Divider::Horizontal => trigger.delta.x,
+                    Divider::Vertical => trigger.delta.y,
+                }
+                .abs()
+                    / drag_state.parent_node_size;
 
-                drag_state.offset = drag_state.offset.clamp(drag_state.min, drag_state.max);
+                if pointer_position > handle_position {
+                    let mut next = sizes.get_mut(siblings[index + 1])?;
+                    let last_next_size = next.0;
+                    next.0 = (next.0 - delta).max(min_size);
+                    let size_change = last_next_size - next.0;
 
-                let clamped_delta = drag_state.offset - previous_offset;
+                    let mut prev = sizes.get_mut(siblings[index - 1])?;
+                    prev.0 += size_change;
+                } else {
+                    let mut prev = sizes.get_mut(siblings[index - 1])?;
+                    let last_prev_size = prev.0;
+                    prev.0 = (prev.0 - delta).max(min_size);
+                    let size_change = last_prev_size - prev.0;
 
-                sizes.get_mut(siblings[index - 1])?.0 +=
-                    clamped_delta / drag_state.parent_node_size;
-                sizes.get_mut(siblings[index + 1])?.0 -=
-                    clamped_delta / drag_state.parent_node_size;
+                    let mut next = sizes.get_mut(siblings[index + 1])?;
+                    next.0 += size_change;
+                }
 
                 Ok(())
             },
@@ -567,7 +573,6 @@ fn spawn_resize_handle<'a>(commands: &'a mut Commands, divider: Divider) -> Enti
              mut override_cursor: ResMut<OverrideCursor>| {
                 override_cursor.0 = None;
                 drag_state.is_dragging = false;
-                drag_state.offset = 0.0;
             },
         )
         .observe(
@@ -576,7 +581,6 @@ fn spawn_resize_handle<'a>(commands: &'a mut Commands, divider: Divider) -> Enti
              mut override_cursor: ResMut<OverrideCursor>| {
                 override_cursor.0 = None;
                 drag_state.is_dragging = false;
-                drag_state.offset = 0.0;
             },
         );
 
