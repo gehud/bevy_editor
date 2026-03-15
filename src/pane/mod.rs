@@ -135,21 +135,19 @@ fn spawn_pane<'a>(
                             },
                             Pickable::IGNORE,
                         ))
-                        .with_children(|commands| {
-                            let group = commands.target_entity();
-                            let mut first = true;
-                            for tab in tabs {
-                                spawn_tab(commands.commands_mut(), asset_server, root, tab, first)
-                                    .insert(ChildOf(group))
-                                    .observe(on_tab_drag_start)
-                                    .observe(on_tab_drag)
-                                    .observe(on_tab_drag_end)
-                                    .observe(on_tab_drag_cancel);
-
-                                first = false;
-                            }
-                        })
                         .id();
+
+                    let mut first = true;
+                    for tab in tabs {
+                        spawn_tab(commands.commands_mut(), asset_server, root, tab, first)
+                            .insert(ChildOf(tabgroup))
+                            .observe(on_tab_drag_start)
+                            .observe(on_tab_drag)
+                            .observe(on_tab_drag_end)
+                            .observe(on_tab_drag_cancel);
+
+                        first = false;
+                    }
 
                     // Menu
                     commands.spawn(Node {
@@ -213,19 +211,9 @@ fn spawn_pane<'a>(
     commands.entity(root)
 }
 
-#[derive(Resource)]
+#[derive(Default, Resource)]
 struct TabbarDropState {
-    initial_tabgroup: Entity,
     drop_index: usize,
-}
-
-impl Default for TabbarDropState {
-    fn default() -> Self {
-        Self {
-            initial_tabgroup: Entity::PLACEHOLDER,
-            drop_index: 0,
-        }
-    }
 }
 
 fn on_tabbar_drag_enter(
@@ -247,8 +235,6 @@ fn on_tabbar_drag_enter(
         .and_modify(|mut visibility| {
             *visibility = Visibility::Inherited;
         });
-
-    tabbar_drop_state.initial_tabgroup = tabbar.tabgroup;
 
     Ok(())
 }
@@ -281,8 +267,12 @@ fn on_tabbar_drag_over(
     let mut indicator_position = 0.0;
     tabbar_drop_state.drop_index = 0;
     let tabs = children.get(tabbar.tabgroup)?;
-    for tab in tabs {
+    let mut dragged_tab_index = None;
+    for (i, tab) in tabs.iter().enumerate() {
         let size = computed_nodes.get(*tab)?.size().x;
+        if *tab == trigger.dragged {
+            dragged_tab_index = Some(i);
+        }
 
         if pointer_position < indicator_position + (size / 2.0) {
             break;
@@ -290,6 +280,12 @@ fn on_tabbar_drag_over(
 
         indicator_position += size;
         tabbar_drop_state.drop_index += 1;
+    }
+
+    if let Some(dragged_tab) = dragged_tab_index {
+        if tabbar_drop_state.drop_index > dragged_tab {
+            tabbar_drop_state.drop_index = tabbar_drop_state.drop_index.saturating_sub(1);
+        }
     }
 
     indicator.left = percent(indicator_position / tabbar_size * 100.0);
@@ -309,10 +305,6 @@ fn on_tabbar_drag_drop(
     let Ok(tab) = tabs.get(trigger.dropped) else {
         return Ok(());
     };
-
-    commands
-        .entity(tabbar_drop_state.initial_tabgroup)
-        .detach_child(trigger.dropped);
 
     commands
         .entity(tabbar.tabgroup)
