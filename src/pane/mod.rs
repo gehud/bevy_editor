@@ -2,12 +2,13 @@ use accesskit::Point;
 use bevy::{
     app::{App, Plugin, PostUpdate, Update},
     asset::AssetServer,
-    camera::NormalizedRenderTarget,
+    camera::{NormalizedRenderTarget, visibility::Visibility},
     ecs::{
         bundle::Bundle,
         children,
         component::Component,
         entity::{self, ContainsEntity, Entity},
+        entity_disabling::Disabled,
         error::Result,
         event::EntityEvent,
         hierarchy::{ChildOf, Children},
@@ -25,7 +26,9 @@ use bevy::{
     log::{info, warn},
     picking::{
         Pickable,
-        events::{Cancel, Drag, DragDrop, DragEnd, DragOver, DragStart, Pointer},
+        events::{
+            Cancel, Drag, DragDrop, DragEnd, DragEnter, DragLeave, DragOver, DragStart, Pointer,
+        },
         pointer::PointerButton,
     },
     platform::collections::HashMap,
@@ -60,7 +63,7 @@ pub struct PanePlugin;
 impl Plugin for PanePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<PaneRegistry>()
-            .init_resource::<DragState>()
+            .init_resource::<ResizeHandleDragState>()
             // .add_systems(Update, on_show_tab)
             .add_systems(Update, cleanup_divider_single_child)
             .add_systems(PostUpdate, apply_size.before(UiSystems::Layout))
@@ -75,6 +78,12 @@ pub(crate) struct PaneLayoutRoot;
 struct PaneTab {
     pane: Entity,
     tab: String,
+}
+
+#[derive(Component)]
+struct PaneTabbar {
+    drop_indicator: Entity,
+    tabgroup: Entity,
 }
 
 fn spawn_pane<'a>(
@@ -117,12 +126,15 @@ fn spawn_pane<'a>(
                 ))
                 .with_children(|commands| {
                     // Tab group
-                    commands
-                        .spawn(Node {
-                            column_gap: px(5),
-                            height: percent(100),
-                            ..default()
-                        })
+                    let tabgroup = commands
+                        .spawn((
+                            Node {
+                                column_gap: px(5),
+                                height: percent(100),
+                                ..default()
+                            },
+                            Pickable::IGNORE,
+                        ))
                         .with_children(|commands| {
                             let group = commands.target_entity();
                             let mut first = true;
@@ -136,7 +148,8 @@ fn spawn_pane<'a>(
 
                                 first = false;
                             }
-                        });
+                        })
+                        .id();
 
                     // Menu
                     commands.spawn(Node {
@@ -144,6 +157,46 @@ fn spawn_pane<'a>(
                         height: px(12),
                         ..default()
                     });
+
+                    let drop_indicator = commands
+                        .commands()
+                        .spawn((
+                            Node {
+                                position_type: PositionType::Absolute,
+                                height: percent(100),
+                                width: px(3),
+                                margin: UiRect::horizontal(px(-1)),
+                                left: px(0),
+                                ..default()
+                            },
+                            Pickable::IGNORE,
+                            ThemeBackgroundColor(PANE_TAB_ACTIVE),
+                            Visibility::Hidden,
+                        ))
+                        .id();
+
+                    commands
+                        .spawn((
+                            Node {
+                                position_type: PositionType::Absolute,
+                                width: percent(100),
+                                height: percent(100),
+                                ..default()
+                            },
+                            Pickable {
+                                should_block_lower: false,
+                                ..default()
+                            },
+                            PaneTabbar {
+                                drop_indicator,
+                                tabgroup,
+                            },
+                        ))
+                        .add_child(drop_indicator)
+                        .observe(on_tabbar_drag_enter)
+                        .observe(on_tabbar_drag_over)
+                        .observe(on_tabbar_drag_drop)
+                        .observe(on_tabbar_drag_leave);
                 });
 
             // Content area
@@ -158,6 +211,107 @@ fn spawn_pane<'a>(
     commands.entity(root).insert(PaneStructure { root });
 
     commands.entity(root)
+}
+
+fn on_tabbar_drag_enter(
+    trigger: On<Pointer<DragEnter>>,
+    tabbars: Query<&PaneTabbar>,
+    tabs: Query<&PaneTab>,
+    mut commands: Commands,
+) -> Result {
+    let tabbar = tabbars.get(trigger.entity)?;
+
+    let Ok(tab) = tabs.get(trigger.dragged) else {
+        return Ok(());
+    };
+
+    commands
+        .entity(tabbar.drop_indicator)
+        .entry::<Visibility>()
+        .and_modify(|mut visibility| {
+            *visibility = Visibility::Inherited;
+        });
+
+    Ok(())
+}
+
+fn on_tabbar_drag_over(
+    trigger: On<Pointer<DragOver>>,
+    tabbars: Query<&PaneTabbar>,
+    tabs: Query<&PaneTab>,
+    children: Query<&Children>,
+    computed_nodes: Query<&ComputedNode>,
+    mut nodes: Query<&mut Node>,
+    mut commands: Commands,
+) -> Result {
+    let tabbar = tabbars.get(trigger.entity)?;
+
+    let Ok(tab) = tabs.get(trigger.dragged) else {
+        return Ok(());
+    };
+
+    let tabs = children.get(tabbar.tabgroup)?;
+    let tabbar_size = computed_nodes.get(trigger.entity)?.size().x;
+
+    let mut indicator = nodes.get_mut(tabbar.drop_indicator)?;
+
+    let pointer_position = trigger
+        .hit
+        .position
+        .map(|position| (position.x + 0.5) * tabbar_size)
+        .unwrap_or_default();
+
+    let mut indicator_position = 0.0;
+    for tab in tabs {
+        let size = computed_nodes.get(*tab)?.size().x;
+
+        if pointer_position < indicator_position + (size / 2.0) {
+            break;
+        }
+
+        indicator_position += size;
+    }
+
+    indicator.left = percent(indicator_position / tabbar_size * 100.0);
+
+    Ok(())
+}
+
+fn on_tabbar_drag_drop(
+    trigger: On<Pointer<DragOver>>,
+    tabbars: Query<&PaneTabbar>,
+    tabs: Query<&PaneTab>,
+    mut commands: Commands,
+) -> Result {
+    let tabbar = tabbars.get(trigger.entity)?;
+
+    let Ok(tab) = tabs.get(trigger.dragged) else {
+        return Ok(());
+    };
+
+    Ok(())
+}
+
+fn on_tabbar_drag_leave(
+    trigger: On<Pointer<DragLeave>>,
+    tabbars: Query<&PaneTabbar>,
+    tabs: Query<&PaneTab>,
+    mut commands: Commands,
+) -> Result {
+    let tabbar = tabbars.get(trigger.entity)?;
+
+    let Ok(tab) = tabs.get(trigger.dragged) else {
+        return Ok(());
+    };
+
+    commands
+        .entity(tabbar.drop_indicator)
+        .entry::<Visibility>()
+        .and_modify(|mut visibility| {
+            *visibility = Visibility::Hidden;
+        });
+
+    Ok(())
 }
 
 #[derive(Component)]
@@ -449,7 +603,7 @@ fn spawn_divider<'a>(
 }
 
 #[derive(Resource, Default)]
-struct DragState {
+struct ResizeHandleDragState {
     is_dragging: bool,
     parent_node_size: f32,
 }
@@ -462,6 +616,7 @@ fn spawn_resize_handle<'a>(commands: &'a mut Commands, divider: Divider) -> Enti
 
     let mut handle = commands.spawn((
         Node {
+            flex_shrink: 0.0,
             width: match divider {
                 Divider::Horizontal => px(RESIZE_HANDLE_SIZE),
                 Divider::Vertical => percent(100),
@@ -479,7 +634,7 @@ fn spawn_resize_handle<'a>(commands: &'a mut Commands, divider: Divider) -> Enti
     handle
         .observe(
             move |trigger: On<Pointer<DragStart>>,
-                  mut drag_state: ResMut<DragState>,
+                  mut drag_state: ResMut<ResizeHandleDragState>,
                   parents: Query<&ChildOf>,
                   computed_nodes: Query<&ComputedNode>,
                   mut override_cursor: ResMut<OverrideCursor>|
@@ -508,7 +663,7 @@ fn spawn_resize_handle<'a>(commands: &'a mut Commands, divider: Divider) -> Enti
         )
         .observe(
             move |trigger: On<Pointer<Drag>>,
-                  drag_state: ResMut<DragState>,
+                  drag_state: ResMut<ResizeHandleDragState>,
                   parents: Query<&ChildOf>,
                   children: Query<&Children>,
                   ui_global_transforms: Query<&UiGlobalTransform>,
@@ -569,7 +724,7 @@ fn spawn_resize_handle<'a>(commands: &'a mut Commands, divider: Divider) -> Enti
         )
         .observe(
             |_: On<Pointer<DragEnd>>,
-             mut drag_state: ResMut<DragState>,
+             mut drag_state: ResMut<ResizeHandleDragState>,
              mut override_cursor: ResMut<OverrideCursor>| {
                 override_cursor.0 = None;
                 drag_state.is_dragging = false;
@@ -577,7 +732,7 @@ fn spawn_resize_handle<'a>(commands: &'a mut Commands, divider: Divider) -> Enti
         )
         .observe(
             |_: On<Pointer<Cancel>>,
-             mut drag_state: ResMut<DragState>,
+             mut drag_state: ResMut<ResizeHandleDragState>,
              mut override_cursor: ResMut<OverrideCursor>| {
                 override_cursor.0 = None;
                 drag_state.is_dragging = false;
