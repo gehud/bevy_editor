@@ -65,7 +65,6 @@ impl Plugin for PanePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<PaneRegistry>()
             .init_resource::<ResizeHandleDragState>()
-            .init_resource::<TabbarDropState>()
             // .add_systems(Update, on_show_tab)
             .add_systems(Update, cleanup_divider_single_child)
             .add_systems(PostUpdate, apply_size.before(UiSystems::Layout))
@@ -242,21 +241,12 @@ fn set_tab_active(
     Ok(())
 }
 
-#[derive(Resource)]
-struct TabbarDropState {
+#[derive(Component)]
+struct DraggedTab {
     start_pane: Entity,
     start_tabgroup: Entity,
+    indicator: Entity,
     drop_index: usize,
-}
-
-impl Default for TabbarDropState {
-    fn default() -> Self {
-        Self {
-            start_pane: Entity::PLACEHOLDER,
-            start_tabgroup: Entity::PLACEHOLDER,
-            drop_index: 0,
-        }
-    }
 }
 
 fn on_tabbar_drag_enter(
@@ -284,15 +274,14 @@ fn on_tabbar_drag_enter(
 fn on_tabbar_drag_over(
     trigger: On<Pointer<DragOver>>,
     tabbars: Query<&PaneTabbar>,
-    tabs: Query<&PaneTab>,
     children: Query<&Children>,
     computed_nodes: Query<&ComputedNode>,
+    mut dragged_tabs: Query<&mut DraggedTab>,
     mut nodes: Query<&mut Node>,
-    mut tabbar_drop_state: ResMut<TabbarDropState>,
 ) -> Result {
     let tabbar = tabbars.get(trigger.entity)?;
 
-    let Ok(_) = tabs.get(trigger.dragged) else {
+    let Ok(mut dragged_tab) = dragged_tabs.get_mut(trigger.dragged) else {
         return Ok(());
     };
 
@@ -307,7 +296,7 @@ fn on_tabbar_drag_over(
         .unwrap_or_default();
 
     let mut indicator_position = 0.0;
-    tabbar_drop_state.drop_index = 0;
+    dragged_tab.drop_index = 0;
     let tabs = children.get(tabbar.tabgroup)?;
     let mut dragged_tab_index = None;
     for (i, tab) in tabs.iter().enumerate() {
@@ -321,12 +310,12 @@ fn on_tabbar_drag_over(
         }
 
         indicator_position += size;
-        tabbar_drop_state.drop_index += 1;
+        dragged_tab.drop_index += 1;
     }
 
-    if let Some(dragged_tab) = dragged_tab_index {
-        if tabbar_drop_state.drop_index > dragged_tab {
-            tabbar_drop_state.drop_index = tabbar_drop_state.drop_index.saturating_sub(1);
+    if let Some(dragged_tab_index) = dragged_tab_index {
+        if dragged_tab.drop_index > dragged_tab_index {
+            dragged_tab.drop_index = dragged_tab.drop_index.saturating_sub(1);
         }
     }
 
@@ -338,33 +327,32 @@ fn on_tabbar_drag_over(
 fn on_tabbar_drag_drop(
     trigger: On<Pointer<DragDrop>>,
     tabbars: Query<&PaneTabbar>,
-    tabs: Query<&PaneTab>,
     children: Query<&Children>,
-    tabbar_drop_state: Res<TabbarDropState>,
+    dragged_tabs: Query<&DraggedTab>,
     mut commands: Commands,
 ) -> Result {
     let tabbar = tabbars.get(trigger.entity)?;
 
-    let Ok(_) = tabs.get(trigger.dropped) else {
+    let Ok(dragged_tab) = dragged_tabs.get(trigger.dropped) else {
         return Ok(());
     };
 
     commands
         .entity(tabbar.tabgroup)
-        .insert_child(tabbar_drop_state.drop_index, trigger.dropped);
+        .insert_child(dragged_tab.drop_index, trigger.dropped);
 
     commands.run_system_cached_with(set_tab_active, (tabbar.tabgroup, trigger.dropped));
 
-    if tabbar.tabgroup != tabbar_drop_state.start_tabgroup {
+    if tabbar.tabgroup != dragged_tab.start_tabgroup {
         let remove_pane = {
-            if let Ok(tabbgroup_tabs) = children.get(tabbar_drop_state.start_tabgroup) {
+            if let Ok(tabbgroup_tabs) = children.get(dragged_tab.start_tabgroup) {
                 if let Some(last) = tabbgroup_tabs
                     .iter()
                     .find(|entity| **entity != trigger.dropped)
                 {
                     commands.run_system_cached_with(
                         set_tab_active,
-                        (tabbar_drop_state.start_tabgroup, *last),
+                        (dragged_tab.start_tabgroup, *last),
                     );
 
                     false
@@ -377,7 +365,7 @@ fn on_tabbar_drag_drop(
         };
 
         if remove_pane {
-            commands.entity(tabbar_drop_state.start_pane).despawn();
+            commands.entity(dragged_tab.start_pane).despawn();
         }
     }
 
@@ -406,9 +394,6 @@ fn on_tabbar_drag_leave(
     Ok(())
 }
 
-#[derive(Component)]
-struct TabDragIndicator;
-
 fn on_tab_press(
     trigger: On<Pointer<Press>>,
     parents: Query<&ChildOf>,
@@ -418,6 +403,7 @@ fn on_tab_press(
         set_tab_active,
         (parents.get(trigger.entity)?.parent(), trigger.entity),
     );
+
     Ok(())
 }
 
@@ -428,7 +414,6 @@ fn on_tab_drag_start(
     asset_server: Res<AssetServer>,
     tabs: Query<&PaneTab>,
     parents: Query<&ChildOf>,
-    mut tabbar_drag_state: ResMut<TabbarDropState>,
     mut override_cursor: ResMut<OverrideCursor>,
 ) -> Result {
     let NormalizedRenderTarget::Window(window) = trigger.pointer_location.target else {
@@ -440,7 +425,7 @@ fn on_tab_drag_start(
     };
 
     let tab = tabs.get(trigger.entity)?;
-    spawn_tab(
+    let indicator = spawn_tab(
         &mut commands,
         &asset_server,
         tab.pane,
@@ -449,16 +434,22 @@ fn on_tab_drag_start(
     )
     .insert(ChildOf(decorated.root()))
     .insert(Pickable::IGNORE)
-    .insert(TabDragIndicator)
     .entry::<Node>()
     .and_modify(|mut node| {
         node.position_type = PositionType::Absolute;
         node.border = UiRect::all(px(2));
         node.border_radius = RoundedCorners::All.to_border_radius(2.0);
+    })
+    .entity()
+    .id();
+
+    commands.entity(trigger.entity).insert(DraggedTab {
+        start_pane: tab.pane,
+        start_tabgroup: parents.get(trigger.entity)?.parent(),
+        indicator,
+        drop_index: 0,
     });
 
-    tabbar_drag_state.start_pane = tab.pane;
-    tabbar_drag_state.start_tabgroup = parents.get(trigger.entity)?.parent();
     override_cursor.0 = Some(EntityCursor::System(SystemCursorIcon::Grabbing));
 
     Ok(())
@@ -466,30 +457,47 @@ fn on_tab_drag_start(
 
 fn on_tab_drag(
     trigger: On<Pointer<Drag>>,
-    mut indicator: Single<&mut Node, With<TabDragIndicator>>,
+    dragged_tabs: Query<&DraggedTab>,
+    mut nodes: Query<&mut Node>,
     ui_scale: Res<UiScale>,
-) {
+) -> Result {
+    let Ok(dragged_tab) = dragged_tabs.get(trigger.entity) else {
+        return Ok(());
+    };
+
+    let mut indicator = nodes.get_mut(dragged_tab.indicator)?;
+
     indicator.left = px(trigger.pointer_location.position.x / ui_scale.0);
     indicator.top = px(trigger.pointer_location.position.y / ui_scale.0);
+
+    Ok(())
 }
 
 fn on_tab_drag_end(
-    _: On<Pointer<DragEnd>>,
-    indicator: Single<Entity, With<TabDragIndicator>>,
+    trigger: On<Pointer<DragEnd>>,
+    dragged_tabs: Query<&DraggedTab>,
     mut commands: Commands,
     mut override_cursor: ResMut<OverrideCursor>,
 ) {
-    commands.entity(*indicator).despawn();
+    let Ok(dragged_tab) = dragged_tabs.get(trigger.entity) else {
+        return;
+    };
+
+    commands.entity(dragged_tab.indicator).despawn();
     override_cursor.0 = None;
 }
 
 fn on_tab_drag_cancel(
-    _: On<Pointer<Cancel>>,
-    indicator: Single<Entity, With<TabDragIndicator>>,
+    trigger: On<Pointer<Cancel>>,
+    dragged_tabs: Query<&DraggedTab>,
     mut commands: Commands,
     mut override_cursor: ResMut<OverrideCursor>,
 ) {
-    commands.entity(*indicator).despawn();
+    let Ok(dragged_tab) = dragged_tabs.get(trigger.entity) else {
+        return;
+    };
+
+    commands.entity(dragged_tab.indicator).despawn();
     override_cursor.0 = None;
 }
 
