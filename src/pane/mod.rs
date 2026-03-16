@@ -23,6 +23,7 @@ use bevy::{
         },
         world::{Mut, World},
     },
+    input_focus::{self, InputFocus},
     log::{info, warn},
     picking::{
         Pickable,
@@ -51,8 +52,8 @@ use crate::{
         palette::ACCENT,
         tokens::{PANE_BG, PANE_TAB_ACTIVE, TEXT_MAIN, WINDOW_BG},
     },
-    widget::{EntityCursor, OverrideCursor},
-    window::DecoratedWindow,
+    widget::{ContextMenu, ContextMenuItem, EntityCursor, OverrideCursor},
+    window::EditorWindow,
 };
 
 pub const PANE_BORDER_RADIUS: f32 = 6.0;
@@ -117,7 +118,7 @@ fn spawn_pane<'a>(
                         width: percent(100),
                         height: px(30),
                         padding: UiRect::left(px(6)).with_right(px(8)),
-                        overflow: Overflow::clip(),
+                        overflow: Overflow::hidden(),
                         border: UiRect::horizontal(px(1)).with_top(px(1)),
                         flex_shrink: 0.0,
                         border_radius: RoundedCorners::Top.to_border_radius(PANE_BORDER_RADIUS),
@@ -198,6 +199,7 @@ fn spawn_pane<'a>(
                                 tabgroup,
                             },
                         ))
+                        .insert(tab_context_menu())
                         .add_child(drop_indicator)
                         .observe(on_tabbar_drag_enter)
                         .observe(on_tabbar_drag_over)
@@ -217,6 +219,12 @@ fn spawn_pane<'a>(
     commands.entity(root).insert(PaneStructure { root });
 
     commands.entity(root)
+}
+
+fn tab_context_menu() -> ContextMenu {
+    ContextMenu::new()
+        .with_option("Option 1", |world, tab| {})
+        .with_option("Option 2", |world, tab| {})
 }
 
 fn stylize_tab(commands: &mut Commands, root: Entity, active: bool) {
@@ -252,12 +260,12 @@ struct DraggedTab {
 fn on_tabbar_drag_enter(
     trigger: On<Pointer<DragEnter>>,
     tabbars: Query<&PaneTabbar>,
-    tabs: Query<&PaneTab>,
+    dragged_tabs: Query<&DraggedTab>,
     mut commands: Commands,
 ) -> Result {
     let tabbar = tabbars.get(trigger.entity)?;
 
-    let Ok(_) = tabs.get(trigger.dragged) else {
+    let Ok(_) = dragged_tabs.get(trigger.dragged) else {
         return Ok(());
     };
 
@@ -375,12 +383,12 @@ fn on_tabbar_drag_drop(
 fn on_tabbar_drag_leave(
     trigger: On<Pointer<DragLeave>>,
     tabbars: Query<&PaneTabbar>,
-    tabs: Query<&PaneTab>,
+    dragged_tabs: Query<&DraggedTab>,
     mut commands: Commands,
 ) -> Result {
     let tabbar = tabbars.get(trigger.entity)?;
 
-    let Ok(_) = tabs.get(trigger.dragged) else {
+    let Ok(_) = dragged_tabs.get(trigger.dragged) else {
         return Ok(());
     };
 
@@ -399,6 +407,10 @@ fn on_tab_press(
     parents: Query<&ChildOf>,
     mut commands: Commands,
 ) -> Result {
+    if trigger.button != PointerButton::Primary {
+        return Ok(());
+    }
+
     commands.run_system_cached_with(
         set_tab_active,
         (parents.get(trigger.entity)?.parent(), trigger.entity),
@@ -409,18 +421,22 @@ fn on_tab_press(
 
 fn on_tab_drag_start(
     trigger: On<Pointer<DragStart>>,
-    decorated: Query<&DecoratedWindow>,
+    editor_windows: Query<&EditorWindow>,
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     tabs: Query<&PaneTab>,
     parents: Query<&ChildOf>,
     mut override_cursor: ResMut<OverrideCursor>,
 ) -> Result {
+    if trigger.button != PointerButton::Primary {
+        return Ok(());
+    }
+
     let NormalizedRenderTarget::Window(window) = trigger.pointer_location.target else {
         return Ok(());
     };
 
-    let Ok(decorated) = decorated.get(window.entity()) else {
+    let Ok(editor_window) = editor_windows.get(window.entity()) else {
         return Ok(());
     };
 
@@ -432,7 +448,7 @@ fn on_tab_drag_start(
         tab.tab.clone(),
         true,
     )
-    .insert(ChildOf(decorated.root()))
+    .insert(ChildOf(editor_window.root()))
     .insert(Pickable::IGNORE)
     .entry::<Node>()
     .and_modify(|mut node| {

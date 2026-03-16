@@ -46,9 +46,9 @@ pub const WINDOW_BORDER_RADIUS: f32 = 8.0;
 pub const WINDOW_BUTTON_SIZE: f32 = 26.0;
 pub const WINDOW_BUTTON_RADIUS: f32 = WINDOW_BUTTON_SIZE / 2.0;
 
-pub struct DecoratedWindowPlugin;
+pub struct EditorWindowPlugin;
 
-impl Plugin for DecoratedWindowPlugin {
+impl Plugin for EditorWindowPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(ClearColor(Color::NONE))
             .add_systems(First, check_actually_maximized)
@@ -66,7 +66,7 @@ impl Plugin for DecoratedWindowPlugin {
 pub struct IsWindowMaximized(pub bool);
 
 #[derive(Component)]
-pub struct DecoratedWindow {
+pub struct EditorWindow {
     root: Entity,
     titlebar: Entity,
     content: Entity,
@@ -74,16 +74,16 @@ pub struct DecoratedWindow {
 }
 
 #[derive(EntityEvent)]
-pub struct PrimaryWindowDecorated {
+pub struct PrimaryWindowConfigured {
     pub entity: Entity,
 }
 
 #[derive(EntityEvent)]
-pub struct WindowDecorated {
+pub struct WindowConfigured {
     pub entity: Entity,
 }
 
-impl DecoratedWindow {
+impl EditorWindow {
     pub fn root(&self) -> Entity {
         self.root
     }
@@ -104,7 +104,7 @@ impl Default for IsWindowMaximized {
 }
 
 #[derive(Component)]
-struct DecoratedWindowRef(Entity);
+struct EditorWindowRef(Entity);
 
 fn configure_windows(
     windows: Query<Entity, Added<Window>>,
@@ -114,9 +114,9 @@ fn configure_windows(
 ) {
     for window in windows {
         configure_window(window, &mut commands, &asset_server);
-        commands.trigger(WindowDecorated { entity: window });
+        commands.trigger(WindowConfigured { entity: window });
         if window == *primary_window {
-            commands.trigger(PrimaryWindowDecorated { entity: window });
+            commands.trigger(PrimaryWindowConfigured { entity: window });
         }
     }
 }
@@ -165,7 +165,7 @@ fn configure_window(window: Entity, commands: &mut Commands, asset_server: &Asse
                 // Move
                 commands
                     .spawn((
-                        DecoratedWindowRef(window),
+                        EditorWindowRef(window),
                         Node {
                             position_type: PositionType::Absolute,
                             width: percent(100),
@@ -175,7 +175,7 @@ fn configure_window(window: Entity, commands: &mut Commands, asset_server: &Asse
                     ))
                     .observe(
                         |trigger: On<Pointer<Press>>,
-                         window_refs: Query<&DecoratedWindowRef>,
+                         window_refs: Query<&EditorWindowRef>,
                          mut windows: Query<&mut Window>|
                          -> Result {
                             let mut window = windows.get_mut(window_refs.get(trigger.entity)?.0)?;
@@ -217,7 +217,7 @@ fn configure_window(window: Entity, commands: &mut Commands, asset_server: &Asse
                         )
                         .observe(
                             |trigger: On<Pointer<Click>>,
-                             window_refs: Query<&DecoratedWindowRef>,
+                             window_refs: Query<&EditorWindowRef>,
                              mut windows: Query<&mut Window>|
                              -> Result {
                                 let mut window =
@@ -236,7 +236,7 @@ fn configure_window(window: Entity, commands: &mut Commands, asset_server: &Asse
                         )
                         .observe(
                             |trigger: On<Pointer<Click>>,
-                             window_refs: Query<&DecoratedWindowRef>,
+                             window_refs: Query<&EditorWindowRef>,
                              mut windows: Query<&mut IsWindowMaximized>|
                              -> Result {
                                 let mut is_window_maximized =
@@ -404,7 +404,7 @@ fn configure_window(window: Entity, commands: &mut Commands, asset_server: &Asse
             );
     });
 
-    commands.entity(window).insert(DecoratedWindow {
+    commands.entity(window).insert(EditorWindow {
         root,
         titlebar,
         content,
@@ -433,7 +433,7 @@ fn spawn_titlebar_button<'a>(
 
     let button = commands
         .spawn((
-            DecoratedWindowRef(window),
+            EditorWindowRef(window),
             ChildOf(root),
             Node {
                 width: px(WINDOW_BUTTON_SIZE),
@@ -472,13 +472,13 @@ fn spawn_titlebar_button<'a>(
 fn set_maximize_style(
     In((window, is_maximized)): In<(Entity, bool)>,
     children: Query<&Children>,
-    decorated: Query<&DecoratedWindow>,
+    editor_windows: Query<&EditorWindow>,
     mut image_nodes: Query<&mut ImageNode>,
     mut nodes: Query<&mut Node>,
     asset_server: Res<AssetServer>,
 ) -> Result {
-    let decorated = decorated.get(window)?;
-    let mut image = image_nodes.get_mut(children.get(decorated.maximize)?[0])?;
+    let editor_window = editor_windows.get(window)?;
+    let mut image = image_nodes.get_mut(children.get(editor_window.maximize)?[0])?;
 
     image.image = if is_maximized {
         asset_server.load("embedded://bevy_editor/assets/window/icons/restore.png")
@@ -494,7 +494,7 @@ fn set_maximize_style(
 
     let border = if is_maximized { 0.0 } else { 1.0 };
 
-    let mut root = nodes.get_mut(decorated.root)?;
+    let mut root = nodes.get_mut(editor_window.root)?;
 
     root.border_radius = RoundedCorners::All.to_border_radius(border_radius);
     root.border = UiRect::all(px(border));

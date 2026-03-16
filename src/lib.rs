@@ -6,21 +6,38 @@ pub mod window;
 use bevy::{
     DefaultPlugins,
     app::{App, Plugin, PluginGroup},
+    color::Color,
     ecs::{
         error::Result,
         observer::On,
-        system::{Commands, Query},
+        system::{Commands, Query, ResMut},
     },
-    ui::{FlexDirection, Node, UiRect, percent, px},
+    input_focus::{InputFocus, tab_navigation::TabIndex},
+    picking::hover::Hovered,
+    text::TextColor,
+    ui::{
+        AlignItems, BackgroundColor, FlexDirection, JustifyContent, Node, OverrideClip,
+        PositionType, UiRect, percent, px,
+        widget::{Text, TextShadow},
+    },
+    ui_widgets::{
+        MenuItem, MenuLayout, MenuPopup,
+        popover::{Popover, PopoverAlign, PopoverPlacement, PopoverSide},
+    },
     utils::default,
     window::{Window, WindowPlugin},
 };
 
 use crate::{
     pane::{PaneLayoutRoot, PanePlugin},
-    theme::{ThemePlugin, UiTheme, create_dark_theme},
+    theme::{
+        InheritableFont, ThemeBackgroundColor, ThemeBorderColor, ThemePlugin, UiTheme,
+        constants::fonts::REGULAR,
+        create_dark_theme,
+        tokens::{BORDER, WINDOW_BG},
+    },
     widget::WidgetPlugins,
-    window::{DecoratedWindow, DecoratedWindowPlugin, IsWindowMaximized, PrimaryWindowDecorated},
+    window::{EditorWindow, EditorWindowPlugin, IsWindowMaximized, PrimaryWindowConfigured},
 };
 
 #[derive(Default)]
@@ -37,7 +54,7 @@ impl Plugin for EditorPlugin {
             ..default()
         }))
         .add_plugins(ThemePlugin)
-        .add_plugins(DecoratedWindowPlugin)
+        .add_plugins(EditorWindowPlugin)
         .add_plugins(WidgetPlugins)
         .add_plugins(PanePlugin)
         .insert_resource(UiTheme(create_dark_theme()))
@@ -46,17 +63,17 @@ impl Plugin for EditorPlugin {
 }
 
 fn setup(
-    trigger: On<PrimaryWindowDecorated>,
-    decorated_windows: Query<&DecoratedWindow>,
+    trigger: On<PrimaryWindowConfigured>,
+    editor_windows: Query<&EditorWindow>,
     mut windows: Query<&mut IsWindowMaximized>,
     mut commands: Commands,
 ) -> Result {
     windows.get_mut(trigger.entity)?.0 = true;
 
-    let decorated_window = decorated_windows.get(trigger.entity)?;
+    let editor_window = editor_windows.get(trigger.entity)?;
 
     commands
-        .entity(decorated_window.content())
+        .entity(editor_window.content())
         .with_children(|commands| {
             commands
                 .spawn(Node {
