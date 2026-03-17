@@ -52,7 +52,7 @@ pub enum ContextMenuItem {
         enabled: bool,
         mark: ContextMenuMark,
         label: String,
-        callback: Arc<dyn Fn(&mut DeferredWorld, Entity) + Send + Sync>,
+        callback: Arc<dyn Fn(&mut DeferredWorld, Entity) -> Result + Send + Sync>,
     },
     Submenu {
         label: String,
@@ -81,7 +81,7 @@ impl ContextMenu {
         enabled: bool,
         mark: ContextMenuMark,
         label: impl Into<String>,
-        callback: impl Fn(&mut DeferredWorld, Entity) + Send + Sync + 'static,
+        callback: impl Fn(&mut DeferredWorld, Entity) -> Result + Send + Sync + 'static,
     ) -> Self {
         self.items.push(ContextMenuItem::Option {
             enabled,
@@ -302,7 +302,7 @@ fn spawn_option<'a>(
     enabled: bool,
     mark: ContextMenuMark,
     label: String,
-    callback: Arc<dyn Fn(&mut DeferredWorld, Entity) + Send + Sync>,
+    callback: Arc<dyn Fn(&mut DeferredWorld, Entity) -> Result + Send + Sync>,
 ) -> Result<EntityCommands<'a>> {
     let text_color = if enabled { TEXT_MAIN } else { TEXT_DIM };
 
@@ -375,6 +375,18 @@ fn spawn_option<'a>(
                         ThemeTextColor(text_color),
                     ));
                 });
+
+            commands.spawn((
+                Node {
+                    align_self: AlignSelf::End,
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::Center,
+                    width: px(16),
+                    height: px(16),
+                    ..default()
+                },
+                Pickable::IGNORE,
+            ));
         })
         .observe(
             move |_: On<Pointer<Over>>,
@@ -390,11 +402,22 @@ fn spawn_option<'a>(
             },
         )
         .observe(
-            move |_: On<Pointer<Click>>, mut world: DeferredWorld, mut commands: Commands| {
-                if enabled {
-                    callback(&mut world, target);
-                    commands.entity(root).despawn();
+            move |trigger: On<Pointer<Click>>,
+                  mut world: DeferredWorld,
+                  mut commands: Commands|
+                  -> Result {
+                if trigger.button != PointerButton::Primary {
+                    return Ok(());
                 }
+
+                if !enabled {
+                    return Ok(());
+                }
+
+                callback(&mut world, target)?;
+                commands.entity(root).despawn();
+
+                Ok(())
             },
         )
         .id();

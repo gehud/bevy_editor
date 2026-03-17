@@ -29,7 +29,7 @@ use bevy::{
 };
 
 use crate::{
-    pane::{PaneLayoutRoot, PanePlugin},
+    pane::{PaneLayoutRoot, EditorPanePlugin},
     theme::{
         ThemeBackgroundColor, ThemeBorderColor, EditorThemePlugin, Theme,
         constants::fonts::REGULAR,
@@ -55,7 +55,7 @@ impl Plugin for EditorPlugin {
         .add_plugins(EditorThemePlugin)
         .add_plugins(EditorWindowPlugin)
         .add_plugins(EditorWidgetPlugins)
-        .add_plugins(PanePlugin)
+        .add_plugins(EditorPanePlugin)
         .add_observer(setup);
     }
 }

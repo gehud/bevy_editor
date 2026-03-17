@@ -1,30 +1,20 @@
-use accesskit::Point;
 use bevy::{
     app::{App, Plugin, PostUpdate, Update},
     asset::AssetServer,
     camera::{NormalizedRenderTarget, visibility::Visibility},
     ecs::{
-        bundle::Bundle,
-        children,
         component::Component,
-        entity::{self, ContainsEntity, Entity},
-        entity_disabling::Disabled,
+        entity::{ContainsEntity, Entity},
         error::Result,
         event::EntityEvent,
         hierarchy::{ChildOf, Children},
         lifecycle::{Add, Remove},
         observer::On,
-        query::{Added, Changed, QueryState, With},
+        query::{Changed, Or, With},
         resource::Resource,
         schedule::IntoScheduleConfigs,
-        system::{
-            BoxedSystem, Commands, EntityCommands, In, IntoSystem, Local, Query, Res, ResMut,
-            Single, SystemId,
-        },
-        world::{DeferredWorld, Mut, World},
+        system::{BoxedSystem, Commands, EntityCommands, In, IntoSystem, Query, Res, ResMut},
     },
-    input_focus::{self, InputFocus},
-    log::{info, warn},
     picking::{
         Pickable,
         events::{
@@ -33,12 +23,10 @@ use bevy::{
         },
         pointer::PointerButton,
     },
-    platform::collections::HashMap,
     text::TextFont,
     ui::{
-        AlignItems, AlignSelf, ComputedNode, FlexDirection, JustifyContent, Node, Overflow,
-        OverflowClipMargin, PositionType, UiGlobalTransform, UiRect, UiScale, UiSystems, percent,
-        px, widget::Text,
+        AlignItems, ComputedNode, FlexDirection, JustifyContent, Node, Overflow, PositionType,
+        UiGlobalTransform, UiRect, UiScale, UiSystems, percent, px, widget::Text,
     },
     utils::default,
     window::SystemCursorIcon,
@@ -48,10 +36,9 @@ use crate::{
     theme::{
         RoundedCorners, ThemeBackgroundColor, ThemeBorderColor, ThemeTextColor,
         constants::fonts::REGULAR,
-        palette::ACCENT,
         tokens::{PANE_BG, PANE_TAB_ACTIVE, TEXT_MAIN, WINDOW_BG},
     },
-    widget::{ContextMenu, ContextMenuItem, ContextMenuMark, EntityCursor, OverrideCursor},
+    widget::{ContextMenu, ContextMenuMark, EntityCursor, OverrideCursor},
     window::EditorWindow,
 };
 
@@ -59,14 +46,15 @@ pub const PANE_BORDER_RADIUS: f32 = 6.0;
 pub const MIN_PANE_SIZE: f32 = 45.0;
 pub const RESIZE_HANDLE_SIZE: f32 = 4.0;
 
-pub struct PanePlugin;
+pub struct EditorPanePlugin;
 
-impl Plugin for PanePlugin {
+impl Plugin for EditorPanePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<PaneRegistry>()
             .init_resource::<ResizeHandleDragState>()
             // .add_systems(Update, on_show_tab)
             .add_systems(Update, cleanup_divider_single_child)
+            .add_systems(Update, set_tabs_active)
             .add_systems(PostUpdate, apply_size.before(UiSystems::Layout))
             .add_observer(init);
     }
@@ -85,6 +73,11 @@ struct PaneTab {
 struct PaneTabbar {
     drop_indicator: Entity,
     tabgroup: Entity,
+}
+
+#[derive(Component)]
+struct PaneTabgroup {
+    active_tab: usize,
 }
 
 fn spawn_pane<'a>(
@@ -136,26 +129,23 @@ fn spawn_pane<'a>(
                                 ..default()
                             },
                             Pickable::IGNORE,
+                            PaneTabgroup { active_tab: 0 },
                         ))
+                        .observe(move |_: On<Remove, Children>, mut commands: Commands| {
+                            commands.entity(root).despawn();
+                        })
                         .id();
 
-                    let mut first_tab = None;
                     for tab in tabs {
-                        let id = spawn_tab(commands.commands_mut(), asset_server, root, tab, false)
+                        spawn_tab(commands.commands_mut(), asset_server, root, tab)
                             .insert(ChildOf(tabgroup))
+                            .insert(tab_context_menu())
                             .observe(on_tab_press)
                             .observe(on_tab_drag_start)
                             .observe(on_tab_drag)
                             .observe(on_tab_drag_end)
-                            .observe(on_tab_drag_cancel)
-                            .id();
-
-                        first_tab.get_or_insert(id);
+                            .observe(on_tab_drag_cancel);
                     }
-
-                    commands
-                        .commands_mut()
-                        .run_system_cached_with(set_tab_active, (tabgroup, first_tab.unwrap()));
 
                     // Menu
                     commands.spawn(Node {
@@ -198,7 +188,6 @@ fn spawn_pane<'a>(
                                 tabgroup,
                             },
                         ))
-                        .insert(tab_context_menu())
                         .add_child(drop_indicator)
                         .observe(on_tabbar_drag_enter)
                         .observe(on_tabbar_drag_over)
@@ -221,50 +210,14 @@ fn spawn_pane<'a>(
 }
 
 fn tab_context_menu() -> ContextMenu {
-    ContextMenu::new()
-        .with_option(true, ContextMenuMark::None, "Option 1", |world, tab| {})
-        .with_separator()
-        .with_option(false, ContextMenuMark::Checked, "Option 2", |world, tab| {})
-        .with_submenu(
-            "Submenu 1",
-            ContextMenu::new()
-                .with_option(true, ContextMenuMark::None, "Option 1", |world, tab| {})
-                .with_option(true, ContextMenuMark::Checked, "Option 2", |world, tab| {}),
-        )
-        .with_submenu(
-            "Submenu 2",
-            ContextMenu::new()
-                .with_option(true, ContextMenuMark::None, "Option 1", |world, tab| {})
-                .with_option(true, ContextMenuMark::Checked, "Option 2", |world, tab| {}),
-        )
-}
-
-fn stylize_tab(commands: &mut Commands, root: Entity, active: bool) {
-    commands.entity(root).insert((
-        ThemeBackgroundColor(if active { PANE_BG } else { WINDOW_BG }),
-        ThemeBorderColor::all(if active { PANE_TAB_ACTIVE } else { WINDOW_BG }),
-    ));
-}
-
-fn set_tab_active(
-    In((tabgroup, active_tab)): In<(Entity, Entity)>,
-    children: Query<&Children>,
-    mut commands: Commands,
-) -> Result {
-    let tabs = children.get(tabgroup)?;
-
-    for tab in tabs {
-        let active = *tab == active_tab;
-        stylize_tab(&mut commands, *tab, active);
-    }
-
-    Ok(())
+    ContextMenu::new().with_option(true, ContextMenuMark::None, "Close", |world, tab| {
+        world.commands().entity(tab).despawn();
+        Ok(())
+    })
 }
 
 #[derive(Component)]
 struct DraggedTab {
-    start_pane: Entity,
-    start_tabgroup: Entity,
     indicator: Entity,
     drop_index: usize,
 }
@@ -347,7 +300,6 @@ fn on_tabbar_drag_over(
 fn on_tabbar_drag_drop(
     trigger: On<Pointer<DragDrop>>,
     tabbars: Query<&PaneTabbar>,
-    children: Query<&Children>,
     dragged_tabs: Query<&DraggedTab>,
     mut commands: Commands,
 ) -> Result {
@@ -357,37 +309,13 @@ fn on_tabbar_drag_drop(
         return Ok(());
     };
 
+    let drop_index = dragged_tab.drop_index;
+
     commands
         .entity(tabbar.tabgroup)
-        .insert_child(dragged_tab.drop_index, trigger.dropped);
-
-    commands.run_system_cached_with(set_tab_active, (tabbar.tabgroup, trigger.dropped));
-
-    if tabbar.tabgroup != dragged_tab.start_tabgroup {
-        let remove_pane = {
-            if let Ok(tabbgroup_tabs) = children.get(dragged_tab.start_tabgroup) {
-                if let Some(last) = tabbgroup_tabs
-                    .iter()
-                    .find(|entity| **entity != trigger.dropped)
-                {
-                    commands.run_system_cached_with(
-                        set_tab_active,
-                        (dragged_tab.start_tabgroup, *last),
-                    );
-
-                    false
-                } else {
-                    true
-                }
-            } else {
-                true
-            }
-        };
-
-        if remove_pane {
-            commands.entity(dragged_tab.start_pane).despawn();
-        }
-    }
+        .insert_child(drop_index, trigger.dropped)
+        .entry::<PaneTabgroup>()
+        .and_modify(move |mut tabgroup| tabgroup.active_tab = drop_index);
 
     Ok(())
 }
@@ -395,14 +323,9 @@ fn on_tabbar_drag_drop(
 fn on_tabbar_drag_leave(
     trigger: On<Pointer<DragLeave>>,
     tabbars: Query<&PaneTabbar>,
-    dragged_tabs: Query<&DraggedTab>,
     mut commands: Commands,
 ) -> Result {
     let tabbar = tabbars.get(trigger.entity)?;
-
-    let Ok(_) = dragged_tabs.get(trigger.dragged) else {
-        return Ok(());
-    };
 
     commands
         .entity(tabbar.drop_indicator)
@@ -417,16 +340,20 @@ fn on_tabbar_drag_leave(
 fn on_tab_press(
     trigger: On<Pointer<Press>>,
     parents: Query<&ChildOf>,
-    mut commands: Commands,
+    mut tabgroups: Query<&mut PaneTabgroup>,
+    children: Query<&Children>,
 ) -> Result {
     if trigger.button != PointerButton::Primary {
         return Ok(());
     }
 
-    commands.run_system_cached_with(
-        set_tab_active,
-        (parents.get(trigger.entity)?.parent(), trigger.entity),
-    );
+    let parent = parents.get(trigger.entity)?.parent();
+    let tabs = children.get(parent)?;
+    let index = tabs
+        .iter()
+        .position(|sibling| *sibling == trigger.entity)
+        .unwrap();
+    tabgroups.get_mut(parent)?.active_tab = index;
 
     Ok(())
 }
@@ -437,7 +364,6 @@ fn on_tab_drag_start(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     tabs: Query<&PaneTab>,
-    parents: Query<&ChildOf>,
     mut override_cursor: ResMut<OverrideCursor>,
 ) -> Result {
     if trigger.button != PointerButton::Primary {
@@ -453,27 +379,19 @@ fn on_tab_drag_start(
     };
 
     let tab = tabs.get(trigger.entity)?;
-    let indicator = spawn_tab(
-        &mut commands,
-        &asset_server,
-        tab.pane,
-        tab.tab.clone(),
-        true,
-    )
-    .insert(ChildOf(editor_window.root()))
-    .insert(Pickable::IGNORE)
-    .entry::<Node>()
-    .and_modify(|mut node| {
-        node.position_type = PositionType::Absolute;
-        node.border = UiRect::all(px(2));
-        node.border_radius = RoundedCorners::All.to_border_radius(2.0);
-    })
-    .entity()
-    .id();
+    let indicator = spawn_tab(&mut commands, &asset_server, tab.pane, tab.tab.clone())
+        .insert(ChildOf(editor_window.root()))
+        .insert(Pickable::IGNORE)
+        .entry::<Node>()
+        .and_modify(|mut node| {
+            node.position_type = PositionType::Absolute;
+            node.border = UiRect::all(px(2));
+            node.border_radius = RoundedCorners::All.to_border_radius(2.0);
+        })
+        .entity()
+        .id();
 
     commands.entity(trigger.entity).insert(DraggedTab {
-        start_pane: tab.pane,
-        start_tabgroup: parents.get(trigger.entity)?.parent(),
         indicator,
         drop_index: 0,
     });
@@ -512,6 +430,7 @@ fn on_tab_drag_end(
     };
 
     commands.entity(dragged_tab.indicator).despawn();
+    commands.entity(trigger.entity).remove::<DraggedTab>();
     override_cursor.0 = None;
 }
 
@@ -526,6 +445,7 @@ fn on_tab_drag_cancel(
     };
 
     commands.entity(dragged_tab.indicator).despawn();
+    commands.entity(trigger.entity).remove::<DraggedTab>();
     override_cursor.0 = None;
 }
 
@@ -534,7 +454,6 @@ fn spawn_tab<'a>(
     asset_server: &AssetServer,
     pane: Entity,
     tab: String,
-    active: bool,
 ) -> EntityCommands<'a> {
     let root = commands
         .spawn((
@@ -555,10 +474,10 @@ fn spawn_tab<'a>(
                 ..default()
             },
             EntityCursor::System(SystemCursorIcon::Pointer),
+            ThemeBackgroundColor(PANE_BG),
+            ThemeBorderColor::all(PANE_TAB_ACTIVE),
         ))
         .id();
-
-    stylize_tab(commands, root, active);
 
     commands.spawn((
         Pickable::IGNORE,
@@ -573,6 +492,21 @@ fn spawn_tab<'a>(
     ));
 
     commands.entity(root)
+}
+
+fn set_tabs_active(
+    tabgroups: Query<(&PaneTabgroup, &Children), Or<(Changed<PaneTabgroup>, Changed<Children>)>>,
+    mut commands: Commands,
+) {
+    for (tabgroup, tabs) in tabgroups {
+        for (i, tab) in tabs.iter().enumerate() {
+            let active = i == tabgroup.active_tab;
+            commands.entity(*tab).insert((
+                ThemeBackgroundColor(if active { PANE_BG } else { WINDOW_BG }),
+                ThemeBorderColor::all(if active { PANE_TAB_ACTIVE } else { WINDOW_BG }),
+            ));
+        }
+    }
 }
 
 // fn on_show_tab(
