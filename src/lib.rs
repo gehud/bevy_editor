@@ -35,7 +35,7 @@ use crate::{
         constants::fonts::REGULAR,
         tokens::{BORDER, WINDOW_BG},
     },
-    widget::WidgetPlugins,
+    widget::EditorWidgetPlugins,
     window::{EditorWindow, EditorWindowPlugin, IsWindowMaximized, PrimaryWindowConfigured},
 };
 
@@ -54,7 +54,7 @@ impl Plugin for EditorPlugin {
         }))
         .add_plugins(EditorThemePlugin)
         .add_plugins(EditorWindowPlugin)
-        .add_plugins(WidgetPlugins)
+        .add_plugins(EditorWidgetPlugins)
         .add_plugins(PanePlugin)
         .add_observer(setup);
     }

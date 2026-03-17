@@ -57,10 +57,9 @@ use crate::widget::alpha_pattern::{
     AlphaPatternMaterial, AlphaPatternPlugin, AlphaPatternResource,
 };
 
-/// Plugin which installs observers and systems for editor themes, cursors, and all controls.
-pub struct WidgetPlugin;
+pub struct EditorWidgetPlugin;
 
-impl Plugin for WidgetPlugin {
+impl Plugin for EditorWidgetPlugin {
     fn build(&self, app: &mut bevy::app::App) {
         // Embedded shader
         embedded_asset!(
@@ -103,15 +102,14 @@ impl Plugin for WidgetPlugin {
     }
 }
 
-/// A plugin group that adds all dependencies for bevy_editor::widget
-pub struct WidgetPlugins;
+pub struct EditorWidgetPlugins;
 
-impl PluginGroup for WidgetPlugins {
+impl PluginGroup for EditorWidgetPlugins {
     fn build(self) -> PluginGroupBuilder {
         PluginGroupBuilder::start::<Self>()
             .add_group(UiWidgetsPlugins)
             .add(InputDispatchPlugin)
             .add(TabNavigationPlugin)
-            .add(WidgetPlugin)
+            .add(EditorWidgetPlugin)
     }
 }

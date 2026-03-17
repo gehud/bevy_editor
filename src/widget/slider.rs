@@ -27,7 +27,7 @@ use bevy::ui_widgets::{Slider, SliderPrecision, SliderRange, SliderValue, TrackC
 
 use crate::{
     theme::{
-        RoundedCorners, ThemeTextColor, ThemeTextFont, ThemeTextFontSize, Theme, constants::size,
+        RoundedCorners, Theme, ThemeTextColor, ThemeTextFont, ThemeTextFontSize, constants::size,
         tokens,
     },
     widget::EntityCursor,
@@ -138,7 +138,7 @@ fn update_slider_styles(
     >,
     theme: Res<Theme>,
     mut commands: Commands,
-) {
+) -> Result {
     for (slider_ent, disabled, mut gradient) in q_sliders.iter_mut() {
         set_slider_styles(
             slider_ent,
@@ -146,8 +146,10 @@ fn update_slider_styles(
             disabled,
             gradient.as_mut(),
             &mut commands,
-        );
+        )?;
     }
+
+    Ok(())
 }
 
 fn update_slider_styles_remove(
@@ -155,8 +157,8 @@ fn update_slider_styles_remove(
     mut removed_disabled: RemovedComponents<InteractionDisabled>,
     theme: Res<Theme>,
     mut commands: Commands,
-) {
-    removed_disabled.read().for_each(|ent| {
+) -> Result {
+    for ent in removed_disabled.read() {
         if let Ok((slider_ent, disabled, mut gradient)) = q_sliders.get_mut(ent) {
             set_slider_styles(
                 slider_ent,
@@ -164,9 +166,11 @@ fn update_slider_styles_remove(
                 disabled,
                 gradient.as_mut(),
                 &mut commands,
-            );
+            )?;
         }
-    });
+    }
+
+    Ok(())
 }
 
 fn set_slider_styles(
