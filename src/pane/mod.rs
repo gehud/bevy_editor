@@ -232,6 +232,12 @@ fn tab_context_menu() -> ContextMenu {
                 .with_option(ContextMenuMark::None, "Option 1", |world, tab| {})
                 .with_option(ContextMenuMark::Checked, "Option 2", |world, tab| {}),
         )
+        .with_submenu(
+            "Submenu 2",
+            ContextMenu::new()
+                .with_option(ContextMenuMark::None, "Option 1", |world, tab| {})
+                .with_option(ContextMenuMark::Checked, "Option 2", |world, tab| {}),
+        )
 }
 
 fn stylize_tab(commands: &mut Commands, root: Entity, active: bool) {

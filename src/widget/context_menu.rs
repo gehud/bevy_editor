@@ -321,21 +321,27 @@ fn spawn_option<'a>(
         ))
         .with_children(|commands| {
             commands
-                .spawn(Node {
-                    align_self: AlignSelf::Start,
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::Center,
-                    width: px(16),
-                    height: px(16),
-                    ..default()
-                })
+                .spawn((
+                    Node {
+                        align_self: AlignSelf::Start,
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::Center,
+                        width: px(16),
+                        height: px(16),
+                        ..default()
+                    },
+                    Pickable::IGNORE,
+                ))
                 .with_children(|commands| {
                     let mark_node = commands
-                        .spawn(Node {
-                            width: percent(100),
-                            height: percent(100),
-                            ..default()
-                        })
+                        .spawn((
+                            Node {
+                                width: percent(100),
+                                height: percent(100),
+                                ..default()
+                            },
+                            Pickable::IGNORE,
+                        ))
                         .id();
 
                     if matches!(mark, ContextMenuMark::Checked) {
@@ -350,12 +356,15 @@ fn spawn_option<'a>(
                 });
 
             commands
-                .spawn(Node {
-                    align_self: AlignSelf::Start,
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::Center,
-                    ..default()
-                })
+                .spawn((
+                    Pickable::IGNORE,
+                    Node {
+                        align_self: AlignSelf::Start,
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::Center,
+                        ..default()
+                    },
+                ))
                 .with_children(|commands| {
                     commands.spawn((
                         Pickable::IGNORE,
@@ -367,16 +376,27 @@ fn spawn_option<'a>(
                         },
                         ThemeFontColor(TEXT_MAIN),
                     ));
-                })
-                .observe(
-                    move |trigger: On<Pointer<Click>>,
-                          mut world: DeferredWorld,
-                          mut commands: Commands| {
-                        callback(&mut world, target);
-                        commands.entity(root).despawn();
-                    },
-                );
+                });
         })
+        .observe(
+            move |_: On<Pointer<Over>>,
+                  submenus: Query<&OpenedSubmenu>,
+                  mut commands: Commands|
+                  -> Result {
+                let submenu = submenus.get(context_menu)?;
+                if let Some(root) = submenu.root {
+                    commands.entity(root).despawn();
+                }
+
+                Ok(())
+            },
+        )
+        .observe(
+            move |_: On<Pointer<Click>>, mut world: DeferredWorld, mut commands: Commands| {
+                callback(&mut world, target);
+                commands.entity(root).despawn();
+            },
+        )
         .id();
 
     Ok(commands.entity(item))
@@ -466,6 +486,7 @@ fn spawn_submenu<'a>(
                       computed_nodes: Query<&ComputedNode>,
                       ui_global_transforms: Query<&UiGlobalTransform>,
                       asset_server: Res<AssetServer>,
+                      mut submenus: Query<&mut OpenedSubmenu>,
                       mut commands: Commands|
                       -> Result {
                     let item_translation = ui_global_transforms.get(trigger.entity)?.translation;
@@ -477,14 +498,21 @@ fn spawn_submenu<'a>(
                         item_translation.y - item_size.y / 2.0,
                     );
 
-                    spawn_menu(
+                    let new_submenu = spawn_menu(
                         &mut commands,
                         &asset_server,
                         root,
                         submenu_position,
                         target,
                         &menu,
-                    )?;
+                    )?
+                    .id();
+
+                    let mut submenu = submenus.get_mut(context_menu)?;
+
+                    if let Some(old_submenu) = submenu.root.replace(new_submenu) {
+                        commands.entity(old_submenu).despawn();
+                    }
 
                     Ok(())
                 },
