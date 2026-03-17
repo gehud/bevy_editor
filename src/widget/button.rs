@@ -17,10 +17,10 @@ use bevy::reflect::{Reflect, prelude::ReflectDefault};
 use bevy::ui::{AlignItems, InteractionDisabled, JustifyContent, Node, Pressed, UiRect, Val};
 use bevy::ui_widgets::Button;
 
+use crate::theme::ThemeTextFontSize;
 use crate::{
     theme::{
-        HandleOrPath, ThemeTextFont, RoundedCorners, ThemeBackgroundColor, ThemeTextColor,
-        constants::{fonts, size},
+        RoundedCorners, ThemeBackgroundColor, ThemeTextColor, ThemeTextFont, constants::size,
         tokens,
     },
     widget::EntityCursor,
@@ -83,10 +83,8 @@ pub fn button<C: SpawnableList<ChildOf> + Send + Sync + 'static, B: Bundle>(
         TabIndex(0),
         ThemeBackgroundColor(tokens::BUTTON_BG),
         ThemeTextColor(tokens::BUTTON_TEXT),
-        ThemeTextFont {
-            font: HandleOrPath::Path(fonts::REGULAR.to_owned()),
-            font_size: 14.0,
-        },
+        ThemeTextFont(tokens::BUTTON_TEXT),
+        ThemeTextFontSize(tokens::BUTTON_TEXT),
         overrides,
         Children::spawn(children),
     )

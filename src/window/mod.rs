@@ -147,7 +147,7 @@ fn configure_window(window: Entity, commands: &mut Commands, asset_server: &Asse
                 flex_direction: FlexDirection::Column,
                 ..default()
             },
-            ThemeBorderColor(BORDER),
+            ThemeBorderColor::all(BORDER),
             ThemeBackgroundColor(WINDOW_BG),
         ))
         .id();

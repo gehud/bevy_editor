@@ -22,10 +22,9 @@ use bevy::ui::{
 };
 use bevy::ui_widgets::RadioButton;
 
+use crate::theme::ThemeTextFontSize;
 use crate::theme::{
-    HandleOrPath, ThemeTextFont, ThemeBackgroundColor, ThemeBorderColor, ThemeTextColor,
-    constants::{fonts, size},
-    tokens,
+    ThemeBackgroundColor, ThemeBorderColor, ThemeTextColor, ThemeTextFont, constants::size, tokens,
 };
 use crate::widget::EntityCursor;
 
@@ -69,10 +68,8 @@ pub fn radio<C: SpawnableList<ChildOf> + Send + Sync + 'static, B: Bundle>(
         EntityCursor::System(bevy::window::SystemCursorIcon::Pointer),
         TabIndex(0),
         ThemeTextColor(tokens::RADIO_TEXT),
-        ThemeTextFont {
-            font: HandleOrPath::Path(fonts::REGULAR.to_owned()),
-            font_size: 14.0,
-        },
+        ThemeTextFont(tokens::RADIO_TEXT),
+        ThemeTextFontSize(tokens::RADIO_TEXT),
         overrides,
         Children::spawn((
             Spawn((
@@ -87,7 +84,7 @@ pub fn radio<C: SpawnableList<ChildOf> + Send + Sync + 'static, B: Bundle>(
                     ..Default::default()
                 },
                 RadioOutline,
-                ThemeBorderColor(tokens::RADIO_BORDER),
+                ThemeBorderColor::all(tokens::RADIO_BORDER),
                 children![(
                     // Cheesy checkmark: rotated node with L-shaped border.
                     Node {
@@ -219,11 +216,11 @@ fn set_radio_styles(
     font_color: &ThemeTextColor,
     commands: &mut Commands,
 ) {
-    let outline_border_token = match (disabled, hovered) {
+    let outline_border_token = ThemeBorderColor::all(match (disabled, hovered) {
         (true, _) => tokens::RADIO_BORDER_DISABLED,
         (false, true) => tokens::RADIO_BORDER_HOVER,
         _ => tokens::RADIO_BORDER,
-    };
+    });
 
     let mark_token = match disabled {
         true => tokens::RADIO_MARK_DISABLED,
@@ -241,17 +238,15 @@ fn set_radio_styles(
     };
 
     // Change outline border
-    if outline_border.0 != outline_border_token {
-        commands
-            .entity(outline_ent)
-            .insert(ThemeBorderColor(outline_border_token));
+    if outline_border != &outline_border_token {
+        commands.entity(outline_ent).insert(outline_border_token);
     }
 
     // Change mark color
     if mark_color.0 != mark_token {
         commands
             .entity(mark_ent)
-            .insert(ThemeBorderColor(mark_token));
+            .insert(ThemeBackgroundColor(mark_token));
     }
 
     // Change mark visibility

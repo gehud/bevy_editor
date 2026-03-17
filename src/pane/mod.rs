@@ -46,7 +46,7 @@ use bevy::{
 
 use crate::{
     theme::{
-        RoundedCorners, ThemeBackgroundColor, ThemeBorderColor, ThemeTextColor, ThemeTextFont,
+        RoundedCorners, ThemeBackgroundColor, ThemeBorderColor, ThemeTextColor,
         constants::fonts::REGULAR,
         palette::ACCENT,
         tokens::{PANE_BG, PANE_TAB_ACTIVE, TEXT_MAIN, WINDOW_BG},
@@ -125,7 +125,7 @@ fn spawn_pane<'a>(
                         ..default()
                     },
                     ThemeBackgroundColor(WINDOW_BG),
-                    ThemeBorderColor(PANE_BG),
+                    ThemeBorderColor::all(PANE_BG),
                 ))
                 .with_children(|commands| {
                     // Tab group
@@ -242,7 +242,7 @@ fn tab_context_menu() -> ContextMenu {
 fn stylize_tab(commands: &mut Commands, root: Entity, active: bool) {
     commands.entity(root).insert((
         ThemeBackgroundColor(if active { PANE_BG } else { WINDOW_BG }),
-        ThemeBorderColor(if active { PANE_TAB_ACTIVE } else { WINDOW_BG }),
+        ThemeBorderColor::all(if active { PANE_TAB_ACTIVE } else { WINDOW_BG }),
     ));
 }
 

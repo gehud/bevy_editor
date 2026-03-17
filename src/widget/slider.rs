@@ -2,6 +2,7 @@ use core::f32::consts::PI;
 
 use bevy::app::{Plugin, PreUpdate};
 use bevy::color::Color;
+use bevy::ecs::error::Result;
 use bevy::ecs::{
     bundle::Bundle,
     children,
@@ -26,8 +27,7 @@ use bevy::ui_widgets::{Slider, SliderPrecision, SliderRange, SliderValue, TrackC
 
 use crate::{
     theme::{
-        HandleOrPath, RoundedCorners, ThemeTextColor, ThemeTextFont, UiTheme,
-        constants::{fonts, size},
+        RoundedCorners, ThemeTextColor, ThemeTextFont, ThemeTextFontSize, Theme, constants::size,
         tokens,
     },
     widget::EntityCursor,
@@ -118,17 +118,13 @@ pub fn slider<B: Bundle>(props: SliderProps, overrides: B) -> impl Bundle {
                 ..Default::default()
             },
             ThemeTextColor(tokens::SLIDER_TEXT),
-            ThemeTextFont {
-                font: HandleOrPath::Path(fonts::MONO.to_owned()),
-                font_size: 12.0,
-            },
+            ThemeTextFont(tokens::SLIDER_TEXT),
+            ThemeTextFontSize(tokens::SLIDER_TEXT),
             children![(
                 Text::new("10.0"),
                 ThemeTextColor(tokens::SLIDER_TEXT),
-                ThemeTextFont {
-                    font: HandleOrPath::Path(fonts::MONO.to_owned()),
-                    font_size: 12.0,
-                },
+                ThemeTextFont(tokens::SLIDER_TEXT),
+                ThemeTextFontSize(tokens::SLIDER_TEXT),
                 SliderValueText,
             )],
         )],
@@ -140,7 +136,7 @@ fn update_slider_styles(
         (Entity, Has<InteractionDisabled>, &mut BackgroundGradient),
         (With<SliderStyle>, Or<(Spawned, Added<InteractionDisabled>)>),
     >,
-    theme: Res<UiTheme>,
+    theme: Res<Theme>,
     mut commands: Commands,
 ) {
     for (slider_ent, disabled, mut gradient) in q_sliders.iter_mut() {
@@ -157,7 +153,7 @@ fn update_slider_styles(
 fn update_slider_styles_remove(
     mut q_sliders: Query<(Entity, Has<InteractionDisabled>, &mut BackgroundGradient)>,
     mut removed_disabled: RemovedComponents<InteractionDisabled>,
-    theme: Res<UiTheme>,
+    theme: Res<Theme>,
     mut commands: Commands,
 ) {
     removed_disabled.read().for_each(|ent| {
@@ -175,17 +171,17 @@ fn update_slider_styles_remove(
 
 fn set_slider_styles(
     slider_ent: Entity,
-    theme: &Res<'_, UiTheme>,
+    theme: &Res<'_, Theme>,
     disabled: bool,
     gradient: &mut BackgroundGradient,
     commands: &mut Commands,
-) {
+) -> Result {
     let bar_color = theme.color(&match disabled {
         true => tokens::SLIDER_BAR_DISABLED,
         false => tokens::SLIDER_BAR,
-    });
+    })?;
 
-    let bg_color = theme.color(&tokens::SLIDER_BG);
+    let bg_color = theme.color(&tokens::SLIDER_BG)?;
 
     let cursor_shape = match disabled {
         true => bevy::window::SystemCursorIcon::NotAllowed,
@@ -203,6 +199,8 @@ fn set_slider_styles(
     commands
         .entity(slider_ent)
         .insert(EntityCursor::System(cursor_shape));
+
+    Ok(())
 }
 
 fn update_slider_pos(

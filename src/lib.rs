@@ -31,9 +31,8 @@ use bevy::{
 use crate::{
     pane::{PaneLayoutRoot, PanePlugin},
     theme::{
-        ThemeTextFont, ThemeBackgroundColor, ThemeBorderColor, ThemePlugin, UiTheme,
+        ThemeBackgroundColor, ThemeBorderColor, EditorThemePlugin, Theme,
         constants::fonts::REGULAR,
-        create_dark_theme,
         tokens::{BORDER, WINDOW_BG},
     },
     widget::WidgetPlugins,
@@ -53,11 +52,10 @@ impl Plugin for EditorPlugin {
             }),
             ..default()
         }))
-        .add_plugins(ThemePlugin)
+        .add_plugins(EditorThemePlugin)
         .add_plugins(EditorWindowPlugin)
         .add_plugins(WidgetPlugins)
         .add_plugins(PanePlugin)
-        .insert_resource(UiTheme(create_dark_theme()))
         .add_observer(setup);
     }
 }

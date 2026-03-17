@@ -215,7 +215,7 @@ fn spawn_menu<'a>(
                 border_radius: RoundedCorners::All.to_border_radius(6.0),
                 ..default()
             },
-            ThemeBorderColor(BORDER),
+            ThemeBorderColor::all(BORDER),
             ThemeBackgroundColor(WINDOW_BG),
             BoxShadow::from(ShadowStyle {
                 blur_radius: px(3),

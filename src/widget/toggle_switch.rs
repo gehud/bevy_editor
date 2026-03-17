@@ -57,7 +57,7 @@ pub fn toggle_switch<B: Bundle>(overrides: B) -> impl Bundle {
         Checkbox,
         ToggleSwitchOutline,
         ThemeBackgroundColor(tokens::SWITCH_BG),
-        ThemeBorderColor(tokens::SWITCH_BORDER),
+        ThemeBorderColor::all(tokens::SWITCH_BORDER),
         AccessibilityNode(accesskit::Node::new(Role::Switch)),
         Hovered::default(),
         EntityCursor::System(bevy::window::SystemCursorIcon::Pointer),
@@ -183,11 +183,11 @@ fn set_switch_styles(
     slide_color: &ThemeBackgroundColor,
     commands: &mut Commands,
 ) {
-    let outline_border_token = match (disabled, hovered) {
+    let outline_border_token = ThemeBorderColor::all(match (disabled, hovered) {
         (true, _) => tokens::SWITCH_BORDER_DISABLED,
         (false, true) => tokens::SWITCH_BORDER_HOVER,
         _ => tokens::SWITCH_BORDER,
-    };
+    });
 
     let outline_bg_token = match (disabled, checked) {
         (true, true) => tokens::SWITCH_BG_CHECKED_DISABLED,
@@ -219,10 +219,8 @@ fn set_switch_styles(
     }
 
     // Change outline border
-    if outline_border.0 != outline_border_token {
-        commands
-            .entity(switch_ent)
-            .insert(ThemeBorderColor(outline_border_token));
+    if outline_border != &outline_border_token {
+        commands.entity(switch_ent).insert(outline_border_token);
     }
 
     // Change slide color
