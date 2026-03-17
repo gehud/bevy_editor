@@ -23,7 +23,7 @@ use bevy::ui::{
 use bevy::ui_widgets::RadioButton;
 
 use crate::theme::{
-    HandleOrPath, InheritableFont, ThemeBackgroundColor, ThemeBorderColor, ThemeTextColor,
+    HandleOrPath, ThemeTextFont, ThemeBackgroundColor, ThemeBorderColor, ThemeTextColor,
     constants::{fonts, size},
     tokens,
 };
@@ -69,7 +69,7 @@ pub fn radio<C: SpawnableList<ChildOf> + Send + Sync + 'static, B: Bundle>(
         EntityCursor::System(bevy::window::SystemCursorIcon::Pointer),
         TabIndex(0),
         ThemeTextColor(tokens::RADIO_TEXT),
-        InheritableFont {
+        ThemeTextFont {
             font: HandleOrPath::Path(fonts::REGULAR.to_owned()),
             font_size: 14.0,
         },

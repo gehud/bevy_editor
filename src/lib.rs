@@ -31,7 +31,7 @@ use bevy::{
 use crate::{
     pane::{PaneLayoutRoot, PanePlugin},
     theme::{
-        InheritableFont, ThemeBackgroundColor, ThemeBorderColor, ThemePlugin, UiTheme,
+        ThemeTextFont, ThemeBackgroundColor, ThemeBorderColor, ThemePlugin, UiTheme,
         constants::fonts::REGULAR,
         create_dark_theme,
         tokens::{BORDER, WINDOW_BG},

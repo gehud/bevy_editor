@@ -33,12 +33,8 @@ use bevy::{
 use crate::{
     theme::{
         RoundedCorners, ThemeBackgroundColor, ThemeBorderColor, ThemeImageColor, ThemeTextColor,
-        ThemedText,
         constants::fonts::REGULAR,
-        tokens::{
-            BORDER, BUTTON_TEXT, BUTTON_TEXT_DISABLED, PANE_TAB_ACTIVE, TEXT_DIM, TEXT_MAIN,
-            WINDOW_BG,
-        },
+        tokens::{BORDER, BUTTON_TEXT, PANE_TAB_ACTIVE, TEXT_DIM, TEXT_MAIN, WINDOW_BG},
     },
     window::EditorWindow,
 };

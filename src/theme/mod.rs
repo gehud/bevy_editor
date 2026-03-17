@@ -1,26 +1,24 @@
 pub mod constants;
 mod dark_theme;
-mod font_styles;
 mod handle_or_path;
 pub mod palette;
 mod rounded_corners;
 pub mod tokens;
 
 pub use dark_theme::*;
-pub use font_styles::*;
 pub use handle_or_path::*;
 pub use rounded_corners::*;
 
 use bevy::{
-    app::{App, HierarchyPropagatePlugin, Plugin, PostUpdate},
-    asset::embedded_asset,
+    app::{App, Plugin, PostUpdate},
+    asset::{AssetServer, Handle, embedded_asset},
     color::{Color, palettes},
     ecs::{
         change_detection::DetectChanges,
         component::Component,
         lifecycle::Insert,
         observer::On,
-        query::{Changed, With},
+        query::Changed,
         reflect::{ReflectComponent, ReflectResource},
         resource::Resource,
         system::{Query, Res},
@@ -28,7 +26,7 @@ use bevy::{
     log::warn_once,
     platform::collections::HashMap,
     reflect::{Reflect, prelude::ReflectDefault},
-    text::{TextColor, TextFont},
+    text::{Font, TextColor, TextFont},
     ui::{BackgroundColor, BorderColor, widget::ImageNode},
 };
 use smol_str::SmolStr;
@@ -122,17 +120,37 @@ pub struct ThemeBorderColor(pub ThemeToken);
 #[reflect(Component, Clone)]
 pub struct ThemeTextColor(pub ThemeToken);
 
-/// A marker component that is used to indicate that the text entity wants to opt-in to using
-/// inherited text styles.
-#[derive(Component, Reflect, Default)]
-#[reflect(Component)]
-pub struct ThemedText;
-
 #[derive(Component, Clone, Reflect)]
 #[component(immutable)]
 #[reflect(Component, Clone)]
 #[require(ImageNode)]
 pub struct ThemeImageColor(pub ThemeToken);
+
+#[derive(Component, Default, Clone, Debug, Reflect)]
+#[reflect(Component, Default)]
+#[require(TextFont)]
+pub struct ThemeTextFont {
+    /// The font handle or path.
+    pub font: HandleOrPath<Font>,
+    /// The desired font size.
+    pub font_size: f32,
+}
+
+impl ThemeTextFont {
+    pub fn from_handle(handle: Handle<Font>) -> Self {
+        Self {
+            font: HandleOrPath::Handle(handle),
+            font_size: 16.0,
+        }
+    }
+
+    pub fn from_path(path: &str) -> Self {
+        Self {
+            font: HandleOrPath::Path(path.to_string()),
+            font_size: 16.0,
+        }
+    }
+}
 
 fn update_theme(
     mut q_background: Query<(&mut BackgroundColor, &ThemeBackgroundColor)>,
@@ -197,6 +215,20 @@ fn on_changed_image_color(
     }
 }
 
+fn on_changed_text_font(
+    insert: On<Insert, ThemeTextFont>,
+    mut text_fonts: Query<(&mut TextFont, &ThemeTextFont), Changed<ThemeTextFont>>,
+    assets: Res<AssetServer>,
+) {
+    if let Ok((mut text_font, theme_text_font)) = text_fonts.get_mut(insert.entity) {
+        text_font.font_size = theme_text_font.font_size;
+        text_font.font = match &theme_text_font.font {
+            HandleOrPath::Handle(handle) => handle.clone(),
+            HandleOrPath::Path(path) => assets.load::<Font>(path),
+        };
+    }
+}
+
 pub struct ThemePlugin;
 
 impl Plugin for ThemePlugin {
@@ -212,16 +244,12 @@ impl Plugin for ThemePlugin {
         embedded_asset!(app, "src/theme", "assets/theme/fonts/FiraSans-Italic.ttf");
         embedded_asset!(app, "src/theme", "assets/theme/fonts/FiraMono-Medium.ttf");
 
-        app.add_plugins((
-            HierarchyPropagatePlugin::<TextColor, With<ThemedText>>::new(PostUpdate),
-            HierarchyPropagatePlugin::<TextFont, With<ThemedText>>::new(PostUpdate),
-        ))
-        .init_resource::<UiTheme>()
-        .add_systems(PostUpdate, update_theme)
-        .add_observer(on_changed_image_color)
-        .add_observer(on_changed_background)
-        .add_observer(on_changed_border)
-        .add_observer(on_changed_text_color)
-        .add_observer(on_changed_font);
+        app.init_resource::<UiTheme>()
+            .add_systems(PostUpdate, update_theme)
+            .add_observer(on_changed_image_color)
+            .add_observer(on_changed_background)
+            .add_observer(on_changed_border)
+            .add_observer(on_changed_text_color)
+            .add_observer(on_changed_text_font);
     }
 }

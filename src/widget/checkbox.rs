@@ -25,7 +25,7 @@ use bevy::ui_widgets::Checkbox;
 
 use crate::{
     theme::{
-        HandleOrPath, InheritableFont, ThemeBackgroundColor, ThemeBorderColor,
+        HandleOrPath, ThemeTextFont, ThemeBackgroundColor, ThemeBorderColor,
         ThemeTextColor,
         constants::{fonts, size},
         tokens,
@@ -78,7 +78,7 @@ pub fn checkbox<C: SpawnableList<ChildOf> + Send + Sync + 'static, B: Bundle>(
         EntityCursor::System(bevy::window::SystemCursorIcon::Pointer),
         TabIndex(0),
         ThemeTextColor(tokens::CHECKBOX_TEXT),
-        InheritableFont {
+        ThemeTextFont {
             font: HandleOrPath::Path(fonts::REGULAR.to_owned()),
             font_size: 14.0,
         },

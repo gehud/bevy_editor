@@ -46,8 +46,7 @@ use bevy::{
 
 use crate::{
     theme::{
-        InheritableFont, RoundedCorners, ThemeBackgroundColor, ThemeBorderColor, ThemeTextColor,
-        ThemedText,
+        RoundedCorners, ThemeBackgroundColor, ThemeBorderColor, ThemeTextColor, ThemeTextFont,
         constants::fonts::REGULAR,
         palette::ACCENT,
         tokens::{PANE_BG, PANE_TAB_ACTIVE, TEXT_MAIN, WINDOW_BG},

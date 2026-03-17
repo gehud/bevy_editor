@@ -26,7 +26,7 @@ use bevy::ui_widgets::{Slider, SliderPrecision, SliderRange, SliderValue, TrackC
 
 use crate::{
     theme::{
-        HandleOrPath, InheritableFont, RoundedCorners, ThemeTextColor, ThemedText, UiTheme,
+        HandleOrPath, RoundedCorners, ThemeTextColor, ThemeTextFont, UiTheme,
         constants::{fonts, size},
         tokens,
     },
@@ -118,11 +118,19 @@ pub fn slider<B: Bundle>(props: SliderProps, overrides: B) -> impl Bundle {
                 ..Default::default()
             },
             ThemeTextColor(tokens::SLIDER_TEXT),
-            InheritableFont {
+            ThemeTextFont {
                 font: HandleOrPath::Path(fonts::MONO.to_owned()),
                 font_size: 12.0,
             },
-            children![(Text::new("10.0"), ThemedText, SliderValueText,)],
+            children![(
+                Text::new("10.0"),
+                ThemeTextColor(tokens::SLIDER_TEXT),
+                ThemeTextFont {
+                    font: HandleOrPath::Path(fonts::MONO.to_owned()),
+                    font_size: 12.0,
+                },
+                SliderValueText,
+            )],
         )],
     )
 }

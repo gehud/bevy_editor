@@ -19,7 +19,7 @@ use bevy::ui_widgets::Button;
 
 use crate::{
     theme::{
-        HandleOrPath, InheritableFont, RoundedCorners, ThemeBackgroundColor, ThemeTextColor,
+        HandleOrPath, ThemeTextFont, RoundedCorners, ThemeBackgroundColor, ThemeTextColor,
         constants::{fonts, size},
         tokens,
     },
@@ -83,7 +83,7 @@ pub fn button<C: SpawnableList<ChildOf> + Send + Sync + 'static, B: Bundle>(
         TabIndex(0),
         ThemeBackgroundColor(tokens::BUTTON_BG),
         ThemeTextColor(tokens::BUTTON_TEXT),
-        InheritableFont {
+        ThemeTextFont {
             font: HandleOrPath::Path(fonts::REGULAR.to_owned()),
             font_size: 14.0,
         },
