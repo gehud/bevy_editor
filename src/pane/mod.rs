@@ -21,7 +21,7 @@ use bevy::{
             BoxedSystem, Commands, EntityCommands, In, IntoSystem, Local, Query, Res, ResMut,
             Single, SystemId,
         },
-        world::{Mut, World},
+        world::{DeferredWorld, Mut, World},
     },
     input_focus::{self, InputFocus},
     log::{info, warn},
@@ -223,8 +223,9 @@ fn spawn_pane<'a>(
 
 fn tab_context_menu() -> ContextMenu {
     ContextMenu::new()
-        .with_option("Option 1", |world, tab| {})
-        .with_option("Option 2", |world, tab| {})
+        .with(("Option 1", |world: &mut DeferredWorld, tab: Entity| {}))
+        .with(())
+        .with(("Option 2", |world: &mut DeferredWorld, tab: Entity| {}))
 }
 
 fn stylize_tab(commands: &mut Commands, root: Entity, active: bool) {

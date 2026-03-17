@@ -708,6 +708,7 @@ dependencies = [
  "accesskit",
  "bevy",
  "smol_str",
+ "variadics_please",
 ]
 
 [[package]]

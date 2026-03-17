@@ -4,6 +4,7 @@ use bevy::{
     app::{App, Plugin, Update},
     asset::AssetServer,
     camera::{NormalizedRenderTarget, visibility::Visibility},
+    color::{Alpha, Color},
     ecs::{
         component::Component,
         entity::{ContainsEntity, Entity},
@@ -28,8 +29,9 @@ use bevy::{
     },
     text::TextFont,
     ui::{
-        AlignItems, FlexDirection, GlobalZIndex, JustifyContent, Node, OverrideClip, PositionType,
-        UiRect, UiScale, ZIndex, percent, px, widget::{ImageNode, Text},
+        AlignItems, BoxShadow, FlexDirection, GlobalZIndex, JustifyContent, Node, OverrideClip,
+        PositionType, ShadowStyle, UiRect, UiScale, ZIndex, percent, px,
+        widget::{ImageNode, Text},
     },
     ui_widgets::{
         MenuItem, MenuLayout, MenuPopup,
@@ -37,6 +39,7 @@ use bevy::{
     },
     utils::default,
 };
+use variadics_please::{all_tuples, all_tuples_enumerated};
 
 use crate::{
     theme::{
@@ -57,16 +60,46 @@ pub enum ContextMenuItem {
         label: String,
         menu: ContextMenu,
     },
+    Separator,
 }
 
-impl ContextMenuItem {
-    pub fn label(&self) -> &String {
-        match self {
-            ContextMenuItem::Option { label, .. } => label,
-            ContextMenuItem::Submenu { label, .. } => label,
+impl Into<ContextMenuItem> for () {
+    fn into(self) -> ContextMenuItem {
+        ContextMenuItem::Separator
+    }
+}
+
+impl<L: Into<String>> Into<ContextMenuItem> for (L,) {
+    fn into(self) -> ContextMenuItem {
+        ContextMenuItem::Option {
+            label: self.0.into(),
+            callback: Arc::new(|_, _| {}),
         }
     }
 }
+
+impl<L: Into<String>, C: Fn(&mut DeferredWorld, Entity) + Send + Sync + 'static>
+    Into<ContextMenuItem> for (L, C)
+{
+    fn into(self) -> ContextMenuItem {
+        ContextMenuItem::Option {
+            label: self.0.into(),
+            callback: Arc::new(self.1),
+        }
+    }
+}
+
+macro_rules! impl_into_context_menu {
+    ($(($n:tt, $I:ident)),*) => {
+        impl<$($I: Into<ContextMenuItem>),*> Into<ContextMenu> for ($($I,)*) {
+            fn into(self) -> ContextMenu {
+                ContextMenu::new()$(.with(self.$n.into()))*
+            }
+        }
+    };
+}
+
+all_tuples_enumerated!(impl_into_context_menu, 0, 16, I);
 
 #[derive(Component, Clone, Default)]
 pub struct ContextMenu {
@@ -78,25 +111,8 @@ impl ContextMenu {
         Self::default()
     }
 
-    pub fn with_option(
-        mut self,
-        label: impl Into<String>,
-        callback: impl Fn(&mut DeferredWorld, Entity) + Send + Sync + 'static,
-    ) -> Self {
-        self.items.push(ContextMenuItem::Option {
-            label: label.into(),
-            callback: Arc::new(callback),
-        });
-
-        self
-    }
-
-    pub fn with_submenu(mut self, label: impl Into<String>, menu: impl Into<ContextMenu>) -> Self {
-        self.items.push(ContextMenuItem::Submenu {
-            label: label.into(),
-            menu: menu.into(),
-        });
-
+    pub fn with(mut self, item: impl Into<ContextMenuItem>) -> Self {
+        self.items.push(item.into());
         self
     }
 }
@@ -196,15 +212,24 @@ fn spawn_menu<'a>(
             Node {
                 position_type: PositionType::Absolute,
                 flex_direction: FlexDirection::Column,
+                align_items: AlignItems::Center,
                 border: UiRect::all(px(1)),
-                padding: UiRect::all(px(6)),
+                padding: UiRect::vertical(px(6)),
                 left: px(position.x),
                 top: px(position.y),
+                row_gap: px(6),
                 border_radius: RoundedCorners::All.to_border_radius(6.0),
                 ..default()
             },
             ThemeBorderColor(BORDER),
             ThemeBackgroundColor(WINDOW_BG),
+            BoxShadow::from(ShadowStyle {
+                blur_radius: px(3),
+                x_offset: px(0),
+                y_offset: px(0),
+                color: Color::BLACK.with_alpha(0.8),
+                ..default()
+            }),
         ))
         .id();
 
@@ -223,60 +248,102 @@ fn spawn_menu_item(
     target: Entity,
     item: ContextMenuItem,
 ) -> Result {
-    let menu_item = commands
-        .spawn((
-            ChildOf(context_menu),
-            Node {
-                border_radius: RoundedCorners::All.to_border_radius(4.0),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
-                padding: UiRect::horizontal(px(8)).with_top(px(4)).with_bottom(px(4)),
-                ..default()
-            },
-            ThemeBackgroundColor(WINDOW_BG),
-        ))
-        .observe(|trigger: On<Pointer<Over>>, mut commands: Commands| {
-            commands
-                .entity(trigger.entity)
-                .insert(ThemeBackgroundColor(PANE_TAB_ACTIVE));
-        })
-        .observe(|trigger: On<Pointer<Out>>, mut commands: Commands| {
-            commands
-                .entity(trigger.entity)
-                .insert(ThemeBackgroundColor(WINDOW_BG));
-        })
-        .observe(|mut trigger: On<Pointer<Press>>| {
-            trigger.propagate(false);
-        })
-        .id();
+    let menu_item = match &item {
+        ContextMenuItem::Option { label, .. } => commands
+            .spawn((
+                ChildOf(context_menu),
+                Node {
+                    border_radius: RoundedCorners::All.to_border_radius(4.0),
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::Center,
+                    margin: UiRect::horizontal(px(6)),
+                    padding: UiRect::horizontal(px(8)).with_top(px(4)).with_bottom(px(4)),
+                    ..default()
+                },
+                ThemeBackgroundColor(WINDOW_BG),
+            ))
+            .with_children(|commands| {
+                commands.spawn((
+                    Pickable::IGNORE,
+                    Text::new(label),
+                    TextFont {
+                        font: asset_server.load(REGULAR),
+                        font_size: 12.0,
+                        ..default()
+                    },
+                    ThemeFontColor(TEXT_MAIN),
+                ));
+            })
+            .id(),
+        ContextMenuItem::Submenu { label, .. } => commands
+            .spawn((
+                ChildOf(context_menu),
+                Node {
+                    border_radius: RoundedCorners::All.to_border_radius(4.0),
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::Center,
+                    margin: UiRect::horizontal(px(6)),
+                    padding: UiRect::horizontal(px(8)).with_top(px(4)).with_bottom(px(4)),
+                    ..default()
+                },
+                ThemeBackgroundColor(WINDOW_BG),
+            ))
+            .with_children(|commands| {
+                commands.spawn((
+                    Pickable::IGNORE,
+                    Text::new(label),
+                    TextFont {
+                        font: asset_server.load(REGULAR),
+                        font_size: 12.0,
+                        ..default()
+                    },
+                    ThemeFontColor(TEXT_MAIN),
+                ));
+            })
+            .id(),
+        ContextMenuItem::Separator => commands
+            .spawn((
+                ChildOf(context_menu),
+                Node {
+                    width: percent(100),
+                    height: px(1),
+                    ..default()
+                },
+                ThemeBackgroundColor(BORDER),
+            ))
+            .id(),
+    };
 
-    let click_item = item.clone();
+    if !matches!(item, ContextMenuItem::Separator) {
+        commands
+            .entity(menu_item)
+            .observe(|trigger: On<Pointer<Over>>, mut commands: Commands| {
+                commands
+                    .entity(trigger.entity)
+                    .insert(ThemeBackgroundColor(PANE_TAB_ACTIVE));
+            })
+            .observe(|trigger: On<Pointer<Out>>, mut commands: Commands| {
+                commands
+                    .entity(trigger.entity)
+                    .insert(ThemeBackgroundColor(WINDOW_BG));
+            })
+            .observe(|mut trigger: On<Pointer<Press>>| {
+                trigger.propagate(false);
+            });
+    }
+
     commands.entity(menu_item).observe(
         move |trigger: On<Pointer<Click>>, mut world: DeferredWorld, mut commands: Commands| {
-            match &click_item {
+            match &item {
                 ContextMenuItem::Option { label, callback } => {
                     callback(&mut world, target);
                     commands.entity(root).despawn();
                 }
                 ContextMenuItem::Submenu { label, menu } => {}
+                _ => {}
             }
         },
     );
-
-    let display_item = item.clone();
-    commands.entity(menu_item).with_children(move |commands| {
-        // Label
-        commands.spawn((
-            Pickable::IGNORE,
-            Text::new(display_item.label()),
-            TextFont {
-                font: asset_server.load(REGULAR),
-                font_size: 12.0,
-                ..default()
-            },
-            ThemeFontColor(TEXT_MAIN),
-        ));
-    });
 
     Ok(())
 }
