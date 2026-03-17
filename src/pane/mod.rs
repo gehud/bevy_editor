@@ -52,7 +52,7 @@ use crate::{
         palette::ACCENT,
         tokens::{PANE_BG, PANE_TAB_ACTIVE, TEXT_MAIN, WINDOW_BG},
     },
-    widget::{ContextMenu, ContextMenuItem, EntityCursor, OverrideCursor},
+    widget::{ContextMenu, ContextMenuItem, ContextMenuMark, EntityCursor, OverrideCursor},
     window::EditorWindow,
 };
 
@@ -226,6 +226,11 @@ fn tab_context_menu() -> ContextMenu {
         .with(("Option 1", |world: &mut DeferredWorld, tab: Entity| {}))
         .with(())
         .with(("Option 2", |world: &mut DeferredWorld, tab: Entity| {}))
+        .with((
+            ContextMenuMark::Checked,
+            "Option 3",
+            |world: &mut DeferredWorld, tab: Entity| {},
+        ))
 }
 
 fn stylize_tab(commands: &mut Commands, root: Entity, active: bool) {

@@ -70,6 +70,9 @@ impl Plugin for WidgetPlugin {
         );
         embedded_asset!(app, "src/widget", "assets/widget/shaders/color_plane.wgsl");
 
+        embedded_asset!(app, "src/widget", "assets/widget/icons/check.png");
+        embedded_asset!(app, "src/widget", "assets/widget/icons/chevron_right.png");
+
         app.add_plugins((
             AlphaPatternPlugin,
             ButtonPlugin,

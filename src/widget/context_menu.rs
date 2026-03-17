@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use bevy::{
     app::{App, Plugin, Update},
-    asset::AssetServer,
+    asset::{self, AssetServer},
     camera::{NormalizedRenderTarget, visibility::Visibility},
     color::{Alpha, Color},
     ecs::{
@@ -43,16 +43,24 @@ use variadics_please::{all_tuples, all_tuples_enumerated};
 
 use crate::{
     theme::{
-        RoundedCorners, ThemeBackgroundColor, ThemeBorderColor, ThemeFontColor,
+        RoundedCorners, ThemeBackgroundColor, ThemeBorderColor, ThemeFontColor, ThemeImageColor,
         constants::fonts::REGULAR,
-        tokens::{BORDER, BUTTON_BG_HOVER, PANE_TAB_ACTIVE, TEXT_MAIN, WINDOW_BG},
+        tokens::{BORDER, BUTTON_BG_HOVER, BUTTON_TEXT, PANE_TAB_ACTIVE, TEXT_MAIN, WINDOW_BG},
     },
     window::EditorWindow,
 };
 
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
+pub enum ContextMenuMark {
+    #[default]
+    None,
+    Checked,
+}
+
 #[derive(Component, Clone)]
 pub enum ContextMenuItem {
     Option {
+        mark: ContextMenuMark,
         label: String,
         callback: Arc<dyn Fn(&mut DeferredWorld, Entity) + Send + Sync>,
     },
@@ -72,7 +80,18 @@ impl Into<ContextMenuItem> for () {
 impl<L: Into<String>> Into<ContextMenuItem> for (L,) {
     fn into(self) -> ContextMenuItem {
         ContextMenuItem::Option {
+            mark: default(),
             label: self.0.into(),
+            callback: Arc::new(|_, _| {}),
+        }
+    }
+}
+
+impl<L: Into<String>> Into<ContextMenuItem> for (ContextMenuMark, L) {
+    fn into(self) -> ContextMenuItem {
+        ContextMenuItem::Option {
+            mark: self.0,
+            label: self.1.into(),
             callback: Arc::new(|_, _| {}),
         }
     }
@@ -83,8 +102,21 @@ impl<L: Into<String>, C: Fn(&mut DeferredWorld, Entity) + Send + Sync + 'static>
 {
     fn into(self) -> ContextMenuItem {
         ContextMenuItem::Option {
+            mark: default(),
             label: self.0.into(),
             callback: Arc::new(self.1),
+        }
+    }
+}
+
+impl<L: Into<String>, C: Fn(&mut DeferredWorld, Entity) + Send + Sync + 'static>
+    Into<ContextMenuItem> for (ContextMenuMark, L, C)
+{
+    fn into(self) -> ContextMenuItem {
+        ContextMenuItem::Option {
+            mark: self.0,
+            label: self.1.into(),
+            callback: Arc::new(self.2),
         }
     }
 }
@@ -248,75 +280,29 @@ fn spawn_menu_item(
     target: Entity,
     item: ContextMenuItem,
 ) -> Result {
-    let menu_item = match &item {
-        ContextMenuItem::Option { label, .. } => commands
-            .spawn((
-                ChildOf(context_menu),
-                Node {
-                    border_radius: RoundedCorners::All.to_border_radius(4.0),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::Center,
-                    margin: UiRect::horizontal(px(6)),
-                    padding: UiRect::horizontal(px(8)).with_top(px(4)).with_bottom(px(4)),
-                    ..default()
-                },
-                ThemeBackgroundColor(WINDOW_BG),
-            ))
-            .with_children(|commands| {
-                commands.spawn((
-                    Pickable::IGNORE,
-                    Text::new(label),
-                    TextFont {
-                        font: asset_server.load(REGULAR),
-                        font_size: 12.0,
-                        ..default()
-                    },
-                    ThemeFontColor(TEXT_MAIN),
-                ));
-            })
-            .id(),
-        ContextMenuItem::Submenu { label, .. } => commands
-            .spawn((
-                ChildOf(context_menu),
-                Node {
-                    border_radius: RoundedCorners::All.to_border_radius(4.0),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::Center,
-                    margin: UiRect::horizontal(px(6)),
-                    padding: UiRect::horizontal(px(8)).with_top(px(4)).with_bottom(px(4)),
-                    ..default()
-                },
-                ThemeBackgroundColor(WINDOW_BG),
-            ))
-            .with_children(|commands| {
-                commands.spawn((
-                    Pickable::IGNORE,
-                    Text::new(label),
-                    TextFont {
-                        font: asset_server.load(REGULAR),
-                        font_size: 12.0,
-                        ..default()
-                    },
-                    ThemeFontColor(TEXT_MAIN),
-                ));
-            })
-            .id(),
-        ContextMenuItem::Separator => commands
-            .spawn((
-                ChildOf(context_menu),
-                Node {
-                    width: percent(100),
-                    height: px(1),
-                    ..default()
-                },
-                ThemeBackgroundColor(BORDER),
-            ))
-            .id(),
+    let mut menu_item = match item.clone() {
+        ContextMenuItem::Option {
+            mark,
+            label,
+            callback,
+        } => spawn_option(
+            commands,
+            asset_server,
+            root,
+            context_menu,
+            target,
+            mark,
+            label,
+            callback,
+        )?,
+        ContextMenuItem::Submenu { label, menu } => {
+            spawn_submenu(commands, asset_server, root, context_menu, target, label)?
+        }
+        ContextMenuItem::Separator => spawn_separator(commands, context_menu)?,
     };
 
     if !matches!(item, ContextMenuItem::Separator) {
-        commands
-            .entity(menu_item)
+        menu_item
             .observe(|trigger: On<Pointer<Over>>, mut commands: Commands| {
                 commands
                     .entity(trigger.entity)
@@ -332,18 +318,148 @@ fn spawn_menu_item(
             });
     }
 
-    commands.entity(menu_item).observe(
-        move |trigger: On<Pointer<Click>>, mut world: DeferredWorld, mut commands: Commands| {
-            match &item {
-                ContextMenuItem::Option { label, callback } => {
-                    callback(&mut world, target);
-                    commands.entity(root).despawn();
-                }
-                ContextMenuItem::Submenu { label, menu } => {}
-                _ => {}
-            }
-        },
-    );
-
     Ok(())
+}
+
+fn spawn_option<'a>(
+    commands: &'a mut Commands,
+    asset_server: &AssetServer,
+    root: Entity,
+    context_menu: Entity,
+    target: Entity,
+    mark: ContextMenuMark,
+    label: String,
+    callback: Arc<dyn Fn(&mut DeferredWorld, Entity) + Send + Sync>,
+) -> Result<EntityCommands<'a>> {
+    let item = commands
+        .spawn((
+            ChildOf(context_menu),
+            Node {
+                margin: UiRect::horizontal(px(6)),
+                border_radius: RoundedCorners::All.to_border_radius(4.0),
+                padding: UiRect::horizontal(px(8)).with_top(px(4)).with_bottom(px(4)),
+                column_gap: px(6),
+                ..default()
+            },
+        ))
+        .with_children(|commands| {
+            commands
+                .spawn(Node {
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::Center,
+                    ..default()
+                })
+                .with_children(|commands| {
+                    let mark_node = commands
+                        .spawn(Node {
+                            width: px(16),
+                            height: px(16),
+                            ..default()
+                        })
+                        .id();
+
+                    if matches!(mark, ContextMenuMark::Checked) {
+                        commands.commands_mut().entity(mark_node).insert((
+                            ImageNode::new(
+                                asset_server
+                                    .load("embedded://bevy_editor/assets/widget/icons/check.png"),
+                            ),
+                            ThemeImageColor(BUTTON_TEXT),
+                        ));
+                    }
+                });
+
+            commands
+                .spawn((Node {
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::Center,
+                    ..default()
+                },))
+                .with_children(|commands| {
+                    commands.spawn((
+                        Pickable::IGNORE,
+                        Text::new(label),
+                        TextFont {
+                            font: asset_server.load(REGULAR),
+                            font_size: 12.0,
+                            ..default()
+                        },
+                        ThemeFontColor(TEXT_MAIN),
+                    ));
+                })
+                .observe(
+                    move |trigger: On<Pointer<Click>>,
+                          mut world: DeferredWorld,
+                          mut commands: Commands| {
+                        callback(&mut world, target);
+                        commands.entity(root).despawn();
+                    },
+                );
+        })
+        .id();
+
+    Ok(commands.entity(item))
+}
+
+fn spawn_submenu<'a>(
+    commands: &'a mut Commands,
+    asset_server: &AssetServer,
+    root: Entity,
+    context_menu: Entity,
+    target: Entity,
+    label: String,
+) -> Result<EntityCommands<'a>> {
+    let item = commands
+        .spawn((
+            ChildOf(context_menu),
+            Node {
+                margin: UiRect::horizontal(px(6)),
+                border_radius: RoundedCorners::All.to_border_radius(4.0),
+                ..default()
+            },
+        ))
+        .with_children(|commands| {
+            commands
+                .spawn((Node {
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::Center,
+                    margin: UiRect::horizontal(px(6)),
+                    padding: UiRect::horizontal(px(8)).with_top(px(4)).with_bottom(px(4)),
+                    ..default()
+                },))
+                .with_children(|commands| {
+                    commands.spawn((
+                        Pickable::IGNORE,
+                        Text::new(label),
+                        TextFont {
+                            font: asset_server.load(REGULAR),
+                            font_size: 12.0,
+                            ..default()
+                        },
+                        ThemeFontColor(TEXT_MAIN),
+                    ));
+                });
+        })
+        .id();
+
+    Ok(commands.entity(item))
+}
+
+fn spawn_separator<'a>(
+    commands: &'a mut Commands,
+    context_menu: Entity,
+) -> Result<EntityCommands<'a>> {
+    let item = commands
+        .spawn((
+            ChildOf(context_menu),
+            Node {
+                width: percent(100),
+                height: px(1),
+                ..default()
+            },
+            ThemeBackgroundColor(BORDER),
+        ))
+        .id();
+
+    Ok(commands.entity(item))
 }

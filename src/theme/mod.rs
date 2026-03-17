@@ -29,7 +29,8 @@ use bevy::{
     platform::collections::HashMap,
     reflect::{Reflect, prelude::ReflectDefault},
     text::{TextColor, TextFont},
-    ui::{BackgroundColor, BorderColor},
+    ui::{BackgroundColor, BorderColor, widget::ImageNode},
+    utils::default,
 };
 use smol_str::SmolStr;
 
@@ -129,6 +130,12 @@ pub struct ThemeFontColor(pub ThemeToken);
 #[reflect(Component)]
 pub struct ThemedText;
 
+#[derive(Component, Clone, Reflect)]
+#[component(immutable)]
+#[reflect(Component, Clone)]
+#[require(ImageNode)]
+pub struct ThemeImageColor(pub ThemeToken);
+
 fn update_theme(
     mut q_background: Query<(&mut BackgroundColor, &ThemeBackgroundColor)>,
     mut q_border: Query<(&mut BorderColor, &ThemeBorderColor)>,
@@ -188,6 +195,16 @@ fn on_changed_font_color(
     }
 }
 
+fn on_changed_image_color(
+    insert: On<Insert, ThemeImageColor>,
+    mut image_color: Query<(&mut ImageNode, &ThemeImageColor), Changed<ThemeImageColor>>,
+    theme: Res<UiTheme>,
+) {
+    if let Ok((mut image_node, image_color)) = image_color.get_mut(insert.entity) {
+        image_node.color = theme.color(&image_color.0);
+    }
+}
+
 pub struct ThemePlugin;
 
 impl Plugin for ThemePlugin {
@@ -209,6 +226,7 @@ impl Plugin for ThemePlugin {
         ))
         .init_resource::<UiTheme>()
         .add_systems(PostUpdate, update_theme)
+        .add_observer(on_changed_image_color)
         .add_observer(on_changed_background)
         .add_observer(on_changed_border)
         .add_observer(on_changed_font_color)
