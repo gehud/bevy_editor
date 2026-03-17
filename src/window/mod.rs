@@ -13,7 +13,6 @@ use bevy::{
         message::MessageWriter,
         observer::On,
         query::{Added, Changed, With},
-        reflect::ReflectComponent,
         system::{Commands, EntityCommands, In, Query, Res, Single, SystemState},
         world::World,
     },
@@ -23,7 +22,6 @@ use bevy::{
         Pickable,
         events::{Click, Out, Over, Pointer, Press},
     },
-    reflect::Reflect,
     ui::{
         AlignItems, BackgroundColor, FlexDirection, JustifyContent, Node, PositionType, UiRect,
         UiTargetCamera, Val, percent, px, widget::ImageNode,

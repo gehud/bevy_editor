@@ -16,8 +16,8 @@ pub fn create_dark_theme() -> ThemeProps {
             (tokens::PANE_BG, palette::GRAY_1),
             (tokens::PANE_TAB_ACTIVE, palette::ACCENT),
             // Text
-            (tokens::TEXT_MAIN, palette::LIGHT_GRAY_1),
-            (tokens::TEXT_DIM, palette::LIGHT_GRAY_2),
+            (tokens::TEXT_MAIN, palette::WHITE),
+            (tokens::TEXT_DIM, palette::WHITE.with_alpha(0.5)),
             // Button
             (tokens::BUTTON_BG, palette::GRAY_3),
             (tokens::BUTTON_BG_HOVER, palette::GRAY_3.lighter(0.05)),

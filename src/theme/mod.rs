@@ -12,7 +12,7 @@ pub use handle_or_path::*;
 pub use rounded_corners::*;
 
 use bevy::{
-    app::{App, HierarchyPropagatePlugin, Plugin, PostUpdate, Propagate, PropagateOver},
+    app::{App, HierarchyPropagatePlugin, Plugin, PostUpdate},
     asset::embedded_asset,
     color::{Color, palettes},
     ecs::{
@@ -23,14 +23,13 @@ use bevy::{
         query::{Changed, With},
         reflect::{ReflectComponent, ReflectResource},
         resource::Resource,
-        system::{Commands, Query, Res},
+        system::{Query, Res},
     },
     log::warn_once,
     platform::collections::HashMap,
     reflect::{Reflect, prelude::ReflectDefault},
     text::{TextColor, TextFont},
     ui::{BackgroundColor, BorderColor, widget::ImageNode},
-    utils::default,
 };
 use smol_str::SmolStr;
 
@@ -121,8 +120,7 @@ pub struct ThemeBorderColor(pub ThemeToken);
 #[component(immutable)]
 #[derive(Reflect)]
 #[reflect(Component, Clone)]
-#[require(ThemedText, PropagateOver::<TextColor>::default())]
-pub struct ThemeFontColor(pub ThemeToken);
+pub struct ThemeTextColor(pub ThemeToken);
 
 /// A marker component that is used to indicate that the text entity wants to opt-in to using
 /// inherited text styles.
@@ -179,19 +177,13 @@ fn on_changed_border(
     }
 }
 
-/// An observer which looks for changes to the [`ThemeFontColor`] component on an entity, and
-/// propagates downward the text color to all participating text entities.
-fn on_changed_font_color(
-    insert: On<Insert, ThemeFontColor>,
-    font_color: Query<&ThemeFontColor>,
+fn on_changed_text_color(
+    insert: On<Insert, ThemeTextColor>,
+    mut text_colors: Query<(&mut TextColor, &ThemeTextColor), Changed<ThemeTextColor>>,
     theme: Res<UiTheme>,
-    mut commands: Commands,
 ) {
-    if let Ok(token) = font_color.get(insert.entity) {
-        let color = theme.color(&token.0);
-        commands
-            .entity(insert.entity)
-            .insert(Propagate(TextColor(color)));
+    if let Ok((mut text_color, theme_text_color)) = text_colors.get_mut(insert.entity) {
+        text_color.0 = theme.color(&theme_text_color.0);
     }
 }
 
@@ -229,7 +221,7 @@ impl Plugin for ThemePlugin {
         .add_observer(on_changed_image_color)
         .add_observer(on_changed_background)
         .add_observer(on_changed_border)
-        .add_observer(on_changed_font_color)
+        .add_observer(on_changed_text_color)
         .add_observer(on_changed_font);
     }
 }

@@ -23,7 +23,7 @@ use bevy::ui::{
 use bevy::ui_widgets::RadioButton;
 
 use crate::theme::{
-    HandleOrPath, InheritableFont, ThemeBackgroundColor, ThemeBorderColor, ThemeFontColor,
+    HandleOrPath, InheritableFont, ThemeBackgroundColor, ThemeBorderColor, ThemeTextColor,
     constants::{fonts, size},
     tokens,
 };
@@ -68,7 +68,7 @@ pub fn radio<C: SpawnableList<ChildOf> + Send + Sync + 'static, B: Bundle>(
         Hovered::default(),
         EntityCursor::System(bevy::window::SystemCursorIcon::Pointer),
         TabIndex(0),
-        ThemeFontColor(tokens::RADIO_TEXT),
+        ThemeTextColor(tokens::RADIO_TEXT),
         InheritableFont {
             font: HandleOrPath::Path(fonts::REGULAR.to_owned()),
             font_size: 14.0,
@@ -112,7 +112,7 @@ fn update_radio_styles(
             Has<InteractionDisabled>,
             Has<Checked>,
             &Hovered,
-            &ThemeFontColor,
+            &ThemeTextColor,
         ),
         (
             With<RadioButton>,
@@ -161,7 +161,7 @@ fn update_radio_styles_remove(
             Has<InteractionDisabled>,
             Has<Checked>,
             &Hovered,
-            &ThemeFontColor,
+            &ThemeTextColor,
         ),
         With<RadioButton>,
     >,
@@ -216,7 +216,7 @@ fn set_radio_styles(
     hovered: bool,
     outline_border: &ThemeBorderColor,
     mark_color: &ThemeBackgroundColor,
-    font_color: &ThemeFontColor,
+    font_color: &ThemeTextColor,
     commands: &mut Commands,
 ) {
     let outline_border_token = match (disabled, hovered) {
@@ -264,7 +264,7 @@ fn set_radio_styles(
     if font_color.0 != font_color_token {
         commands
             .entity(radio_ent)
-            .insert(ThemeFontColor(font_color_token));
+            .insert(ThemeTextColor(font_color_token));
     }
 
     // Change cursor shape

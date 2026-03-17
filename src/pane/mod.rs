@@ -46,7 +46,7 @@ use bevy::{
 
 use crate::{
     theme::{
-        InheritableFont, RoundedCorners, ThemeBackgroundColor, ThemeBorderColor, ThemeFontColor,
+        InheritableFont, RoundedCorners, ThemeBackgroundColor, ThemeBorderColor, ThemeTextColor,
         ThemedText,
         constants::fonts::REGULAR,
         palette::ACCENT,
@@ -223,20 +223,20 @@ fn spawn_pane<'a>(
 
 fn tab_context_menu() -> ContextMenu {
     ContextMenu::new()
-        .with_option(ContextMenuMark::None, "Option 1", |world, tab| {})
+        .with_option(true, ContextMenuMark::None, "Option 1", |world, tab| {})
         .with_separator()
-        .with_option(ContextMenuMark::Checked, "Option 2", |world, tab| {})
+        .with_option(false, ContextMenuMark::Checked, "Option 2", |world, tab| {})
         .with_submenu(
             "Submenu 1",
             ContextMenu::new()
-                .with_option(ContextMenuMark::None, "Option 1", |world, tab| {})
-                .with_option(ContextMenuMark::Checked, "Option 2", |world, tab| {}),
+                .with_option(true, ContextMenuMark::None, "Option 1", |world, tab| {})
+                .with_option(true, ContextMenuMark::Checked, "Option 2", |world, tab| {}),
         )
         .with_submenu(
             "Submenu 2",
             ContextMenu::new()
-                .with_option(ContextMenuMark::None, "Option 1", |world, tab| {})
-                .with_option(ContextMenuMark::Checked, "Option 2", |world, tab| {}),
+                .with_option(true, ContextMenuMark::None, "Option 1", |world, tab| {})
+                .with_option(true, ContextMenuMark::Checked, "Option 2", |world, tab| {}),
         )
 }
 
@@ -570,7 +570,7 @@ fn spawn_tab<'a>(
             font_size: 12.0,
             ..default()
         },
-        ThemeFontColor(TEXT_MAIN),
+        ThemeTextColor(TEXT_MAIN),
     ));
 
     commands.entity(root)

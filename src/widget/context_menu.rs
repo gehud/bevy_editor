@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use bevy::{
     app::{App, Plugin, Update},
-    asset::{self, AssetServer},
-    camera::{NormalizedRenderTarget, visibility::Visibility},
+    asset::AssetServer,
+    camera::NormalizedRenderTarget,
     color::{Alpha, Color},
     ecs::{
         component::Component,
@@ -12,41 +12,33 @@ use bevy::{
         hierarchy::ChildOf,
         message::MessageReader,
         observer::On,
-        query::{Added, With},
-        schedule::IntoScheduleConfigs,
-        system::{Commands, EntityCommands, Query, Res, ResMut, SystemState},
-        world::{CommandQueue, DeferredWorld, FromWorld, World},
+        system::{Commands, EntityCommands, Query, Res, SystemState},
+        world::{DeferredWorld, World},
     },
-    input::keyboard::KeyboardFocusLost,
-    input_focus::{InputFocus, IsFocused, IsFocusedHelper, tab_navigation::TabIndex},
-    log::info,
     math::Vec2,
     picking::{
         Pickable,
         events::{Click, Out, Over, Pointer, Press},
-        hover::Hovered,
-        pointer::{Location, PointerButton, PointerLocation},
+        pointer::PointerButton,
     },
     text::TextFont,
     ui::{
-        AlignItems, AlignSelf, BoxShadow, ComputedNode, FlexDirection, GlobalZIndex,
-        JustifyContent, Node, OverrideClip, PositionType, ShadowStyle, UiGlobalTransform, UiRect,
-        UiScale, ZIndex, percent, px,
+        AlignItems, AlignSelf, BoxShadow, ComputedNode, FlexDirection, JustifyContent, Node,
+        PositionType, ShadowStyle, UiGlobalTransform, UiRect, UiScale, percent, px,
         widget::{ImageNode, Text},
-    },
-    ui_widgets::{
-        MenuItem, MenuLayout, MenuPopup,
-        popover::{Popover, PopoverAlign, PopoverPlacement, PopoverSide},
     },
     utils::default,
 };
-use variadics_please::{all_tuples, all_tuples_enumerated};
 
 use crate::{
     theme::{
-        RoundedCorners, ThemeBackgroundColor, ThemeBorderColor, ThemeFontColor, ThemeImageColor,
+        RoundedCorners, ThemeBackgroundColor, ThemeBorderColor, ThemeImageColor, ThemeTextColor,
+        ThemedText,
         constants::fonts::REGULAR,
-        tokens::{BORDER, BUTTON_BG_HOVER, BUTTON_TEXT, PANE_TAB_ACTIVE, TEXT_MAIN, WINDOW_BG},
+        tokens::{
+            BORDER, BUTTON_TEXT, BUTTON_TEXT_DISABLED, PANE_TAB_ACTIVE, TEXT_DIM, TEXT_MAIN,
+            WINDOW_BG,
+        },
     },
     window::EditorWindow,
 };
@@ -61,6 +53,7 @@ pub enum ContextMenuMark {
 #[derive(Component, Clone)]
 pub enum ContextMenuItem {
     Option {
+        enabled: bool,
         mark: ContextMenuMark,
         label: String,
         callback: Arc<dyn Fn(&mut DeferredWorld, Entity) + Send + Sync>,
@@ -89,11 +82,13 @@ impl ContextMenu {
 
     pub fn with_option(
         mut self,
+        enabled: bool,
         mark: ContextMenuMark,
         label: impl Into<String>,
         callback: impl Fn(&mut DeferredWorld, Entity) + Send + Sync + 'static,
     ) -> Self {
         self.items.push(ContextMenuItem::Option {
+            enabled,
             mark,
             label: label.into(),
             callback: Arc::new(callback),
@@ -234,6 +229,9 @@ fn spawn_menu<'a>(
                 ..default()
             }),
         ))
+        .observe(|mut trigger: On<Pointer<Press>>| {
+            trigger.propagate(false);
+        })
         .id();
 
     for item in menu.items.clone() {
@@ -253,6 +251,7 @@ fn spawn_menu_item(
 ) -> Result {
     let mut menu_item = match item.clone() {
         ContextMenuItem::Option {
+            enabled,
             mark,
             label,
             callback,
@@ -262,6 +261,7 @@ fn spawn_menu_item(
             root,
             context_menu,
             target,
+            enabled,
             mark,
             label,
             callback,
@@ -278,7 +278,9 @@ fn spawn_menu_item(
         ContextMenuItem::Separator => spawn_separator(commands, context_menu)?,
     };
 
-    if !matches!(item, ContextMenuItem::Separator) {
+    if matches!(item, ContextMenuItem::Submenu { .. })
+        || matches!(item, ContextMenuItem::Option { enabled, .. } if enabled)
+    {
         menu_item
             .observe(|trigger: On<Pointer<Over>>, mut commands: Commands| {
                 commands
@@ -289,9 +291,6 @@ fn spawn_menu_item(
                 commands
                     .entity(trigger.entity)
                     .insert(ThemeBackgroundColor(WINDOW_BG));
-            })
-            .observe(|mut trigger: On<Pointer<Press>>| {
-                trigger.propagate(false);
             });
     }
 
@@ -304,10 +303,13 @@ fn spawn_option<'a>(
     root: Entity,
     context_menu: Entity,
     target: Entity,
+    enabled: bool,
     mark: ContextMenuMark,
     label: String,
     callback: Arc<dyn Fn(&mut DeferredWorld, Entity) + Send + Sync>,
 ) -> Result<EntityCommands<'a>> {
+    let text_color = if enabled { TEXT_MAIN } else { TEXT_DIM };
+
     let item = commands
         .spawn((
             ChildOf(context_menu),
@@ -350,7 +352,7 @@ fn spawn_option<'a>(
                                 asset_server
                                     .load("embedded://bevy_editor/assets/widget/icons/check.png"),
                             ),
-                            ThemeImageColor(BUTTON_TEXT),
+                            ThemeImageColor(text_color.clone()),
                         ));
                     }
                 });
@@ -374,7 +376,7 @@ fn spawn_option<'a>(
                             font_size: 12.0,
                             ..default()
                         },
-                        ThemeFontColor(TEXT_MAIN),
+                        ThemeTextColor(text_color),
                     ));
                 });
         })
@@ -393,8 +395,10 @@ fn spawn_option<'a>(
         )
         .observe(
             move |_: On<Pointer<Click>>, mut world: DeferredWorld, mut commands: Commands| {
-                callback(&mut world, target);
-                commands.entity(root).despawn();
+                if enabled {
+                    callback(&mut world, target);
+                    commands.entity(root).despawn();
+                }
             },
         )
         .id();
@@ -455,7 +459,7 @@ fn spawn_submenu<'a>(
                                 font_size: 12.0,
                                 ..default()
                             },
-                            ThemeFontColor(TEXT_MAIN),
+                            ThemeTextColor(TEXT_MAIN),
                         ));
                     });
 

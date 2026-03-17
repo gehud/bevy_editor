@@ -19,7 +19,7 @@ use bevy::ui_widgets::Button;
 
 use crate::{
     theme::{
-        HandleOrPath, InheritableFont, RoundedCorners, ThemeBackgroundColor, ThemeFontColor,
+        HandleOrPath, InheritableFont, RoundedCorners, ThemeBackgroundColor, ThemeTextColor,
         constants::{fonts, size},
         tokens,
     },
@@ -82,7 +82,7 @@ pub fn button<C: SpawnableList<ChildOf> + Send + Sync + 'static, B: Bundle>(
         EntityCursor::System(bevy::window::SystemCursorIcon::Pointer),
         TabIndex(0),
         ThemeBackgroundColor(tokens::BUTTON_BG),
-        ThemeFontColor(tokens::BUTTON_TEXT),
+        ThemeTextColor(tokens::BUTTON_TEXT),
         InheritableFont {
             font: HandleOrPath::Path(fonts::REGULAR.to_owned()),
             font_size: 14.0,
@@ -101,7 +101,7 @@ fn update_button_styles(
             Has<Pressed>,
             &Hovered,
             &ThemeBackgroundColor,
-            &ThemeFontColor,
+            &ThemeTextColor,
         ),
         Or<(
             Changed<Hovered>,
@@ -135,7 +135,7 @@ fn update_button_styles_remove(
         Has<Pressed>,
         &Hovered,
         &ThemeBackgroundColor,
-        &ThemeFontColor,
+        &ThemeTextColor,
     )>,
     mut removed_disabled: RemovedComponents<InteractionDisabled>,
     mut removed_pressed: RemovedComponents<Pressed>,
@@ -169,7 +169,7 @@ fn set_button_styles(
     pressed: bool,
     hovered: bool,
     bg_color: &ThemeBackgroundColor,
-    font_color: &ThemeFontColor,
+    font_color: &ThemeTextColor,
     commands: &mut Commands,
 ) {
     let bg_token = match (variant, disabled, pressed, hovered) {
@@ -206,7 +206,7 @@ fn set_button_styles(
     if font_color.0 != font_color_token {
         commands
             .entity(button_ent)
-            .insert(ThemeFontColor(font_color_token));
+            .insert(ThemeTextColor(font_color_token));
     }
 
     // Change cursor shape
