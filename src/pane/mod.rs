@@ -223,14 +223,15 @@ fn spawn_pane<'a>(
 
 fn tab_context_menu() -> ContextMenu {
     ContextMenu::new()
-        .with(("Option 1", |world: &mut DeferredWorld, tab: Entity| {}))
-        .with(())
-        .with(("Option 2", |world: &mut DeferredWorld, tab: Entity| {}))
-        .with((
-            ContextMenuMark::Checked,
-            "Option 3",
-            |world: &mut DeferredWorld, tab: Entity| {},
-        ))
+        .with_option(ContextMenuMark::None, "Option 1", |world, tab| {})
+        .with_separator()
+        .with_option(ContextMenuMark::Checked, "Option 2", |world, tab| {})
+        .with_submenu(
+            "Submenu 1",
+            ContextMenu::new()
+                .with_option(ContextMenuMark::None, "Option 1", |world, tab| {})
+                .with_option(ContextMenuMark::Checked, "Option 2", |world, tab| {}),
+        )
 }
 
 fn stylize_tab(commands: &mut Commands, root: Entity, active: bool) {
