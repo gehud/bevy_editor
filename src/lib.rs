@@ -29,9 +29,9 @@ use bevy::{
 };
 
 use crate::{
-    pane::{PaneLayoutRoot, EditorPanePlugin},
+    pane::{EditorPanePlugin, PaneLayoutRoot, panes::SceneTreePanePlugin},
     theme::{
-        ThemeBackgroundColor, ThemeBorderColor, EditorThemePlugin, Theme,
+        EditorThemePlugin, Theme, ThemeBackgroundColor, ThemeBorderColor,
         constants::fonts::REGULAR,
         tokens::{BORDER, WINDOW_BG},
     },
@@ -56,6 +56,7 @@ impl Plugin for EditorPlugin {
         .add_plugins(EditorWindowPlugin)
         .add_plugins(EditorWidgetPlugins)
         .add_plugins(EditorPanePlugin)
+        .add_plugins(SceneTreePanePlugin)
         .add_observer(setup);
     }
 }

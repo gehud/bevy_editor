@@ -1,8 +1,11 @@
+pub(crate) mod panes;
+
 use bevy::{
     app::{App, Plugin, PostUpdate, Update},
     asset::AssetServer,
     camera::{NormalizedRenderTarget, visibility::Visibility},
     ecs::{
+        change_detection::DetectChangesMut,
         component::Component,
         entity::{ContainsEntity, Entity},
         error::Result,
@@ -12,9 +15,14 @@ use bevy::{
         observer::On,
         query::{Changed, Or, With},
         resource::Resource,
-        schedule::IntoScheduleConfigs,
-        system::{BoxedSystem, Commands, EntityCommands, In, IntoSystem, Query, Res, ResMut},
+        schedule::{IntoScheduleConfigs, common_conditions::resource_changed},
+        system::{
+            BoxedSystem, Commands, EntityCommands, In, IntoSystem, Query, Res, ResMut, SystemId,
+            SystemState,
+        },
+        world::{Mut, World},
     },
+    log::{warn, warn_once},
     picking::{
         Pickable,
         events::{
@@ -23,6 +31,7 @@ use bevy::{
         },
         pointer::PointerButton,
     },
+    platform::collections::HashMap,
     text::TextFont,
     ui::{
         AlignItems, ComputedNode, FlexDirection, JustifyContent, Node, Overflow, PositionType,
@@ -52,9 +61,16 @@ impl Plugin for EditorPanePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<PaneRegistry>()
             .init_resource::<ResizeHandleDragState>()
-            // .add_systems(Update, on_show_tab)
             .add_systems(Update, cleanup_divider_single_child)
-            .add_systems(Update, set_tabs_active)
+            .add_systems(
+                Update,
+                (
+                    clamp_active_tab_index,
+                    register_pane_callbacks.run_if(resource_changed::<PaneRegistry>),
+                    update_active_tab,
+                )
+                    .chain(),
+            )
             .add_systems(PostUpdate, apply_size.before(UiSystems::Layout))
             .add_observer(init);
     }
@@ -64,9 +80,13 @@ impl Plugin for EditorPanePlugin {
 pub(crate) struct PaneLayoutRoot;
 
 #[derive(Component)]
+struct PaneRef {
+    entity: Entity,
+}
+
+#[derive(Component)]
 struct PaneTab {
-    pane: Entity,
-    tab: String,
+    name: String,
 }
 
 #[derive(Component)]
@@ -77,7 +97,7 @@ struct PaneTabbar {
 
 #[derive(Component)]
 struct PaneTabgroup {
-    active_tab: usize,
+    active_tab_index: usize,
 }
 
 fn spawn_pane<'a>(
@@ -90,7 +110,7 @@ fn spawn_pane<'a>(
 
     let root = commands.spawn((Node::default(), Size(size))).id();
 
-    commands
+    let area = commands
         .spawn((
             ChildOf(root),
             Node {
@@ -120,7 +140,7 @@ fn spawn_pane<'a>(
                     ThemeBackgroundColor(WINDOW_BG),
                     ThemeBorderColor::all(PANE_BG),
                 ))
-                .with_children(|commands| {
+                .with_children(move |commands| {
                     // Tab group
                     let tabgroup = commands
                         .spawn((
@@ -129,7 +149,10 @@ fn spawn_pane<'a>(
                                 ..default()
                             },
                             Pickable::IGNORE,
-                            PaneTabgroup { active_tab: 0 },
+                            PaneTabgroup {
+                                active_tab_index: 0,
+                            },
+                            PaneRef { entity: root },
                         ))
                         .observe(move |_: On<Remove, Children>, mut commands: Commands| {
                             commands.entity(root).despawn();
@@ -194,17 +217,25 @@ fn spawn_pane<'a>(
                         .observe(on_tabbar_drag_drop)
                         .observe(on_tabbar_drag_leave);
                 });
+        })
+        .id();
 
-            // Content area
-            commands.spawn(Node {
+    let content = commands
+        .spawn((
+            ChildOf(area),
+            Node {
                 width: percent(100),
                 height: percent(100),
                 padding: UiRect::all(px(6)),
+                overflow: Overflow::clip(),
                 ..default()
-            });
-        });
+            },
+        ))
+        .id();
 
-    commands.entity(root).insert(PaneStructure { root });
+    commands
+        .entity(root)
+        .insert(PaneStructure { root, content });
 
     commands.entity(root)
 }
@@ -315,7 +346,7 @@ fn on_tabbar_drag_drop(
         .entity(tabbar.tabgroup)
         .insert_child(drop_index, trigger.dropped)
         .entry::<PaneTabgroup>()
-        .and_modify(move |mut tabgroup| tabgroup.active_tab = drop_index);
+        .and_modify(move |mut tabgroup| tabgroup.active_tab_index = drop_index);
 
     Ok(())
 }
@@ -353,7 +384,7 @@ fn on_tab_press(
         .iter()
         .position(|sibling| *sibling == trigger.entity)
         .unwrap();
-    tabgroups.get_mut(parent)?.active_tab = index;
+    tabgroups.get_mut(parent)?.active_tab_index = index;
 
     Ok(())
 }
@@ -363,7 +394,7 @@ fn on_tab_drag_start(
     editor_windows: Query<&EditorWindow>,
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    tabs: Query<&PaneTab>,
+    tabs: Query<(&PaneTab, &PaneRef)>,
     mut override_cursor: ResMut<OverrideCursor>,
 ) -> Result {
     if trigger.button != PointerButton::Primary {
@@ -378,8 +409,8 @@ fn on_tab_drag_start(
         return Ok(());
     };
 
-    let tab = tabs.get(trigger.entity)?;
-    let indicator = spawn_tab(&mut commands, &asset_server, tab.pane, tab.tab.clone())
+    let (tab, pane) = tabs.get(trigger.entity)?;
+    let indicator = spawn_tab(&mut commands, &asset_server, pane.entity, tab.name.clone())
         .insert(ChildOf(editor_window.root()))
         .insert(Pickable::IGNORE)
         .entry::<Node>()
@@ -457,10 +488,8 @@ fn spawn_tab<'a>(
 ) -> EntityCommands<'a> {
     let root = commands
         .spawn((
-            PaneTab {
-                pane,
-                tab: tab.clone(),
-            },
+            PaneRef { entity: pane },
+            PaneTab { name: tab.clone() },
             Node {
                 height: px(30),
                 padding: UiRect::horizontal(px(8)),
@@ -494,18 +523,14 @@ fn spawn_tab<'a>(
     commands.entity(root)
 }
 
-fn set_tabs_active(
-    tabgroups: Query<(&PaneTabgroup, &Children), Or<(Changed<PaneTabgroup>, Changed<Children>)>>,
-    mut commands: Commands,
+fn clamp_active_tab_index(
+    tabgroups: Query<
+        (&mut PaneTabgroup, &Children),
+        Or<(Changed<PaneTabgroup>, Changed<Children>)>,
+    >,
 ) {
-    for (tabgroup, tabs) in tabgroups {
-        for (i, tab) in tabs.iter().enumerate() {
-            let active = i == tabgroup.active_tab;
-            commands.entity(*tab).insert((
-                ThemeBackgroundColor(if active { PANE_BG } else { WINDOW_BG }),
-                ThemeBorderColor::all(if active { PANE_TAB_ACTIVE } else { WINDOW_BG }),
-            ));
-        }
+    for (mut tabgroup, tabs) in tabgroups {
+        tabgroup.active_tab_index = tabgroup.active_tab_index.clamp(0, tabs.len() - 1);
     }
 }
 
@@ -540,19 +565,67 @@ fn set_tabs_active(
 //     }
 // }
 
+fn register_pane_callbacks(world: &mut World) {
+    world.resource_scope(|world, mut pane_registry: Mut<PaneRegistry>| {
+        for (_, state) in &mut pane_registry.panes {
+            if let Some(creation_callback) = state.creation_callback.take() {
+                state.creation_system = Some(world.register_boxed_system(creation_callback));
+            }
+        }
+    });
+}
+
+fn update_active_tab(
+    tabgroups: Query<
+        (&PaneRef, &PaneTabgroup, &Children),
+        Or<(Changed<PaneTabgroup>, Changed<Children>)>,
+    >,
+    pane_registry: Res<PaneRegistry>,
+    pane_tabs: Query<&PaneTab>,
+    pane_structures: Query<&PaneStructure>,
+    mut commands: Commands,
+) -> Result {
+    for (pane, tabgroup, tabs) in tabgroups {
+        for (i, tab) in tabs.iter().enumerate() {
+            let active = i == tabgroup.active_tab_index;
+            commands.entity(*tab).insert((
+                ThemeBackgroundColor(if active { PANE_BG } else { WINDOW_BG }),
+                ThemeBorderColor::all(if active { PANE_TAB_ACTIVE } else { WINDOW_BG }),
+            ));
+
+            if active {
+                let tab_name = &pane_tabs.get(*tab)?.name;
+                if let Some(pane_state) = pane_registry.panes.get(tab_name) {
+                    if let Some(creation_system) = pane_state.creation_system {
+                        let pane_structure = *pane_structures.get(pane.entity)?;
+                        commands.entity(pane_structure.content).despawn_children();
+                        commands.run_system_with(creation_system, pane_structure);
+                    }
+                } else {
+                    warn!("Missing tab pane: {}", tab_name);
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
 #[derive(Component, Clone, Copy)]
 pub struct PaneStructure {
     pub root: Entity,
+    pub content: Entity,
 }
 
-struct Pane {
+struct PaneState {
     name: String,
     creation_callback: Option<BoxedSystem<In<PaneStructure>>>,
+    creation_system: Option<SystemId<In<PaneStructure>>>,
 }
 
 #[derive(Resource, Default)]
 pub struct PaneRegistry {
-    panes: Vec<Pane>,
+    panes: HashMap<String, PaneState>,
 }
 
 impl PaneRegistry {
@@ -561,10 +634,17 @@ impl PaneRegistry {
         name: impl Into<String>,
         system: impl IntoSystem<In<PaneStructure>, (), M>,
     ) {
-        self.panes.push(Pane {
-            name: name.into(),
-            creation_callback: Some(Box::new(IntoSystem::into_system(system))),
-        });
+        let name = name.into();
+        if let Some(old) = self.panes.insert(
+            name.clone(),
+            PaneState {
+                name: name.clone(),
+                creation_callback: Some(Box::new(IntoSystem::into_system(system))),
+                creation_system: None,
+            },
+        ) {
+            warn!("'{}' pane replaced with {} pane.", old.name, name);
+        }
     }
 }
 
