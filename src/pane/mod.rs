@@ -5,7 +5,6 @@ use bevy::{
     asset::AssetServer,
     camera::{NormalizedRenderTarget, visibility::Visibility},
     ecs::{
-        change_detection::DetectChangesMut,
         component::Component,
         entity::{ContainsEntity, Entity},
         error::Result,
@@ -23,19 +22,21 @@ use bevy::{
         world::{Mut, World},
     },
     log::{warn, warn_once},
+    math::Vec2,
     picking::{
         Pickable,
         events::{
             Cancel, Drag, DragDrop, DragEnd, DragEnter, DragLeave, DragOver, DragStart, Pointer,
             Press,
         },
+        hover::Hovered,
         pointer::PointerButton,
     },
     platform::collections::HashMap,
     text::TextFont,
     ui::{
         AlignItems, ComputedNode, FlexDirection, JustifyContent, Node, Overflow, PositionType,
-        UiGlobalTransform, UiRect, UiScale, UiSystems, percent, px, widget::Text,
+        ScrollPosition, UiGlobalTransform, UiRect, UiScale, UiSystems, percent, px, widget::Text,
     },
     utils::default,
     window::SystemCursorIcon,
@@ -45,14 +46,17 @@ use crate::{
     theme::{
         RoundedCorners, ThemeBackgroundColor, ThemeBorderColor, ThemeTextColor,
         constants::fonts::REGULAR,
-        tokens::{PANE_BG, PANE_TAB_ACTIVE, TEXT_MAIN, WINDOW_BG},
+        tokens::{BUTTON_BG, PANE_BG, PANE_TAB_ACTIVE, TEXT_MAIN, WINDOW_BG},
     },
-    widget::{ContextMenu, ContextMenuMark, EntityCursor, OverrideCursor},
+    widget::{
+        ContextMenu, ContextMenuMark, EntityCursor, OverrideCursor, ScrollAxis, ScrollRect,
+        Scrollbar,
+    },
     window::EditorWindow,
 };
 
 pub const PANE_BORDER_RADIUS: f32 = 6.0;
-pub const MIN_PANE_SIZE: f32 = 45.0;
+pub const MIN_PANE_SIZE: f32 = 100.0;
 pub const RESIZE_HANDLE_SIZE: f32 = 4.0;
 
 pub struct EditorPanePlugin;
@@ -123,32 +127,43 @@ fn spawn_pane<'a>(
             ThemeBackgroundColor(PANE_BG),
         ))
         .with_children(|commands| {
-            // Tabbar
+            // Header
             commands
                 .spawn((
                     Node {
                         width: percent(100),
                         height: px(30),
                         padding: UiRect::left(px(6)).with_right(px(8)),
-                        overflow: Overflow::hidden(),
                         border: UiRect::horizontal(px(1)).with_top(px(1)),
                         flex_shrink: 0.0,
                         border_radius: RoundedCorners::Top.to_border_radius(PANE_BORDER_RADIUS),
-                        justify_content: JustifyContent::SpaceBetween,
                         ..default()
                     },
                     ThemeBackgroundColor(WINDOW_BG),
                     ThemeBorderColor::all(PANE_BG),
                 ))
                 .with_children(move |commands| {
-                    // Tab group
+                    let tabscroll = commands
+                        .spawn((Node {
+                            width: percent(100),
+                            height: percent(100),
+                            ..default()
+                        },))
+                        .id();
+
                     let tabgroup = commands
+                        .commands_mut()
                         .spawn((
+                            ChildOf(tabscroll),
                             Node {
                                 height: percent(100),
+                                width: percent(100),
                                 ..default()
                             },
-                            Pickable::IGNORE,
+                            Pickable {
+                                should_block_lower: false,
+                                ..default()
+                            },
                             PaneTabgroup {
                                 active_tab_index: 0,
                             },
@@ -170,16 +185,61 @@ fn spawn_pane<'a>(
                             .observe(on_tab_drag_cancel);
                     }
 
-                    // Menu
-                    commands.spawn(Node {
-                        width: px(12),
-                        height: px(12),
-                        ..default()
+                    let scrollbar = commands
+                        .commands_mut()
+                        .spawn((
+                            ChildOf(tabscroll),
+                            Pickable {
+                                should_block_lower: false,
+                                ..default()
+                            },
+                            Node {
+                                position_type: PositionType::Absolute,
+                                bottom: px(0),
+                                width: percent(100),
+                                height: px(6),
+                                ..default()
+                            },
+                        ))
+                        .id();
+
+                    let handle = commands
+                        .commands_mut()
+                        .spawn((
+                            ChildOf(scrollbar),
+                            Node {
+                                width: px(8),
+                                height: percent(100),
+                                position_type: PositionType::Absolute,
+                                ..default()
+                            },
+                            Pickable {
+                                should_block_lower: false,
+                                ..default()
+                            },
+                            ThemeBackgroundColor(BUTTON_BG),
+                        ))
+                        .id();
+
+                    commands.commands_mut().entity(scrollbar).insert(Scrollbar {
+                        handle: Some(handle),
                     });
+
+                    commands
+                        .commands_mut()
+                        .entity(tabscroll)
+                        .insert(ScrollRect {
+                            content: Some(tabgroup),
+                            horizontal: true,
+                            horizontal_srollbar: Some(scrollbar),
+                            main_axis: ScrollAxis::Horizontal,
+                            ..default()
+                        });
 
                     let drop_indicator = commands
                         .commands()
                         .spawn((
+                            ChildOf(tabscroll),
                             Node {
                                 position_type: PositionType::Absolute,
                                 height: percent(100),
@@ -194,8 +254,11 @@ fn spawn_pane<'a>(
                         ))
                         .id();
 
+                    // Tab drop area
                     commands
+                        .commands_mut()
                         .spawn((
+                            ChildOf(tabscroll),
                             Node {
                                 position_type: PositionType::Absolute,
                                 width: percent(100),
@@ -211,7 +274,6 @@ fn spawn_pane<'a>(
                                 tabgroup,
                             },
                         ))
-                        .add_child(drop_indicator)
                         .observe(on_tabbar_drag_enter)
                         .observe(on_tabbar_drag_over)
                         .observe(on_tabbar_drag_drop)
@@ -279,6 +341,7 @@ fn on_tabbar_drag_over(
     trigger: On<Pointer<DragOver>>,
     tabbars: Query<&PaneTabbar>,
     children: Query<&Children>,
+    scroll_positions: Query<&ScrollPosition>,
     computed_nodes: Query<&ComputedNode>,
     mut dragged_tabs: Query<&mut DraggedTab>,
     mut nodes: Query<&mut Node>,
@@ -322,6 +385,11 @@ fn on_tabbar_drag_over(
             dragged_tab.drop_index = dragged_tab.drop_index.saturating_sub(1);
         }
     }
+
+    indicator_position -= scroll_positions
+        .get(trigger.entity)
+        .map(|position| position.x)
+        .unwrap_or_default();
 
     indicator.left = percent(indicator_position / tabbar_size * 100.0);
 
@@ -491,6 +559,7 @@ fn spawn_tab<'a>(
             PaneRef { entity: pane },
             PaneTab { name: tab.clone() },
             Node {
+                flex_shrink: 0.0,
                 height: px(30),
                 padding: UiRect::horizontal(px(8)),
                 border: UiRect::top(px(2)),
@@ -916,7 +985,13 @@ fn init(trigger: On<Add, PaneLayoutRoot>, mut commands: Commands, asset_server: 
         &mut commands,
         &asset_server,
         0.4,
-        vec!["Scene Tree".into(), "Scene Tree".into()],
+        vec![
+            "Scene Tree".into(),
+            "Scene Tree".into(),
+            "Scene Tree".into(),
+            "Scene Tree".into(),
+            "Scene Tree".into(),
+        ],
     )
     .insert(ChildOf(sub_divider));
     spawn_resize_handle(&mut commands, Divider::Vertical).insert(ChildOf(sub_divider));
@@ -924,7 +999,13 @@ fn init(trigger: On<Add, PaneLayoutRoot>, mut commands: Commands, asset_server: 
         &mut commands,
         &asset_server,
         0.6,
-        vec!["Properties".into(), "Properties".into()],
+        vec![
+            "Properties".into(),
+            "Properties".into(),
+            "Properties".into(),
+            "Properties".into(),
+            "Properties".into(),
+        ],
     )
     .insert(ChildOf(sub_divider));
 

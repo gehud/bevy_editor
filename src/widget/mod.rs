@@ -36,6 +36,7 @@ mod color_swatch;
 mod context_menu;
 mod cursor;
 mod radio;
+mod scroll;
 mod slider;
 mod toggle_switch;
 mod virtual_keyboard;
@@ -49,6 +50,7 @@ pub use color_swatch::*;
 pub use context_menu::*;
 pub use cursor::*;
 pub use radio::*;
+pub use scroll::*;
 pub use slider::*;
 pub use toggle_switch::*;
 pub use virtual_keyboard::*;
@@ -84,6 +86,7 @@ impl Plugin for EditorWidgetPlugin {
             ToggleSwitchPlugin,
             CursorIconPlugin,
             ContextMenuPlugin,
+            ScrollPlugin,
             UiMaterialPlugin::<AlphaPatternMaterial>::default(),
         ));
 
