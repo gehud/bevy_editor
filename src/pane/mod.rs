@@ -595,10 +595,11 @@ fn update_active_tab(
 
             if active {
                 let tab_name = &pane_tabs.get(*tab)?.name;
+                let pane_structure = *pane_structures.get(pane.entity)?;
+                commands.entity(pane_structure.content).despawn_children();
+
                 if let Some(pane_state) = pane_registry.panes.get(tab_name) {
                     if let Some(creation_system) = pane_state.creation_system {
-                        let pane_structure = *pane_structures.get(pane.entity)?;
-                        commands.entity(pane_structure.content).despawn_children();
                         commands.run_system_with(creation_system, pane_structure);
                     }
                 } else {
