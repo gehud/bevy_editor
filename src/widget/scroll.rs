@@ -19,9 +19,11 @@ use bevy::{
         keyboard::KeyCode,
         mouse::{MouseScrollUnit, MouseWheel},
     },
-    log::info,
     math::Vec2,
-    picking::hover::HoverMap,
+    picking::{
+        events::{Click, Pointer},
+        hover::HoverMap,
+    },
     ui::{ComputedNode, Node, OverflowAxis, ScrollPosition, UiSystems, percent},
 };
 
@@ -37,9 +39,9 @@ pub struct ScrollRect {
     pub content: Option<Entity>,
     pub horizontal: bool,
     pub vertical: bool,
-    pub horizontal_srollbar: Option<Entity>,
+    pub horizontal_scrollbar: Option<Entity>,
     pub auto_hide_horizontal: bool,
-    pub vertical_srollbar: Option<Entity>,
+    pub vertical_scrollbar: Option<Entity>,
     pub auto_hide_vertical: bool,
     pub step: f32,
     pub main_axis: ScrollAxis,
@@ -51,9 +53,9 @@ impl Default for ScrollRect {
             content: Default::default(),
             horizontal: Default::default(),
             vertical: Default::default(),
-            horizontal_srollbar: Default::default(),
+            horizontal_scrollbar: Default::default(),
             auto_hide_horizontal: true,
-            vertical_srollbar: Default::default(),
+            vertical_scrollbar: Default::default(),
             auto_hide_vertical: true,
             step: 20.0,
             main_axis: Default::default(),
@@ -79,7 +81,8 @@ impl Plugin for ScrollPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Update, (update_scrollrect, send_scroll_delta))
             .add_systems(PostUpdate, update_scrollbars.after(UiSystems::Layout))
-            .add_observer(on_scroll_delta);
+            .add_observer(on_scroll_delta)
+            .add_observer(on_scrollbar_click);
     }
 }
 
@@ -125,7 +128,7 @@ fn update_scrollbars(
         let content_node = computed_nodes.get(content)?;
         let scroll_position = scroll_positions.get(content)?;
 
-        if let Some(horizontal_scrollbar) = scrollrect.horizontal_srollbar {
+        if let Some(horizontal_scrollbar) = scrollrect.horizontal_scrollbar {
             if let Ok(scrollbar) = scrollbars.get(horizontal_scrollbar) {
                 if let Some(handle) = scrollbar.handle {
                     let mut handle_node = nodes.get_mut(handle)?;
@@ -145,6 +148,31 @@ fn update_scrollbars(
                         .min(1.0);
 
                         handle_node.left = percent(offset * 100.0);
+                    }
+                }
+            }
+        }
+
+        if let Some(vertical_scrollbar) = scrollrect.vertical_scrollbar {
+            if let Ok(scrollbar) = scrollbars.get(vertical_scrollbar) {
+                if let Some(handle) = scrollbar.handle {
+                    let mut handle_node = nodes.get_mut(handle)?;
+
+                    let length = (content_node.size().y / content_node.content_size().y).min(1.0);
+
+                    if scrollrect.auto_hide_vertical && length == 1.0 {
+                        *visibilities.get_mut(vertical_scrollbar)? = Visibility::Hidden;
+                    } else {
+                        *visibilities.get_mut(vertical_scrollbar)? = Visibility::Inherited;
+
+                        handle_node.height = percent(length * 100.0);
+
+                        let offset = (scroll_position.y
+                            / (content_node.content_size().y
+                                * content_node.inverse_scale_factor()))
+                        .min(1.0);
+
+                        handle_node.top = percent(offset * 100.0);
                     }
                 }
             }
@@ -218,3 +246,5 @@ fn on_scroll_delta(
 
     Ok(())
 }
+
+fn on_scrollbar_click(trigger: On<Pointer<Click>>) {}

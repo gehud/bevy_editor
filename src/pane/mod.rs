@@ -185,6 +185,24 @@ fn spawn_pane<'a>(
                             .observe(on_tab_drag_cancel);
                     }
 
+                    let drop_indicator = commands
+                        .commands()
+                        .spawn((
+                            ChildOf(tabscroll),
+                            Node {
+                                position_type: PositionType::Absolute,
+                                height: percent(100),
+                                width: px(3),
+                                margin: UiRect::horizontal(px(-1)),
+                                left: px(0),
+                                ..default()
+                            },
+                            Pickable::IGNORE,
+                            ThemeBackgroundColor(PANE_TAB_ACTIVE),
+                            Visibility::Hidden,
+                        ))
+                        .id();
+
                     let scrollbar = commands
                         .commands_mut()
                         .spawn((
@@ -231,28 +249,10 @@ fn spawn_pane<'a>(
                         .insert(ScrollRect {
                             content: Some(tabgroup),
                             horizontal: true,
-                            horizontal_srollbar: Some(scrollbar),
+                            horizontal_scrollbar: Some(scrollbar),
                             main_axis: ScrollAxis::Horizontal,
                             ..default()
                         });
-
-                    let drop_indicator = commands
-                        .commands()
-                        .spawn((
-                            ChildOf(tabscroll),
-                            Node {
-                                position_type: PositionType::Absolute,
-                                height: percent(100),
-                                width: px(3),
-                                margin: UiRect::horizontal(px(-1)),
-                                left: px(0),
-                                ..default()
-                            },
-                            Pickable::IGNORE,
-                            ThemeBackgroundColor(PANE_TAB_ACTIVE),
-                            Visibility::Hidden,
-                        ))
-                        .id();
 
                     // Tab drop area
                     commands
@@ -560,7 +560,7 @@ fn spawn_tab<'a>(
             PaneTab { name: tab.clone() },
             Node {
                 flex_shrink: 0.0,
-                height: px(30),
+                height: px(29),
                 padding: UiRect::horizontal(px(8)),
                 border: UiRect::top(px(2)),
                 border_radius: RoundedCorners::Top.to_border_radius(2.0),
