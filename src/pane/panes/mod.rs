@@ -1,5 +1,5 @@
 mod scene_tree;
-mod viewport_3d;
+mod viewport;
 
 pub use scene_tree::*;
-pub use viewport_3d::*;
+pub use viewport::*;

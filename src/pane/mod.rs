@@ -988,7 +988,7 @@ fn init(trigger: On<Add, PaneLayoutRoot>, mut commands: Commands, asset_server: 
         &mut commands,
         &asset_server,
         0.70,
-        vec!["Viewport 3D".into()],
+        vec!["Viewport".into()],
     )
     .insert(ChildOf(asset_browser_divider));
     spawn_resize_handle(&mut commands, Divider::Vertical).insert(ChildOf(asset_browser_divider));

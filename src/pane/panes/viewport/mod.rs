@@ -1,7 +1,12 @@
+mod grid;
+
 use bevy::{
     app::{App, First, Plugin, PostUpdate, PreUpdate, Startup, Update},
     asset::{Assets, RenderAssetUsages, uuid::Uuid},
-    camera::{Camera, Camera3d, ClearColorConfig, NormalizedRenderTarget, RenderTarget},
+    camera::{
+        Camera, Camera3d, ClearColorConfig, NormalizedRenderTarget, RenderTarget,
+        visibility::RenderLayers,
+    },
     color::Color,
     ecs::{
         component::Component,
@@ -36,7 +41,10 @@ use bevy::{
 };
 
 use crate::{
-    pane::{PaneStructure, RegisterPane},
+    pane::{
+        PaneStructure, RegisterPane,
+        panes::viewport::grid::{InfiniteGrid, InfiniteGridPlugin, InfiniteGridSettings},
+    },
     theme::palette,
 };
 
@@ -44,26 +52,41 @@ pub struct Viewport3dPanePlugin;
 
 impl Plugin for Viewport3dPanePlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
-            First,
-            render_target_picking_passthrough.in_set(PickingSystems::PostInput),
-        )
-        .add_systems(
-            PostUpdate,
-            update_render_target_size.after(UiSystems::Layout),
-        )
-        .register_pane("Viewport 3D", setup);
+        app.add_plugins(InfiniteGridPlugin)
+            .add_systems(Startup, setup_grid)
+            .add_systems(
+                First,
+                render_target_picking_passthrough.in_set(PickingSystems::PostInput),
+            )
+            .add_systems(
+                PostUpdate,
+                update_render_target_size.after(UiSystems::Layout),
+            )
+            .register_pane("Viewport", setup);
     }
 }
 
 #[derive(Component)]
-struct Viewport3d;
+struct Viewport;
 
 #[derive(Component)]
 struct Active;
 
+fn setup_grid(mut commands: Commands) {
+    commands.spawn((
+        InfiniteGrid,
+        InfiniteGridSettings {
+            x_axis_color: palette::X_AXIS,
+            z_axis_color: palette::Z_AXIS,
+            major_line_color: palette::WARM_GRAY_1,
+            minor_line_color: palette::GRAY_2,
+            ..default()
+        },
+    ));
+}
+
 fn render_target_picking_passthrough(
-    viewports: Query<Entity, With<Viewport3d>>,
+    viewports: Query<Entity, With<Viewport>>,
     nodes: Query<(Entity, &ComputedNode, &UiGlobalTransform, &ImageNode), With<Active>>,
     mut pointer_input_reader: MessageReader<PointerInput>,
     mut commands: Commands,
@@ -133,7 +156,7 @@ fn setup(
                         height: percent(100),
                         ..default()
                     },
-                    Viewport3d,
+                    Viewport,
                     ImageNode {
                         image: image,
                         image_mode: NodeImageMode::Stretch,
@@ -146,14 +169,14 @@ fn setup(
                 .observe(|trigger: On<Pointer<Out>>, mut commands: Commands| {
                     commands.entity(trigger.entity).remove::<Active>();
                 })
-                .observe(move |_: On<Despawn, Viewport3d>, mut commands: Commands| {
+                .observe(move |_: On<Despawn, Viewport>, mut commands: Commands| {
                     commands.entity(camera).despawn();
                 });
         });
 }
 
 fn update_render_target_size(
-    viewports: Query<(&ImageNode, &ComputedNode), (With<Viewport3d>, Changed<ComputedNode>)>,
+    viewports: Query<(&ImageNode, &ComputedNode), (With<Viewport>, Changed<ComputedNode>)>,
     mut images: ResMut<Assets<Image>>,
 ) {
     for (image_node, node) in viewports {
