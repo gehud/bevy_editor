@@ -37,7 +37,7 @@ use bevy::{
 use crate::{
     pane::{
         EditorPanePlugin, PaneLayoutRoot,
-        panes::{SceneTreePanePlugin, Viewport3dPanePlugin},
+        panes::{SceneTreePanePlugin, ViewportPanePlugin},
     },
     theme::{
         EditorThemePlugin, Theme, ThemeBackgroundColor, ThemeBorderColor,
@@ -66,7 +66,7 @@ impl Plugin for EditorPlugin {
         .add_plugins(EditorWidgetPlugins)
         .add_plugins(EditorPanePlugin)
         .add_plugins(SceneTreePanePlugin)
-        .add_plugins(Viewport3dPanePlugin)
+        .add_plugins(ViewportPanePlugin)
         .add_observer(setup);
     }
 }

@@ -1,19 +1,14 @@
+mod camera;
 mod grid;
 
 use bevy::{
-    app::{App, First, Plugin, PostUpdate, PreUpdate, Startup, Update},
-    asset::{Assets, RenderAssetUsages, uuid::Uuid},
-    camera::{
-        Camera, Camera3d, ClearColorConfig, NormalizedRenderTarget, RenderTarget,
-        visibility::RenderLayers,
-    },
-    color::Color,
+    app::{App, First, Plugin, PostUpdate, Startup},
+    asset::{Assets, RenderAssetUsages},
+    camera::{Camera, Camera3d, ClearColorConfig, NormalizedRenderTarget, RenderTarget},
     ecs::{
         component::Component,
         entity::Entity,
-        error::Result,
-        hierarchy::{ChildOf, Children},
-        lifecycle::{Despawn, Remove},
+        lifecycle::Despawn,
         message::MessageReader,
         observer::On,
         query::{Changed, With},
@@ -21,21 +16,17 @@ use bevy::{
         system::{Commands, In, Query, ResMut},
     },
     image::{BevyDefault, Image},
-    log::info,
-    math::{Rect, Vec3},
+    math::Vec3,
     picking::{
         PickingSystems,
         events::{Out, Over, Pointer},
-        hover::Hovered,
-        input::{mouse_pick_events, touch_pick_events},
-        pointer::{Location, PointerId, PointerInput},
+        pointer::{Location, PointerInput},
     },
     render::render_resource::{Extent3d, TextureFormat, TextureUsages},
     transform::components::Transform,
     ui::{
-        AlignContent, AlignItems, AlignSelf, ComputedNode, JustifyContent, Node, UiGlobalTransform,
-        UiSystems, percent,
-        widget::{ImageNode, ImageNodeSize, NodeImageMode, update_image_content_size_system},
+        ComputedNode, Node, UiGlobalTransform, UiSystems, percent,
+        widget::{ImageNode, NodeImageMode},
     },
     utils::default,
 };
@@ -43,16 +34,20 @@ use bevy::{
 use crate::{
     pane::{
         PaneStructure, RegisterPane,
-        panes::viewport::grid::{InfiniteGrid, InfiniteGridPlugin, InfiniteGridSettings},
+        panes::viewport::{
+            camera::{ViewportCamera, ViewportCameraPlugin},
+            grid::{InfiniteGrid, InfiniteGridPlugin, InfiniteGridSettings},
+        },
     },
     theme::palette,
 };
 
-pub struct Viewport3dPanePlugin;
+pub struct ViewportPanePlugin;
 
-impl Plugin for Viewport3dPanePlugin {
+impl Plugin for ViewportPanePlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(InfiniteGridPlugin)
+            .add_plugins(ViewportCameraPlugin)
             .add_systems(Startup, setup_grid)
             .add_systems(
                 First,
@@ -87,18 +82,13 @@ fn setup_grid(mut commands: Commands) {
 
 fn render_target_picking_passthrough(
     viewports: Query<Entity, With<Viewport>>,
-    nodes: Query<(Entity, &ComputedNode, &UiGlobalTransform, &ImageNode), With<Active>>,
+    nodes: Query<(&ComputedNode, &UiGlobalTransform, &ImageNode), With<Active>>,
     mut pointer_input_reader: MessageReader<PointerInput>,
     mut commands: Commands,
 ) {
     for event in pointer_input_reader.read() {
-        if event.pointer_id != PointerId::Mouse {
-            continue;
-        }
-
         for viewport in &viewports {
-            let Ok((entity, computed_node, global_transform, ui_image)) = nodes.get(viewport)
-            else {
+            let Ok((computed_node, global_transform, ui_image)) = nodes.get(viewport) else {
                 continue;
             };
 
@@ -110,17 +100,12 @@ fn render_target_picking_passthrough(
             let event_copy = PointerInput {
                 action: event.action,
                 location: Location { position, target },
-                pointer_id: pointer_id_from_entity(entity),
+                pointer_id: event.pointer_id,
             };
 
             commands.write_message(event_copy);
         }
     }
-}
-
-fn pointer_id_from_entity(entity: Entity) -> PointerId {
-    let bits = entity.to_bits();
-    PointerId::Custom(Uuid::from_u64_pair(bits, bits))
 }
 
 fn setup(
@@ -136,6 +121,7 @@ fn setup(
 
     let camera = commands
         .spawn((
+            ViewportCamera::default(),
             Camera3d::default(),
             Camera {
                 clear_color: ClearColorConfig::Custom(palette::GRAY_0),
