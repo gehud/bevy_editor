@@ -2,6 +2,7 @@ use std::mem::swap;
 
 use bevy::{
     app::{App, Plugin, PostUpdate, PreUpdate},
+    camera::visibility::Visibility,
     ecs::{
         component::Component,
         entity::Entity,
@@ -10,7 +11,7 @@ use bevy::{
         hierarchy::{ChildOf, Children},
         message::MessageReader,
         observer::On,
-        query::{Or, With, Without},
+        query::{With, Without},
         reflect::ReflectComponent,
         schedule::IntoScheduleConfigs,
         system::{Commands, Query, Res},
@@ -65,12 +66,21 @@ pub enum ScrollAxis {
     Vertical,
 }
 
+#[derive(Component, Default, Debug, Reflect)]
+#[reflect(Component, Default)]
+struct ScrollbarState {
+    hidden: bool,
+}
+
 #[derive(Component, Debug, Reflect)]
 #[reflect(Component, Default)]
+#[require(ScrollbarState)]
 pub struct Scrollbar {
     pub target: Entity,
     pub axis: ScrollAxis,
     pub min_thumb_length: f32,
+    pub auto_hide: bool,
+    pub visible_mode: Visibility,
 }
 
 impl Default for Scrollbar {
@@ -79,6 +89,8 @@ impl Default for Scrollbar {
             target: Entity::PLACEHOLDER,
             axis: ScrollAxis::Vertical,
             min_thumb_length: 0.0,
+            auto_hide: true,
+            visible_mode: Visibility::Inherited,
         }
     }
 }
@@ -92,7 +104,7 @@ pub struct ScrollbarThumb;
 #[derive(Component, Default, Reflect)]
 #[reflect(Component, Default)]
 pub struct ScrollbarDragState {
-    pub dragging: bool,
+    dragging: bool,
     drag_origin: f32,
 }
 
@@ -392,6 +404,33 @@ fn scrollarea_on_scroll_delta(
     Ok(())
 }
 
+fn scrollbar_auto_hide(
+    scrollbars: Query<(&Scrollbar, &mut ScrollbarState, &mut Visibility)>,
+    computed_nodes: Query<&ComputedNode>,
+) -> Result {
+    for (scrollbar, mut state, mut visibility) in scrollbars {
+        if !scrollbar.auto_hide {
+            continue;
+        }
+
+        let target_node = computed_nodes.get(scrollbar.target)?;
+        let should_hide = match scrollbar.axis {
+            ScrollAxis::Horizontal => target_node.content_size().x <= target_node.size().x,
+            ScrollAxis::Vertical => target_node.content_size().y <= target_node.size().y,
+        };
+
+        if should_hide && !state.hidden {
+            *visibility = Visibility::Hidden;
+            state.hidden = true;
+        } else if !should_hide && state.hidden {
+            *visibility = scrollbar.visible_mode;
+            state.hidden = false;
+        }
+    }
+
+    Ok(())
+}
+
 pub struct ScrollPlugin;
 
 impl Plugin for ScrollPlugin {
@@ -406,6 +445,12 @@ impl Plugin for ScrollPlugin {
                 PreUpdate,
                 send_mouse_scroll_delta.in_set(PickingSystems::Last),
             )
-            .add_systems(PostUpdate, update_scrollbar_thumb.before(UiSystems::Layout));
+            .add_systems(
+                PostUpdate,
+                (
+                    update_scrollbar_thumb.before(UiSystems::Layout),
+                    scrollbar_auto_hide.after(UiSystems::Layout),
+                ),
+            );
     }
 }
