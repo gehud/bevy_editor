@@ -14,6 +14,7 @@ use bevy::{
     },
     input_focus::{InputFocus, tab_navigation::TabIndex},
     picking::hover::Hovered,
+    render::RenderPlugin,
     text::TextColor,
     ui::{
         AlignItems, BackgroundColor, FlexDirection, JustifyContent, Node, OverrideClip,

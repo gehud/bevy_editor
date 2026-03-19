@@ -1,6 +1,6 @@
 use bevy::{
-    app::{App, First, Plugin, PostUpdate, Startup},
-    asset::Assets,
+    app::{App, First, Plugin, PostUpdate, PreUpdate, Startup, Update},
+    asset::{Assets, RenderAssetUsages},
     camera::{Camera, Camera3d, ClearColorConfig, NormalizedRenderTarget, RenderTarget},
     color::Color,
     ecs::{
@@ -16,18 +16,21 @@ use bevy::{
         system::{Commands, In, Query, ResMut},
     },
     image::{BevyDefault, Image},
+    log::info,
     math::{Rect, Vec3},
     picking::{
         PickingSystems,
         events::{Out, Over, Pointer},
         hover::Hovered,
+        input::{mouse_pick_events, touch_pick_events},
         pointer::{Location, PointerId, PointerInput},
     },
-    render::render_resource::{Extent3d, TextureFormat},
+    render::render_resource::{Extent3d, TextureFormat, TextureUsages},
     transform::components::Transform,
     ui::{
-        ComputedNode, Node, UiGlobalTransform, UiSystems, percent,
-        widget::{ImageNode, NodeImageMode, update_image_content_size_system},
+        AlignContent, AlignItems, AlignSelf, ComputedNode, JustifyContent, Node, UiGlobalTransform,
+        UiSystems, percent,
+        widget::{ImageNode, ImageNodeSize, NodeImageMode, update_image_content_size_system},
     },
     utils::default,
 };
@@ -45,6 +48,10 @@ impl Plugin for Viewport3dPanePlugin {
             First,
             render_target_picking_passthrough.in_set(PickingSystems::PostInput),
         )
+        .add_systems(
+            PostUpdate,
+            update_render_target_size.after(UiSystems::Layout),
+        )
         .register_pane("Viewport 3D", setup);
     }
 }
@@ -52,36 +59,35 @@ impl Plugin for Viewport3dPanePlugin {
 #[derive(Component)]
 struct Viewport3d;
 
+#[derive(Component)]
+struct Active;
+
 fn render_target_picking_passthrough(
     viewports: Query<Entity, With<Viewport3d>>,
-    nodes: Query<(&Hovered, &ComputedNode, &UiGlobalTransform, &ImageNode)>,
+    nodes: Query<(&ComputedNode, &UiGlobalTransform, &ImageNode), With<Active>>,
     mut pointer_input_reader: MessageReader<PointerInput>,
     mut commands: Commands,
-) -> Result {
-    // for event in pointer_input_reader.read() {
-    //     for viewport in &viewports {
-    //         let (hovered, computed_node, global_transform, ui_image) = nodes.get(viewport)?;
+) {
+    for event in pointer_input_reader.read() {
+        for viewport in &viewports {
+            let Ok((computed_node, global_transform, ui_image)) = nodes.get(viewport) else {
+                continue;
+            };
 
-    //         if !hovered.0 {
-    //             continue;
-    //         }
+            let node_top_left = global_transform.translation - computed_node.size() / 2.0;
+            let position = event.location.position - node_top_left;
 
-    //         let node_top_left = global_transform.translation - computed_node.size() / 2.0;
-    //         let position = event.location.position - node_top_left;
+            let target = NormalizedRenderTarget::Image(ui_image.image.clone().into());
 
-    //         let target = NormalizedRenderTarget::Image(ui_image.image.clone().into());
+            let event_copy = PointerInput {
+                action: event.action,
+                location: Location { position, target },
+                pointer_id: event.pointer_id,
+            };
 
-    //         let event_copy = PointerInput {
-    //             action: event.action,
-    //             location: Location { position, target },
-    //             pointer_id: event.pointer_id,
-    //         };
-
-    //         commands.write_message(event_copy);
-    //     }
-    // }
-
-    Ok(())
+            commands.write_message(event_copy);
+        }
+    }
 }
 
 fn setup(
@@ -89,7 +95,10 @@ fn setup(
     mut images: ResMut<Assets<Image>>,
     mut commands: Commands,
 ) {
-    let image = Image::new_target_texture(1, 1, TextureFormat::bevy_default(), None);
+    let mut image = Image::new_target_texture(1, 1, TextureFormat::bevy_default(), None);
+    image.asset_usage = RenderAssetUsages::RENDER_WORLD;
+    image.texture_descriptor.usage |= TextureUsages::COPY_SRC;
+
     let image = images.add(image);
 
     let camera = commands
@@ -100,7 +109,7 @@ fn setup(
                 ..default()
             },
             RenderTarget::Image(image.clone().into()),
-            Transform::from_translation(Vec3::ONE * 5.0).looking_at(Vec3::ZERO, Vec3::Y),
+            Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y),
         ))
         .id();
 
@@ -115,15 +124,34 @@ fn setup(
                         ..default()
                     },
                     Viewport3d,
-                    Hovered::default(),
                     ImageNode {
-                        image,
+                        image: image,
                         image_mode: NodeImageMode::Stretch,
                         ..default()
                     },
                 ))
+                .observe(|trigger: On<Pointer<Over>>, mut commands: Commands| {
+                    commands.entity(trigger.entity).insert(Active);
+                })
+                .observe(|trigger: On<Pointer<Out>>, mut commands: Commands| {
+                    commands.entity(trigger.entity).remove::<Active>();
+                })
                 .observe(move |_: On<Despawn, Viewport3d>, mut commands: Commands| {
                     commands.entity(camera).despawn();
                 });
         });
+}
+
+fn update_render_target_size(
+    viewports: Query<(&ImageNode, &ComputedNode), (With<Viewport3d>, Changed<ComputedNode>)>,
+    mut images: ResMut<Assets<Image>>,
+) {
+    for (image_node, node) in viewports {
+        let image = images.get_mut(&image_node.image).unwrap();
+        image.resize(Extent3d {
+            width: node.size().x.max(1.0) as u32,
+            height: node.size().y.max(1.0) as u32,
+            ..default()
+        });
+    }
 }
