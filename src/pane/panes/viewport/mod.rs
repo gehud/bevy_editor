@@ -3,7 +3,7 @@ mod grid;
 
 use bevy::{
     app::{App, First, Plugin, PostUpdate, Startup},
-    asset::{Assets, RenderAssetUsages},
+    asset::{Assets, RenderAssetUsages, uuid::Uuid},
     camera::{Camera, Camera3d, ClearColorConfig, NormalizedRenderTarget, RenderTarget},
     ecs::{
         component::Component,
@@ -20,7 +20,7 @@ use bevy::{
     picking::{
         PickingSystems,
         events::{Out, Over, Pointer},
-        pointer::{Location, PointerInput},
+        pointer::{Location, PointerId, PointerInput},
     },
     render::render_resource::{Extent3d, TextureFormat, TextureUsages},
     transform::components::Transform,
@@ -50,10 +50,6 @@ impl Plugin for ViewportPanePlugin {
             .add_plugins(ViewportCameraPlugin)
             .add_systems(Startup, setup_grid)
             .add_systems(
-                First,
-                render_target_picking_passthrough.in_set(PickingSystems::PostInput),
-            )
-            .add_systems(
                 PostUpdate,
                 update_render_target_size.after(UiSystems::Layout),
             )
@@ -78,34 +74,6 @@ fn setup_grid(mut commands: Commands) {
             ..default()
         },
     ));
-}
-
-fn render_target_picking_passthrough(
-    viewports: Query<Entity, With<Viewport>>,
-    nodes: Query<(&ComputedNode, &UiGlobalTransform, &ImageNode), With<Active>>,
-    mut pointer_input_reader: MessageReader<PointerInput>,
-    mut commands: Commands,
-) {
-    for event in pointer_input_reader.read() {
-        for viewport in &viewports {
-            let Ok((computed_node, global_transform, ui_image)) = nodes.get(viewport) else {
-                continue;
-            };
-
-            let node_top_left = global_transform.translation - computed_node.size() / 2.0;
-            let position = event.location.position - node_top_left;
-
-            let target = NormalizedRenderTarget::Image(ui_image.image.clone().into());
-
-            let event_copy = PointerInput {
-                action: event.action,
-                location: Location { position, target },
-                pointer_id: event.pointer_id,
-            };
-
-            commands.write_message(event_copy);
-        }
-    }
 }
 
 fn setup(

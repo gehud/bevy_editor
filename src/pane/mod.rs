@@ -21,6 +21,7 @@ use bevy::{
         },
         world::{Mut, World},
     },
+    input_focus::AcquireFocus,
     log::{warn, warn_once},
     math::Vec2,
     picking::{
@@ -43,7 +44,6 @@ use bevy::{
 };
 
 use crate::{
-    EditorWindowTargetHelper,
     theme::{
         RoundedCorners, ThemeBackgroundColor, ThemeBorderColor, ThemeTextColor,
         constants::fonts::REGULAR,
@@ -825,6 +825,7 @@ fn spawn_divider<'a>(
 struct ResizeHandleDragState {
     is_dragging: bool,
     parent_node_size: f32,
+    block: Option<Entity>,
 }
 
 fn spawn_resize_handle<'a>(commands: &'a mut Commands, divider: Divider) -> EntityCommands<'a> {
@@ -856,7 +857,8 @@ fn spawn_resize_handle<'a>(commands: &'a mut Commands, divider: Divider) -> Enti
                   mut drag_state: ResMut<ResizeHandleDragState>,
                   parents: Query<&ChildOf>,
                   computed_nodes: Query<&ComputedNode>,
-                  mut override_cursor: ResMut<OverrideCursor>|
+                  mut override_cursor: ResMut<OverrideCursor>,
+                  mut commands: Commands|
                   -> Result {
                 if trigger.button != PointerButton::Primary {
                     return Ok(());
@@ -984,13 +986,8 @@ fn init(trigger: On<Add, PaneLayoutRoot>, mut commands: Commands, asset_server: 
         .insert(ChildOf(divider))
         .id();
 
-    spawn_pane(
-        &mut commands,
-        &asset_server,
-        0.70,
-        vec!["Viewport".into()],
-    )
-    .insert(ChildOf(asset_browser_divider));
+    spawn_pane(&mut commands, &asset_server, 0.70, vec!["Viewport".into()])
+        .insert(ChildOf(asset_browser_divider));
     spawn_resize_handle(&mut commands, Divider::Vertical).insert(ChildOf(asset_browser_divider));
     spawn_pane(
         &mut commands,

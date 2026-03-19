@@ -35,6 +35,7 @@ mod color_slider;
 mod color_swatch;
 mod context_menu;
 mod cursor;
+mod menu;
 mod radio;
 mod scroll;
 mod slider;
@@ -49,6 +50,7 @@ pub use color_slider::*;
 pub use color_swatch::*;
 pub use context_menu::*;
 pub use cursor::*;
+pub use menu::*;
 pub use radio::*;
 pub use scroll::*;
 pub use slider::*;
@@ -87,6 +89,7 @@ impl Plugin for EditorWidgetPlugin {
             CursorIconPlugin,
             ContextMenuPlugin,
             ScrollPlugin,
+            MenuBarPlugin,
             UiMaterialPlugin::<AlphaPatternMaterial>::default(),
         ));
 

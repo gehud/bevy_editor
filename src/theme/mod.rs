@@ -281,6 +281,7 @@ impl Plugin for EditorThemePlugin {
         embedded_asset!(app, "src/theme", "assets/theme/fonts/FiraSans-Regular.ttf");
         embedded_asset!(app, "src/theme", "assets/theme/fonts/FiraSans-Italic.ttf");
         embedded_asset!(app, "src/theme", "assets/theme/fonts/FiraMono-Medium.ttf");
+        embedded_asset!(app, "src/theme", "assets/theme/icons/bevy.png");
 
         app.init_resource::<Theme>()
             .add_systems(PostUpdate, update_theme)

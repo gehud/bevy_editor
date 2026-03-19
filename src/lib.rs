@@ -8,23 +8,28 @@ use std::fmt::Debug;
 use bevy::{
     DefaultPlugins,
     app::{App, Plugin, PluginGroup},
+    asset::{AssetServer, embedded_asset},
     camera::NormalizedRenderTarget,
     color::Color,
     ecs::{
         entity::ContainsEntity,
         error::Result,
+        hierarchy::ChildOf,
         observer::On,
-        system::{Commands, Query, ResMut, SystemParam},
+        system::{Commands, EntityCommands, Query, Res, ResMut, SystemParam},
     },
     input_focus::{InputFocus, tab_navigation::TabIndex},
-    picking::{events::Pointer, hover::Hovered},
+    picking::{
+        events::{Out, Over, Pointer},
+        hover::Hovered,
+    },
     reflect::Reflect,
     render::RenderPlugin,
     text::TextColor,
     ui::{
         AlignItems, BackgroundColor, FlexDirection, JustifyContent, Node, OverrideClip,
         PositionType, UiRect, UiScale, percent, px,
-        widget::{Text, TextShadow},
+        widget::{ImageNode, Text, TextShadow},
     },
     ui_widgets::{
         MenuItem, MenuLayout, MenuPopup,
@@ -40,11 +45,12 @@ use crate::{
         panes::{SceneTreePanePlugin, ViewportPanePlugin},
     },
     theme::{
-        EditorThemePlugin, Theme, ThemeBackgroundColor, ThemeBorderColor,
+        EditorThemePlugin, RoundedCorners, Theme, ThemeBackgroundColor, ThemeBorderColor,
+        ThemeTextColor, ThemeTextFont, ThemeTextFontSize,
         constants::fonts::REGULAR,
-        tokens::{BORDER, WINDOW_BG},
+        tokens::{BORDER, PANE_BG, TEXT_HEADING, TEXT_MAIN, WINDOW_BG},
     },
-    widget::EditorWidgetPlugins,
+    widget::{ContextMenu, EditorWidgetPlugins, MenuButton},
     window::{EditorWindow, EditorWindowPlugin, IsWindowMaximized, PrimaryWindowConfigured},
 };
 
@@ -71,37 +77,16 @@ impl Plugin for EditorPlugin {
     }
 }
 
-#[derive(SystemParam)]
-pub struct EditorWindowTargetHelper<'w, 's> {
-    editor_windows: Query<'w, 's, &'static EditorWindow>,
-}
-
-impl EditorWindowTargetHelper<'_, '_> {
-    pub fn is_editor_window_target(&self, target: &NormalizedRenderTarget) -> bool {
-        let NormalizedRenderTarget::Window(window_ref) = target else {
-            return false;
-        };
-
-        self.editor_windows.contains(window_ref.entity())
-    }
-
-    pub fn is_editor_window_pointer_event<E: Debug + Clone + Reflect>(
-        &self,
-        event: &Pointer<E>,
-    ) -> bool {
-        self.is_editor_window_target(&event.pointer_location.target)
-    }
-}
-
 fn setup(
     trigger: On<PrimaryWindowConfigured>,
     editor_windows: Query<&EditorWindow>,
+    assets: Res<AssetServer>,
     mut windows: Query<&mut IsWindowMaximized>,
     mut commands: Commands,
     mut ui_scale: ResMut<UiScale>,
 ) -> Result {
     // ui_scale.0 = 1.5;
-    windows.get_mut(trigger.entity)?.0 = true;
+    // windows.get_mut(trigger.entity)?.0 = true;
 
     let editor_window = editor_windows.get(trigger.entity)?;
 
@@ -137,5 +122,100 @@ fn setup(
                 });
         });
 
+    commands
+        .entity(editor_window.titlebar())
+        .with_children(|commands| {
+            commands
+                .spawn(Node {
+                    column_gap: px(15),
+                    align_items: AlignItems::Center,
+                    ..default()
+                })
+                .with_children(|commands| {
+                    commands
+                        .spawn(Node {
+                            padding: UiRect::left(px(12)),
+                            align_items: AlignItems::Center,
+                            column_gap: px(6),
+                            ..default()
+                        })
+                        .with_children(|commands| {
+                            commands.spawn((
+                                Node {
+                                    width: px(20),
+                                    height: px(20),
+                                    ..default()
+                                },
+                                ImageNode::new(
+                                    assets
+                                        .load("embedded://bevy_editor/assets/theme/icons/bevy.png"),
+                                ),
+                            ));
+
+                            commands.spawn((
+                                Text::new("Bevy"),
+                                ThemeTextColor(TEXT_HEADING),
+                                ThemeTextFont(TEXT_HEADING),
+                                ThemeTextFontSize(TEXT_HEADING),
+                            ));
+                        });
+
+                    // Menu
+                    commands
+                        .spawn(Node {
+                            align_items: AlignItems::Center,
+                            column_gap: px(4),
+                            ..default()
+                        })
+                        .with_children(|commands| {
+                            let menu = commands.target_entity();
+                            spawn_menu_button(commands.commands_mut(), "File", ContextMenu::new())
+                                .insert(ChildOf(menu));
+                            spawn_menu_button(commands.commands_mut(), "Edit", ContextMenu::new())
+                                .insert(ChildOf(menu));
+                        });
+                });
+        });
+
     Ok(())
+}
+
+fn spawn_menu_button<'a>(
+    commands: &'a mut Commands,
+    label: impl Into<String>,
+    menu: ContextMenu,
+) -> EntityCommands<'a> {
+    let root = commands
+        .spawn((
+            Node {
+                padding: UiRect::horizontal(px(8)).with_top(px(4)).with_bottom(px(4)),
+                border_radius: RoundedCorners::All.to_border_radius(6.0),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                ..default()
+            },
+            ThemeBackgroundColor(WINDOW_BG),
+        ))
+        .observe(|trigger: On<Pointer<Over>>, mut commands: Commands| {
+            commands
+                .entity(trigger.entity)
+                .insert(ThemeBackgroundColor(PANE_BG));
+        })
+        .observe(|trigger: On<Pointer<Out>>, mut commands: Commands| {
+            commands
+                .entity(trigger.entity)
+                .insert(ThemeBackgroundColor(WINDOW_BG));
+        })
+        .with_children(|commands| {
+            commands.spawn((
+                MenuButton(menu),
+                Text::new(label.into()),
+                ThemeTextColor(TEXT_HEADING),
+                ThemeTextFont(TEXT_MAIN),
+                ThemeTextFontSize(TEXT_HEADING),
+            ));
+        })
+        .id();
+
+    commands.entity(root)
 }

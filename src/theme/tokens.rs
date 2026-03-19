@@ -19,6 +19,7 @@ pub const PANE_TAB_ACTIVE: ThemeToken = ThemeToken::new("pane.tab.active");
 pub const FOCUS_RING: ThemeToken = ThemeToken::new("editor.focus");
 
 pub const TEXT_MAIN: ThemeToken = ThemeToken::new("editor.text.main");
+pub const TEXT_HEADING: ThemeToken = ThemeToken::new("editor.text.heading");
 pub const TEXT_DISABLED: ThemeToken = ThemeToken::new("editor.text.disabled");
 pub const TEXT_DIM: ThemeToken = ThemeToken::new("editor.text.dim");
 

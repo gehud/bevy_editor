@@ -5,7 +5,11 @@ use bevy::{
     platform::collections::HashMap,
 };
 
-use crate::theme::{ThemeProps, constants::fonts::{MONO, REGULAR}, palette, tokens};
+use crate::theme::{
+    ThemeProps,
+    constants::fonts::{BOLD, MONO, REGULAR},
+    palette, tokens,
+};
 
 impl FromWorld for ThemeProps {
     fn from_world(world: &mut World) -> Self {
@@ -20,6 +24,7 @@ impl FromWorld for ThemeProps {
                 (tokens::PANE_TAB_ACTIVE, palette::ACCENT),
                 // Text
                 (tokens::TEXT_MAIN, palette::WHITE),
+                (tokens::TEXT_HEADING, palette::WHITE),
                 (tokens::TEXT_DIM, palette::WHITE.with_alpha(0.5)),
                 // Button
                 (tokens::BUTTON_BG, palette::GRAY_3),
@@ -110,18 +115,18 @@ impl FromWorld for ThemeProps {
             ]),
             fonts: HashMap::from([
                 (tokens::TEXT_MAIN, asset_server.load(REGULAR)),
+                (tokens::TEXT_HEADING, asset_server.load(BOLD)),
                 (tokens::TEXT_MAIN, asset_server.load(REGULAR)),
                 (tokens::TEXT_DIM, asset_server.load(REGULAR)),
-
                 (tokens::BUTTON_TEXT, asset_server.load(REGULAR)),
                 (tokens::BUTTON_TEXT, asset_server.load(REGULAR)),
                 (tokens::SLIDER_TEXT, asset_server.load(MONO)),
             ]),
             font_sizes: HashMap::from([
                 (tokens::TEXT_MAIN, 12.0),
+                (tokens::TEXT_HEADING, 13.0),
                 (tokens::TEXT_DISABLED, 12.0),
                 (tokens::TEXT_DIM, 10.0),
-
                 (tokens::BUTTON_TEXT, 12.0),
                 (tokens::RADIO_TEXT, 12.0),
                 (tokens::SLIDER_TEXT, 12.0),
