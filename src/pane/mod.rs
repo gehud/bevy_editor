@@ -49,8 +49,8 @@ use crate::{
         tokens::{BUTTON_BG, PANE_BG, PANE_TAB_ACTIVE, TEXT_MAIN, WINDOW_BG},
     },
     widget::{
-        ContextMenu, ContextMenuMark, EntityCursor, OverrideCursor, ScrollAxis, ScrollRect,
-        Scrollbar,
+        ContextMenu, ContextMenuMark, ControlOrientation, CoreScrollbarThumb, EntityCursor,
+        OverrideCursor, Scrollbar,
     },
     window::EditorWindow,
 };
@@ -143,7 +143,7 @@ fn spawn_pane<'a>(
                     ThemeBorderColor::all(PANE_BG),
                 ))
                 .with_children(move |commands| {
-                    let tabscroll = commands
+                    let scrollrect = commands
                         .spawn((Node {
                             width: percent(100),
                             height: percent(100),
@@ -154,10 +154,11 @@ fn spawn_pane<'a>(
                     let tabgroup = commands
                         .commands_mut()
                         .spawn((
-                            ChildOf(tabscroll),
+                            ChildOf(scrollrect),
                             Node {
                                 height: percent(100),
                                 width: percent(100),
+                                overflow: Overflow::scroll_x(),
                                 ..default()
                             },
                             Pickable {
@@ -188,7 +189,7 @@ fn spawn_pane<'a>(
                     let drop_indicator = commands
                         .commands()
                         .spawn((
-                            ChildOf(tabscroll),
+                            ChildOf(scrollrect),
                             Node {
                                 position_type: PositionType::Absolute,
                                 height: percent(100),
@@ -206,11 +207,8 @@ fn spawn_pane<'a>(
                     let scrollbar = commands
                         .commands_mut()
                         .spawn((
-                            ChildOf(tabscroll),
-                            Pickable {
-                                should_block_lower: false,
-                                ..default()
-                            },
+                            Scrollbar::new(tabgroup, ControlOrientation::Horizontal, 8.0),
+                            ChildOf(scrollrect),
                             Node {
                                 position_type: PositionType::Absolute,
                                 bottom: px(0),
@@ -221,44 +219,23 @@ fn spawn_pane<'a>(
                         ))
                         .id();
 
-                    let handle = commands
-                        .commands_mut()
-                        .spawn((
-                            ChildOf(scrollbar),
-                            Node {
-                                width: px(8),
-                                height: percent(100),
-                                position_type: PositionType::Absolute,
-                                ..default()
-                            },
-                            Pickable {
-                                should_block_lower: false,
-                                ..default()
-                            },
-                            ThemeBackgroundColor(BUTTON_BG),
-                        ))
-                        .id();
-
-                    commands.commands_mut().entity(scrollbar).insert(Scrollbar {
-                        handle: Some(handle),
-                    });
-
-                    commands
-                        .commands_mut()
-                        .entity(tabscroll)
-                        .insert(ScrollRect {
-                            content: Some(tabgroup),
-                            horizontal: true,
-                            horizontal_scrollbar: Some(scrollbar),
-                            main_axis: ScrollAxis::Horizontal,
+                    commands.commands_mut().spawn((
+                        CoreScrollbarThumb,
+                        ChildOf(scrollbar),
+                        Node {
+                            width: px(8),
+                            height: percent(100),
+                            position_type: PositionType::Absolute,
                             ..default()
-                        });
+                        },
+                        ThemeBackgroundColor(BUTTON_BG),
+                    ));
 
                     // Tab drop area
                     commands
                         .commands_mut()
                         .spawn((
-                            ChildOf(tabscroll),
+                            ChildOf(scrollrect),
                             Node {
                                 position_type: PositionType::Absolute,
                                 width: percent(100),

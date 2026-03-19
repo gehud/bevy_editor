@@ -8,9 +8,12 @@ use bevy::{
         entity::Entity,
         error::Result,
         event::EntityEvent,
+        hierarchy::{ChildOf, Children},
         message::MessageReader,
         observer::On,
-        query::Changed,
+        query::{Changed, With, Without},
+        reflect::ReflectComponent,
+        resource::Resource,
         schedule::IntoScheduleConfigs,
         system::{Commands, Query, Res},
     },
@@ -21,230 +24,288 @@ use bevy::{
     },
     math::Vec2,
     picking::{
-        events::{Click, Pointer},
+        events::{Cancel, Click, Drag, DragEnd, DragStart, Pointer, Press},
         hover::HoverMap,
     },
-    ui::{ComputedNode, Node, OverflowAxis, ScrollPosition, UiSystems, percent},
+    reflect::{Reflect, prelude::ReflectDefault},
+    ui::{
+        ComputedNode, ComputedUiRenderTargetInfo, Node, OverflowAxis, ScrollPosition,
+        UiGlobalTransform, UiScale, UiSystems, Val, percent,
+    },
 };
 
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ScrollAxis {
+#[derive(Debug, Default, Clone, Copy, PartialEq, Reflect)]
+#[reflect(PartialEq, Clone, Default)]
+pub enum ControlOrientation {
+    Horizontal,
     #[default]
     Vertical,
-    Horizontal,
 }
 
-#[derive(Component)]
-pub struct ScrollRect {
-    pub content: Option<Entity>,
-    pub horizontal: bool,
-    pub vertical: bool,
-    pub horizontal_scrollbar: Option<Entity>,
-    pub auto_hide_horizontal: bool,
-    pub vertical_scrollbar: Option<Entity>,
-    pub auto_hide_vertical: bool,
-    pub step: f32,
-    pub main_axis: ScrollAxis,
+#[derive(Component, Debug, Reflect)]
+#[reflect(Component)]
+pub struct Scrollbar {
+    pub target: Entity,
+    pub orientation: ControlOrientation,
+    pub min_thumb_length: f32,
 }
 
-impl Default for ScrollRect {
-    fn default() -> Self {
+#[derive(Component, Debug)]
+#[require(CoreScrollbarDragState)]
+#[derive(Reflect)]
+#[reflect(Component)]
+pub struct CoreScrollbarThumb;
+
+impl Scrollbar {
+    pub fn new(target: Entity, orientation: ControlOrientation, min_thumb_length: f32) -> Self {
         Self {
-            content: Default::default(),
-            horizontal: Default::default(),
-            vertical: Default::default(),
-            horizontal_scrollbar: Default::default(),
-            auto_hide_horizontal: true,
-            vertical_scrollbar: Default::default(),
-            auto_hide_vertical: true,
-            step: 20.0,
-            main_axis: Default::default(),
+            target,
+            orientation,
+            min_thumb_length,
         }
     }
 }
 
-#[derive(Default, Component)]
-pub struct Scrollbar {
-    pub handle: Option<Entity>,
+#[derive(Component, Default, Reflect)]
+#[reflect(Component, Default)]
+pub struct CoreScrollbarDragState {
+    pub dragging: bool,
+    drag_origin: f32,
 }
 
-#[derive(EntityEvent, Debug)]
-struct ScrollDelta {
-    entity: Entity,
-    /// Scroll delta in logical coordinates.
-    delta: Vec2,
+fn scrollbar_on_pointer_down(
+    mut ev: On<Pointer<Press>>,
+    q_thumb: Query<&ChildOf, With<CoreScrollbarThumb>>,
+    mut q_scrollbar: Query<(
+        &Scrollbar,
+        &ComputedNode,
+        &ComputedUiRenderTargetInfo,
+        &UiGlobalTransform,
+    )>,
+    mut q_scroll_pos: Query<(&mut ScrollPosition, &ComputedNode), Without<Scrollbar>>,
+    ui_scale: Res<UiScale>,
+) {
+    if q_thumb.contains(ev.entity) {
+        ev.propagate(false);
+    } else if let Ok((scrollbar, node, node_target, transform)) = q_scrollbar.get_mut(ev.entity) {
+        ev.propagate(false);
+
+        let local_pos = transform.try_inverse().unwrap().transform_point2(
+            ev.event().pointer_location.position * node_target.scale_factor() / ui_scale.0,
+        ) + node.size() * 0.5;
+
+        let Ok((mut scroll_pos, scroll_content)) = q_scroll_pos.get_mut(scrollbar.target) else {
+            return;
+        };
+
+        let visible_size = (scroll_content.size() - scroll_content.scrollbar_size)
+            * scroll_content.inverse_scale_factor;
+        let content_size = scroll_content.content_size() * scroll_content.inverse_scale_factor;
+        let max_range = (content_size - visible_size).max(Vec2::ZERO);
+
+        fn adjust_scroll_pos(scroll_pos: &mut f32, click_pos: f32, step: f32, range: f32) {
+            *scroll_pos =
+                (*scroll_pos + if click_pos > *scroll_pos { step } else { -step }).clamp(0., range);
+        }
+
+        match scrollbar.orientation {
+            ControlOrientation::Horizontal => {
+                if node.size().x > 0. {
+                    let click_pos = local_pos.x * content_size.x / node.size().x;
+                    adjust_scroll_pos(&mut scroll_pos.x, click_pos, visible_size.x, max_range.x);
+                }
+            }
+            ControlOrientation::Vertical => {
+                if node.size().y > 0. {
+                    let click_pos = local_pos.y * content_size.y / node.size().y;
+                    adjust_scroll_pos(&mut scroll_pos.y, click_pos, visible_size.y, max_range.y);
+                }
+            }
+        }
+    }
+}
+
+fn scrollbar_on_drag_start(
+    mut ev: On<Pointer<DragStart>>,
+    mut q_thumb: Query<(&ChildOf, &mut CoreScrollbarDragState), With<CoreScrollbarThumb>>,
+    q_scrollbar: Query<&Scrollbar>,
+    q_scroll_area: Query<&ScrollPosition>,
+) {
+    if let Ok((ChildOf(thumb_parent), mut drag)) = q_thumb.get_mut(ev.entity) {
+        ev.propagate(false);
+        if let Ok(scrollbar) = q_scrollbar.get(*thumb_parent)
+            && let Ok(scroll_area) = q_scroll_area.get(scrollbar.target)
+        {
+            drag.dragging = true;
+            drag.drag_origin = match scrollbar.orientation {
+                ControlOrientation::Horizontal => scroll_area.x,
+                ControlOrientation::Vertical => scroll_area.y,
+            };
+        }
+    }
+}
+
+fn scrollbar_on_drag(
+    mut ev: On<Pointer<Drag>>,
+    mut q_thumb: Query<(&ChildOf, &mut CoreScrollbarDragState), With<CoreScrollbarThumb>>,
+    mut q_scrollbar: Query<(&ComputedNode, &Scrollbar)>,
+    mut q_scroll_pos: Query<(&mut ScrollPosition, &ComputedNode), Without<Scrollbar>>,
+    ui_scale: Res<UiScale>,
+) {
+    if let Ok((ChildOf(thumb_parent), drag)) = q_thumb.get_mut(ev.entity)
+        && let Ok((node, scrollbar)) = q_scrollbar.get_mut(*thumb_parent)
+    {
+        ev.propagate(false);
+        let Ok((mut scroll_pos, scroll_content)) = q_scroll_pos.get_mut(scrollbar.target) else {
+            return;
+        };
+
+        if drag.dragging {
+            let distance = ev.event().distance / ui_scale.0;
+
+            let visible_size = (scroll_content.size() - scroll_content.scrollbar_size)
+                * scroll_content.inverse_scale_factor;
+            let content_size = scroll_content.content_size() * scroll_content.inverse_scale_factor;
+
+            let scrollbar_size = (node.size() * node.inverse_scale_factor).max(Vec2::ONE);
+
+            match scrollbar.orientation {
+                ControlOrientation::Horizontal => {
+                    let range = (content_size.x - visible_size.x).max(0.);
+                    scroll_pos.x = (drag.drag_origin
+                        + (distance.x * content_size.x) / scrollbar_size.x)
+                        .clamp(0., range);
+                }
+                ControlOrientation::Vertical => {
+                    let range = (content_size.y - visible_size.y).max(0.);
+                    scroll_pos.y = (drag.drag_origin
+                        + (distance.y * content_size.y) / scrollbar_size.y)
+                        .clamp(0., range);
+                }
+            };
+        }
+    }
+}
+
+fn scrollbar_on_drag_end(
+    mut ev: On<Pointer<DragEnd>>,
+    mut q_thumb: Query<&mut CoreScrollbarDragState, With<CoreScrollbarThumb>>,
+) {
+    if let Ok(mut drag) = q_thumb.get_mut(ev.entity) {
+        ev.propagate(false);
+        if drag.dragging {
+            drag.dragging = false;
+        }
+    }
+}
+
+fn scrollbar_on_drag_cancel(
+    mut ev: On<Pointer<Cancel>>,
+    mut q_thumb: Query<&mut CoreScrollbarDragState, With<CoreScrollbarThumb>>,
+) {
+    if let Ok(mut drag) = q_thumb.get_mut(ev.entity) {
+        ev.propagate(false);
+        if drag.dragging {
+            drag.dragging = false;
+        }
+    }
+}
+
+fn update_scrollbar_thumb(
+    q_scroll_area: Query<(&ScrollPosition, &ComputedNode)>,
+    q_scrollbar: Query<(&Scrollbar, &ComputedNode, &Children)>,
+    mut q_thumb: Query<&mut Node, With<CoreScrollbarThumb>>,
+) {
+    for (scrollbar, scrollbar_node, children) in q_scrollbar.iter() {
+        let Ok(scroll_area) = q_scroll_area.get(scrollbar.target) else {
+            continue;
+        };
+
+        let visible_size = (scroll_area.1.size() - scroll_area.1.scrollbar_size)
+            * scroll_area.1.inverse_scale_factor;
+
+        let content_size = scroll_area.1.content_size() * scroll_area.1.inverse_scale_factor;
+
+        let track_length = scrollbar_node.size() * scrollbar_node.inverse_scale_factor;
+
+        fn size_and_pos(
+            content_size: f32,
+            visible_size: f32,
+            track_length: f32,
+            min_size: f32,
+            mut offset: f32,
+        ) -> (f32, f32) {
+            let thumb_size = if content_size > visible_size {
+                (track_length * visible_size / content_size)
+                    .max(min_size)
+                    .min(track_length)
+            } else {
+                track_length
+            };
+
+            if content_size > visible_size {
+                let max_offset = content_size - visible_size;
+
+                offset = offset.clamp(0.0, max_offset);
+            } else {
+                offset = 0.0;
+            }
+
+            let thumb_pos = if content_size > visible_size {
+                offset * (track_length - thumb_size) / (content_size - visible_size)
+            } else {
+                0.
+            };
+
+            (thumb_size, thumb_pos)
+        }
+
+        for child in children {
+            if let Ok(mut thumb) = q_thumb.get_mut(*child) {
+                match scrollbar.orientation {
+                    ControlOrientation::Horizontal => {
+                        let (thumb_size, thumb_pos) = size_and_pos(
+                            content_size.x,
+                            visible_size.x,
+                            track_length.x,
+                            scrollbar.min_thumb_length,
+                            scroll_area.0.x,
+                        );
+
+                        thumb.top = Val::Px(0.);
+                        thumb.bottom = Val::Px(0.);
+                        thumb.left = Val::Px(thumb_pos);
+                        thumb.width = Val::Px(thumb_size);
+                    }
+                    ControlOrientation::Vertical => {
+                        let (thumb_size, thumb_pos) = size_and_pos(
+                            content_size.y,
+                            visible_size.y,
+                            track_length.y,
+                            scrollbar.min_thumb_length,
+                            scroll_area.0.y,
+                        );
+
+                        thumb.left = Val::Px(0.);
+                        thumb.right = Val::Px(0.);
+                        thumb.top = Val::Px(thumb_pos);
+                        thumb.height = Val::Px(thumb_size);
+                    }
+                };
+            }
+        }
+    }
 }
 
 pub struct ScrollPlugin;
 
 impl Plugin for ScrollPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (update_scrollrect, send_scroll_delta))
-            .add_systems(PostUpdate, update_scrollbars.after(UiSystems::Layout))
-            .add_observer(on_scroll_delta)
-            .add_observer(on_scrollbar_click);
+        app.add_observer(scrollbar_on_pointer_down)
+            .add_observer(scrollbar_on_drag_start)
+            .add_observer(scrollbar_on_drag_end)
+            .add_observer(scrollbar_on_drag_cancel)
+            .add_observer(scrollbar_on_drag)
+            .add_systems(PostUpdate, update_scrollbar_thumb);
     }
 }
-
-fn update_scrollrect(
-    scrollrects: Query<&ScrollRect, Changed<ScrollRect>>,
-    mut nodes: Query<&mut Node>,
-) {
-    for scrollrect in scrollrects {
-        let overflow_x = scrollrect.horizontal.then_some(OverflowAxis::Scroll);
-        let overflow_y = scrollrect.vertical.then_some(OverflowAxis::Scroll);
-
-        if let Some(content) = scrollrect.content {
-            if let Ok(mut content_node) = nodes.get_mut(content) {
-                if let Some(overflow_x) = overflow_x {
-                    if overflow_x != content_node.overflow.x {
-                        content_node.overflow.x = overflow_x;
-                    }
-                }
-
-                if let Some(overflow_y) = overflow_y {
-                    if overflow_y != content_node.overflow.y {
-                        content_node.overflow.y = overflow_y;
-                    }
-                }
-            }
-        }
-    }
-}
-
-fn update_scrollbars(
-    scrollrects: Query<&ScrollRect>,
-    scroll_positions: Query<&ScrollPosition>,
-    computed_nodes: Query<&ComputedNode>,
-    scrollbars: Query<&Scrollbar>,
-    mut visibilities: Query<&mut Visibility>,
-    mut nodes: Query<&mut Node>,
-) -> Result {
-    for scrollrect in scrollrects {
-        let Some(content) = scrollrect.content else {
-            continue;
-        };
-
-        let content_node = computed_nodes.get(content)?;
-        let scroll_position = scroll_positions.get(content)?;
-
-        if let Some(horizontal_scrollbar) = scrollrect.horizontal_scrollbar {
-            if let Ok(scrollbar) = scrollbars.get(horizontal_scrollbar) {
-                if let Some(handle) = scrollbar.handle {
-                    let mut handle_node = nodes.get_mut(handle)?;
-
-                    let length = (content_node.size().x / content_node.content_size().x).min(1.0);
-
-                    if scrollrect.auto_hide_horizontal && length == 1.0 {
-                        *visibilities.get_mut(horizontal_scrollbar)? = Visibility::Hidden;
-                    } else {
-                        *visibilities.get_mut(horizontal_scrollbar)? = Visibility::Inherited;
-
-                        handle_node.width = percent(length * 100.0);
-
-                        let offset = (scroll_position.x
-                            / (content_node.content_size().x
-                                * content_node.inverse_scale_factor()))
-                        .min(1.0);
-
-                        handle_node.left = percent(offset * 100.0);
-                    }
-                }
-            }
-        }
-
-        if let Some(vertical_scrollbar) = scrollrect.vertical_scrollbar {
-            if let Ok(scrollbar) = scrollbars.get(vertical_scrollbar) {
-                if let Some(handle) = scrollbar.handle {
-                    let mut handle_node = nodes.get_mut(handle)?;
-
-                    let length = (content_node.size().y / content_node.content_size().y).min(1.0);
-
-                    if scrollrect.auto_hide_vertical && length == 1.0 {
-                        *visibilities.get_mut(vertical_scrollbar)? = Visibility::Hidden;
-                    } else {
-                        *visibilities.get_mut(vertical_scrollbar)? = Visibility::Inherited;
-
-                        handle_node.height = percent(length * 100.0);
-
-                        let offset = (scroll_position.y
-                            / (content_node.content_size().y
-                                * content_node.inverse_scale_factor()))
-                        .min(1.0);
-
-                        handle_node.top = percent(offset * 100.0);
-                    }
-                }
-            }
-        }
-    }
-
-    Ok(())
-}
-
-fn send_scroll_delta(
-    mut mouse_wheel_reader: MessageReader<MouseWheel>,
-    hover_map: Res<HoverMap>,
-    keyboard_input: Res<ButtonInput<KeyCode>>,
-    scrollrects: Query<&ScrollRect>,
-    mut commands: Commands,
-) {
-    for mouse_wheel in mouse_wheel_reader.read() {
-        let mut delta = -Vec2::new(mouse_wheel.x, mouse_wheel.y);
-
-        if keyboard_input.any_pressed([KeyCode::ControlLeft, KeyCode::ControlRight]) {
-            swap(&mut delta.x, &mut delta.y);
-        }
-
-        for pointer_map in hover_map.values() {
-            for entity in pointer_map.keys().copied() {
-                let Ok(scrollrect) = scrollrects.get(entity) else {
-                    continue;
-                };
-
-                let mut delta = delta
-                    * if mouse_wheel.unit == MouseScrollUnit::Line {
-                        scrollrect.step
-                    } else {
-                        1.0
-                    };
-
-                if scrollrect.main_axis == ScrollAxis::Horizontal {
-                    swap(&mut delta.x, &mut delta.y);
-                }
-
-                commands.trigger(ScrollDelta { entity, delta });
-            }
-        }
-    }
-}
-
-fn on_scroll_delta(
-    mut trigger: On<ScrollDelta>,
-    scrollrects: Query<&ScrollRect>,
-    mut contents: Query<(&mut ScrollPosition, &Node, &ComputedNode)>,
-) -> Result {
-    let scrollrect = scrollrects.get(trigger.entity)?;
-
-    let Some(content) = scrollrect.content else {
-        return Ok(());
-    };
-
-    let (mut scroll_position, node, computed) = contents.get_mut(content)?;
-
-    let max_offset = (computed.content_size() - computed.size()) * computed.inverse_scale_factor();
-
-    let delta = &mut trigger.delta;
-
-    if node.overflow.x == OverflowAxis::Scroll && delta.x != 0.0 {
-        scroll_position.x = (scroll_position.x + delta.x).clamp(0.0, max_offset.x.max(0.0));
-    }
-
-    if node.overflow.y == OverflowAxis::Scroll && delta.y != 0.0 {
-        scroll_position.y = (scroll_position.y + delta.y).clamp(0.0, max_offset.y.max(0.0));
-    }
-
-    Ok(())
-}
-
-fn on_scrollbar_click(trigger: On<Pointer<Click>>) {}

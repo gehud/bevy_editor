@@ -16,9 +16,7 @@ use bevy::{
     picking::hover::Hovered,
     text::TextColor,
     ui::{
-        AlignItems, BackgroundColor, FlexDirection, JustifyContent, Node, OverrideClip,
-        PositionType, UiRect, percent, px,
-        widget::{Text, TextShadow},
+        AlignItems, BackgroundColor, FlexDirection, JustifyContent, Node, OverrideClip, PositionType, UiRect, UiScale, percent, px, widget::{Text, TextShadow}
     },
     ui_widgets::{
         MenuItem, MenuLayout, MenuPopup,
@@ -66,7 +64,9 @@ fn setup(
     editor_windows: Query<&EditorWindow>,
     mut windows: Query<&mut IsWindowMaximized>,
     mut commands: Commands,
+    mut ui_scale: ResMut<UiScale>
 ) -> Result {
+    // ui_scale.0 = 1.5;
     windows.get_mut(trigger.entity)?.0 = true;
 
     let editor_window = editor_windows.get(trigger.entity)?;
