@@ -49,8 +49,8 @@ use crate::{
         tokens::{BUTTON_BG, PANE_BG, PANE_TAB_ACTIVE, TEXT_MAIN, WINDOW_BG},
     },
     widget::{
-        ContextMenu, ContextMenuMark, ControlOrientation, CoreScrollbarThumb, EntityCursor,
-        OverrideCursor, Scrollbar,
+        ContextMenu, ContextMenuMark, EntityCursor, OverrideCursor, ScrollArea, ScrollAxis,
+        Scrollbar, ScrollbarThumb,
     },
     window::EditorWindow,
 };
@@ -175,6 +175,16 @@ fn spawn_pane<'a>(
                         })
                         .id();
 
+                    commands
+                        .commands_mut()
+                        .entity(scrollrect)
+                        .insert(ScrollArea {
+                            target: tabgroup,
+                            vertical: false,
+                            main_axis: ScrollAxis::Horizontal,
+                            ..default()
+                        });
+
                     for tab in tabs {
                         spawn_tab(commands.commands_mut(), asset_server, root, tab)
                             .insert(ChildOf(tabgroup))
@@ -204,11 +214,15 @@ fn spawn_pane<'a>(
                         ))
                         .id();
 
-                    let scrollbar = commands
+                    commands
                         .commands_mut()
                         .spawn((
-                            Scrollbar::new(tabgroup, ControlOrientation::Horizontal, 8.0),
                             ChildOf(scrollrect),
+                            Scrollbar {
+                                target: tabgroup,
+                                axis: ScrollAxis::Horizontal,
+                                ..default()
+                            },
                             Node {
                                 position_type: PositionType::Absolute,
                                 bottom: px(0),
@@ -217,19 +231,18 @@ fn spawn_pane<'a>(
                                 ..default()
                             },
                         ))
-                        .id();
-
-                    commands.commands_mut().spawn((
-                        CoreScrollbarThumb,
-                        ChildOf(scrollbar),
-                        Node {
-                            width: px(8),
-                            height: percent(100),
-                            position_type: PositionType::Absolute,
-                            ..default()
-                        },
-                        ThemeBackgroundColor(BUTTON_BG),
-                    ));
+                        .with_children(|commands| {
+                            commands.spawn((
+                                ScrollbarThumb,
+                                Node {
+                                    width: px(8),
+                                    height: percent(100),
+                                    position_type: PositionType::Absolute,
+                                    ..default()
+                                },
+                                ThemeBackgroundColor(BUTTON_BG),
+                            ));
+                        });
 
                     // Tab drop area
                     commands
