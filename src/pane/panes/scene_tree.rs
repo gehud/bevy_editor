@@ -1,5 +1,5 @@
 use bevy::{
-    app::{App, Plugin},
+    app::{App, Plugin, Startup},
     ecs::system::{Commands, In},
     ui::widget::Text,
 };
@@ -13,9 +13,12 @@ pub struct SceneTreePanePlugin;
 
 impl Plugin for SceneTreePanePlugin {
     fn build(&self, app: &mut App) {
-        app.register_pane("Scene Tree", setup);
+        app.add_systems(Startup, spawn_scene)
+            .register_pane("Scene Tree", setup);
     }
 }
+
+fn spawn_scene() {}
 
 fn setup(In(pane_structure): In<PaneStructure>, mut commands: Commands) {
     commands

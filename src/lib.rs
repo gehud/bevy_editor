@@ -16,7 +16,9 @@ use bevy::{
     picking::hover::Hovered,
     text::TextColor,
     ui::{
-        AlignItems, BackgroundColor, FlexDirection, JustifyContent, Node, OverrideClip, PositionType, UiRect, UiScale, percent, px, widget::{Text, TextShadow}
+        AlignItems, BackgroundColor, FlexDirection, JustifyContent, Node, OverrideClip,
+        PositionType, UiRect, UiScale, percent, px,
+        widget::{Text, TextShadow},
     },
     ui_widgets::{
         MenuItem, MenuLayout, MenuPopup,
@@ -27,7 +29,10 @@ use bevy::{
 };
 
 use crate::{
-    pane::{EditorPanePlugin, PaneLayoutRoot, panes::SceneTreePanePlugin},
+    pane::{
+        EditorPanePlugin, PaneLayoutRoot,
+        panes::{SceneTreePanePlugin, Viewport3dPanePlugin},
+    },
     theme::{
         EditorThemePlugin, Theme, ThemeBackgroundColor, ThemeBorderColor,
         constants::fonts::REGULAR,
@@ -55,6 +60,7 @@ impl Plugin for EditorPlugin {
         .add_plugins(EditorWidgetPlugins)
         .add_plugins(EditorPanePlugin)
         .add_plugins(SceneTreePanePlugin)
+        .add_plugins(Viewport3dPanePlugin)
         .add_observer(setup);
     }
 }
@@ -64,7 +70,7 @@ fn setup(
     editor_windows: Query<&EditorWindow>,
     mut windows: Query<&mut IsWindowMaximized>,
     mut commands: Commands,
-    mut ui_scale: ResMut<UiScale>
+    mut ui_scale: ResMut<UiScale>,
 ) -> Result {
     // ui_scale.0 = 1.5;
     windows.get_mut(trigger.entity)?.0 = true;

@@ -971,33 +971,11 @@ fn init(trigger: On<Add, PaneLayoutRoot>, mut commands: Commands, asset_server: 
         .insert(ChildOf(divider))
         .id();
 
-    spawn_pane(
-        &mut commands,
-        &asset_server,
-        0.4,
-        vec![
-            "Scene Tree".into(),
-            "Scene Tree".into(),
-            "Scene Tree".into(),
-            "Scene Tree".into(),
-            "Scene Tree".into(),
-        ],
-    )
-    .insert(ChildOf(sub_divider));
+    spawn_pane(&mut commands, &asset_server, 0.4, vec!["Scene Tree".into()])
+        .insert(ChildOf(sub_divider));
     spawn_resize_handle(&mut commands, Divider::Vertical).insert(ChildOf(sub_divider));
-    spawn_pane(
-        &mut commands,
-        &asset_server,
-        0.6,
-        vec![
-            "Properties".into(),
-            "Properties".into(),
-            "Properties".into(),
-            "Properties".into(),
-            "Properties".into(),
-        ],
-    )
-    .insert(ChildOf(sub_divider));
+    spawn_pane(&mut commands, &asset_server, 0.6, vec!["Properties".into()])
+        .insert(ChildOf(sub_divider));
 
     spawn_resize_handle(&mut commands, Divider::Horizontal).insert(ChildOf(divider));
 
@@ -1009,12 +987,7 @@ fn init(trigger: On<Add, PaneLayoutRoot>, mut commands: Commands, asset_server: 
         &mut commands,
         &asset_server,
         0.70,
-        vec![
-            "Viewport 3D".into(),
-            "Viewport 3D".into(),
-            "Viewport 3D".into(),
-            "Viewport 3D".into(),
-        ],
+        vec!["Viewport 3D".into()],
     )
     .insert(ChildOf(asset_browser_divider));
     spawn_resize_handle(&mut commands, Divider::Vertical).insert(ChildOf(asset_browser_divider));
@@ -1022,12 +995,7 @@ fn init(trigger: On<Add, PaneLayoutRoot>, mut commands: Commands, asset_server: 
         &mut commands,
         &asset_server,
         0.30,
-        vec![
-            "Asset Browser".into(),
-            "Asset Browser".into(),
-            "Asset Browser".into(),
-            "Asset Browser".into(),
-        ],
+        vec!["Asset Browser".into()],
     )
     .insert(ChildOf(asset_browser_divider));
 }
