@@ -1,6 +1,6 @@
 use bevy::{
     app::{App, First, Plugin, PostUpdate, PreUpdate, Startup, Update},
-    asset::{Assets, RenderAssetUsages},
+    asset::{Assets, RenderAssetUsages, uuid::Uuid},
     camera::{Camera, Camera3d, ClearColorConfig, NormalizedRenderTarget, RenderTarget},
     color::Color,
     ecs::{
@@ -64,13 +64,18 @@ struct Active;
 
 fn render_target_picking_passthrough(
     viewports: Query<Entity, With<Viewport3d>>,
-    nodes: Query<(&ComputedNode, &UiGlobalTransform, &ImageNode), With<Active>>,
+    nodes: Query<(Entity, &ComputedNode, &UiGlobalTransform, &ImageNode), With<Active>>,
     mut pointer_input_reader: MessageReader<PointerInput>,
     mut commands: Commands,
 ) {
     for event in pointer_input_reader.read() {
+        if event.pointer_id != PointerId::Mouse {
+            continue;
+        }
+
         for viewport in &viewports {
-            let Ok((computed_node, global_transform, ui_image)) = nodes.get(viewport) else {
+            let Ok((entity, computed_node, global_transform, ui_image)) = nodes.get(viewport)
+            else {
                 continue;
             };
 
@@ -82,12 +87,17 @@ fn render_target_picking_passthrough(
             let event_copy = PointerInput {
                 action: event.action,
                 location: Location { position, target },
-                pointer_id: event.pointer_id,
+                pointer_id: pointer_id_from_entity(entity),
             };
 
             commands.write_message(event_copy);
         }
     }
+}
+
+fn pointer_id_from_entity(entity: Entity) -> PointerId {
+    let bits = entity.to_bits();
+    PointerId::Custom(Uuid::from_u64_pair(bits, bits))
 }
 
 fn setup(

@@ -3,17 +3,22 @@ pub mod theme;
 pub mod widget;
 pub mod window;
 
+use std::fmt::Debug;
+
 use bevy::{
     DefaultPlugins,
     app::{App, Plugin, PluginGroup},
+    camera::NormalizedRenderTarget,
     color::Color,
     ecs::{
+        entity::ContainsEntity,
         error::Result,
         observer::On,
-        system::{Commands, Query, ResMut},
+        system::{Commands, Query, ResMut, SystemParam},
     },
     input_focus::{InputFocus, tab_navigation::TabIndex},
-    picking::hover::Hovered,
+    picking::{events::Pointer, hover::Hovered},
+    reflect::Reflect,
     render::RenderPlugin,
     text::TextColor,
     ui::{
@@ -63,6 +68,28 @@ impl Plugin for EditorPlugin {
         .add_plugins(SceneTreePanePlugin)
         .add_plugins(Viewport3dPanePlugin)
         .add_observer(setup);
+    }
+}
+
+#[derive(SystemParam)]
+pub struct EditorWindowTargetHelper<'w, 's> {
+    editor_windows: Query<'w, 's, &'static EditorWindow>,
+}
+
+impl EditorWindowTargetHelper<'_, '_> {
+    pub fn is_editor_window_target(&self, target: &NormalizedRenderTarget) -> bool {
+        let NormalizedRenderTarget::Window(window_ref) = target else {
+            return false;
+        };
+
+        self.editor_windows.contains(window_ref.entity())
+    }
+
+    pub fn is_editor_window_pointer_event<E: Debug + Clone + Reflect>(
+        &self,
+        event: &Pointer<E>,
+    ) -> bool {
+        self.is_editor_window_target(&event.pointer_location.target)
     }
 }
 

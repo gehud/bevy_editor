@@ -43,6 +43,7 @@ use bevy::{
 };
 
 use crate::{
+    EditorWindowTargetHelper,
     theme::{
         RoundedCorners, ThemeBackgroundColor, ThemeBorderColor, ThemeTextColor,
         constants::fonts::REGULAR,
