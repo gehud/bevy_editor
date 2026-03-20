@@ -50,7 +50,7 @@ use crate::{
         ContextMenu, ContextMenuMark, EntityContextMenu, EntityCursor, OverrideCursor, ScrollArea,
         ScrollAxis, Scrollbar, ScrollbarThumb,
     },
-    window::{EditorWindow, EditorWindowStructure},
+    window::{EditorWindow, EditorWindowConfigured, EditorWindowStructure},
 };
 
 pub const PANE_BORDER_RADIUS: f32 = 6.0;
@@ -88,7 +88,7 @@ struct PaneTabgroup {
 
 fn spawn_pane<'a>(
     commands: &'a mut Commands,
-    asset_server: &AssetServer,
+    assets: &AssetServer,
     size: f32,
     tabs: Vec<String>,
 ) -> EntityCommands<'a> {
@@ -168,7 +168,7 @@ fn spawn_pane<'a>(
                         });
 
                     for tab in tabs {
-                        let id = spawn_tab(commands.commands_mut(), asset_server, root, tab)
+                        let id = spawn_tab(commands.commands_mut(), assets, root, tab)
                             .insert(ChildOf(tabgroup))
                             .observe(on_tab_press)
                             .observe(on_tab_drag_start)
@@ -951,20 +951,76 @@ fn spawn_resize_handle<'a>(commands: &'a mut Commands, divider: Divider) -> Enti
     handle
 }
 
-fn on_open_pane(mut requests: MessageReader<OpenPane>, pane_tabs: Query<&PaneTab>, mut commands: Commands) {
+#[derive(Component)]
+struct SpawnedPaneWindow {
+    name: String,
+}
+
+fn on_open_pane(
+    mut requests: MessageReader<OpenPane>,
+    pane_tabs: Query<&PaneTab>,
+    mut commands: Commands,
+) {
     for request in requests.read() {
         if pane_tabs.iter().any(|tab| tab.name == request.name) {
             // TODO: Focus tab
             continue;
         }
 
-        commands.spawn(Window {
-            title: request.name.clone(),
-            transparent: true,
-            decorations: false,
-            ..default()
-        });
+        commands.spawn((
+            SpawnedPaneWindow {
+                name: request.name.clone(),
+            },
+            Window {
+                title: request.name.clone(),
+                transparent: true,
+                decorations: false,
+                ..default()
+            },
+        ));
     }
+}
+
+fn setup_pane_window(
+    trigger: On<EditorWindowConfigured>,
+    spawned_pane_windows: Query<&SpawnedPaneWindow>,
+    editor_windows: Query<&EditorWindowStructure>,
+    assets: Res<AssetServer>,
+    mut commands: Commands,
+) -> Result {
+    let Ok(spawned_pane_window) = spawned_pane_windows.get(trigger.entity) else {
+        return Ok(());
+    };
+
+    let editor_window = editor_windows.get(trigger.entity)?;
+
+    commands
+        .entity(editor_window.content())
+        .with_children(|commands| {
+            commands
+                .spawn(Node {
+                    width: percent(100),
+                    height: percent(100),
+                    padding: UiRect::horizontal(px(4)).with_bottom(px(4)),
+                    ..default()
+                })
+                .with_children(|commands| {
+                    let root = commands.target_entity();
+                    spawn_pane(
+                        commands.commands_mut(),
+                        &assets,
+                        1.0,
+                        vec![spawned_pane_window.name.clone()],
+                    )
+                    .insert(ChildOf(root));
+                });
+        });
+
+    commands
+        .entity(trigger.entity)
+        .remove::<SpawnedPaneWindow>();
+
+    Ok(())
 }
 
 fn init(trigger: On<Add, PaneLayoutRoot>, mut commands: Commands, asset_server: Res<AssetServer>) {
@@ -1023,6 +1079,7 @@ impl Plugin for EditorPanePlugin {
                 ),
             )
             .add_systems(PostUpdate, apply_size.before(UiSystems::Layout))
+            .add_observer(setup_pane_window)
             .add_observer(init);
     }
 }

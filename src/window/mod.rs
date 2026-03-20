@@ -93,7 +93,7 @@ struct EditorWindowRef(Entity);
 fn configure_windows(
     windows: Query<Entity, Added<Window>>,
     primary_window: Single<Entity, With<PrimaryWindow>>,
-    asset_server: Res<AssetServer>,
+    assets: Res<AssetServer>,
     mut commands: Commands,
 ) {
     for window in windows {
@@ -191,7 +191,7 @@ fn configure_windows(
                                 commands.target_entity(),
                                 &mut commands.commands(),
                                 window,
-                                asset_server.load(
+                                assets.load(
                                     "embedded://bevy_editor/assets/window/icons/minimize.png",
                                 ),
                             )
@@ -211,7 +211,7 @@ fn configure_windows(
                                 commands.target_entity(),
                                 &mut commands.commands(),
                                 window,
-                                asset_server.load(
+                                assets.load(
                                     "embedded://bevy_editor/assets/window/icons/maximize.png",
                                 ),
                             )
@@ -232,7 +232,7 @@ fn configure_windows(
                                 commands.target_entity(),
                                 &mut commands.commands(),
                                 window,
-                                asset_server
+                                assets
                                     .load("embedded://bevy_editor/assets/window/icons/close.png"),
                             )
                             .observe(
