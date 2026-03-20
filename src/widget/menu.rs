@@ -9,14 +9,14 @@ use bevy::{
         message::MessageReader,
         observer::On,
         query::With,
-        system::{Commands, Query, Res},
+        system::{Commands, Query},
     },
     math::Vec2,
     picking::{
         events::{Click, Over, Pointer},
         pointer::PointerButton,
     },
-    ui::{ComputedNode, UiGlobalTransform, UiScale},
+    ui::{ComputedNode, UiGlobalTransform},
 };
 
 use crate::{
@@ -42,7 +42,7 @@ impl Plugin for MenuBarPlugin {
     fn build(&self, app: &mut App) {
         app.add_observer(on_menu_button_click)
             .add_observer(on_menu_button_over)
-            .add_systems(Update, read_context_menu_actions);
+            .add_systems(Update, deselect_menu_bar);
     }
 }
 
@@ -53,7 +53,6 @@ fn on_menu_button_click(
     parents: Query<&ChildOf>,
     computed_nodes: Query<&ComputedNode>,
     ui_global_transforms: Query<&UiGlobalTransform>,
-    ui_scale: Res<UiScale>,
     mut menu_bars: Query<&mut MenuBarState>,
     mut commands: Commands,
 ) -> Result {
@@ -83,20 +82,15 @@ fn on_menu_button_click(
         return Ok(());
     };
 
-    let button_position = ui_global_transforms.get(trigger.entity)?.translation;
-    let button_size = computed_nodes.get(trigger.entity)?.size();
-
-    let position = Vec2 {
-        x: button_position.x - button_size.x,
-        y: button_position.y + button_size.y,
-    };
-
-    menu_bar.selected_button = Some(trigger.entity);
-    commands.write_message(SpawnContextMenu {
+    spawn_context_menu(
+        trigger.entity,
+        &computed_nodes,
+        &ui_global_transforms,
+        &mut commands,
+        menu_button,
+        &mut menu_bar,
         editor_window,
-        menu: menu_button.0.clone(),
-        position,
-    });
+    )?;
 
     Ok(())
 }
@@ -108,7 +102,6 @@ fn on_menu_button_over(
     parents: Query<&ChildOf>,
     computed_nodes: Query<&ComputedNode>,
     ui_global_transforms: Query<&UiGlobalTransform>,
-    ui_scale: Res<UiScale>,
     mut menu_bars: Query<&mut MenuBarState>,
     mut commands: Commands,
 ) -> Result {
@@ -144,15 +137,38 @@ fn on_menu_button_over(
 
     commands.write_message(CloseContextMenu);
 
-    let button_position = ui_global_transforms.get(trigger.entity)?.translation;
-    let button_size = computed_nodes.get(trigger.entity)?.size();
+    spawn_context_menu(
+        trigger.entity,
+        &computed_nodes,
+        &ui_global_transforms,
+        &mut commands,
+        menu_button,
+        &mut menu_bar,
+        editor_window,
+    )?;
 
+    Ok(())
+}
+
+fn spawn_context_menu(
+    target: Entity,
+    computed_nodes: &Query<&ComputedNode>,
+    ui_global_transforms: &Query<&UiGlobalTransform>,
+    commands: &mut Commands,
+    menu_button: &MenuButton,
+    menu_bar: &mut MenuBarState,
+    editor_window: Entity,
+) -> Result {
+    let computed_node = computed_nodes.get(target)?;
+    let button_position =
+        ui_global_transforms.get(target)?.translation * computed_node.inverse_scale_factor();
+    let button_half =
+        computed_nodes.get(target)?.size() * computed_node.inverse_scale_factor() * 0.5;
     let position = Vec2 {
-        x: button_position.x - button_size.x,
-        y: button_position.y + button_size.y,
+        x: button_position.x - button_half.x,
+        y: button_position.y + button_half.y,
     };
-
-    menu_bar.selected_button = Some(trigger.entity);
+    menu_bar.selected_button = Some(target);
     commands.write_message(SpawnContextMenu {
         editor_window,
         menu: menu_button.0.clone(),
@@ -162,7 +178,7 @@ fn on_menu_button_over(
     Ok(())
 }
 
-fn read_context_menu_actions(
+fn deselect_menu_bar(
     mut actions: MessageReader<ContextMenuAction>,
     mut menu_bars: Query<&mut MenuBarState>,
 ) {
