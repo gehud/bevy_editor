@@ -37,6 +37,7 @@ impl Plugin for EditorPlugin {
         app.add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "Bevy".into(),
+                decorations: false,
                 transparent: true,
                 ..default()
             }),

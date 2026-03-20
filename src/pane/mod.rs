@@ -11,7 +11,7 @@ use bevy::{
         event::EntityEvent,
         hierarchy::{ChildOf, Children},
         lifecycle::{Add, Remove},
-        message::Message,
+        message::{Message, MessageReader},
         observer::On,
         query::{Changed, Or, With},
         resource::Resource,
@@ -37,7 +37,7 @@ use bevy::{
         UiGlobalTransform, UiRect, UiScale, UiSystems, percent, px, widget::Text,
     },
     utils::default,
-    window::SystemCursorIcon,
+    window::{SystemCursorIcon, Window},
 };
 
 use crate::{
@@ -56,28 +56,6 @@ use crate::{
 pub const PANE_BORDER_RADIUS: f32 = 6.0;
 pub const MIN_PANE_SIZE: f32 = 100.0;
 pub const RESIZE_HANDLE_SIZE: f32 = 4.0;
-
-pub struct EditorPanePlugin;
-
-impl Plugin for EditorPanePlugin {
-    fn build(&self, app: &mut App) {
-        app.init_resource::<PaneRegistry>()
-            .init_resource::<ResizeHandleDragState>()
-            .add_message::<OpenPane>()
-            .add_systems(Update, cleanup_divider_single_child)
-            .add_systems(
-                Update,
-                (
-                    clamp_active_tab_index,
-                    register_pane_callbacks.run_if(resource_changed::<PaneRegistry>),
-                    update_active_tab,
-                )
-                    .chain(),
-            )
-            .add_systems(PostUpdate, apply_size.before(UiSystems::Layout))
-            .add_observer(init);
-    }
-}
 
 #[derive(Message)]
 pub struct OpenPane {
@@ -973,6 +951,22 @@ fn spawn_resize_handle<'a>(commands: &'a mut Commands, divider: Divider) -> Enti
     handle
 }
 
+fn on_open_pane(mut requests: MessageReader<OpenPane>, pane_tabs: Query<&PaneTab>, mut commands: Commands) {
+    for request in requests.read() {
+        if pane_tabs.iter().any(|tab| tab.name == request.name) {
+            // TODO: Focus tab
+            continue;
+        }
+
+        commands.spawn(Window {
+            title: request.name.clone(),
+            transparent: true,
+            decorations: false,
+            ..default()
+        });
+    }
+}
+
 fn init(trigger: On<Add, PaneLayoutRoot>, mut commands: Commands, asset_server: Res<AssetServer>) {
     let root = trigger.entity;
 
@@ -1006,4 +1000,29 @@ fn init(trigger: On<Add, PaneLayoutRoot>, mut commands: Commands, asset_server: 
         vec!["Asset Browser".into()],
     )
     .insert(ChildOf(asset_browser_divider));
+}
+
+pub struct EditorPanePlugin;
+
+impl Plugin for EditorPanePlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<PaneRegistry>()
+            .init_resource::<ResizeHandleDragState>()
+            .add_message::<OpenPane>()
+            .add_systems(Update, cleanup_divider_single_child)
+            .add_systems(
+                Update,
+                (
+                    (
+                        clamp_active_tab_index,
+                        register_pane_callbacks.run_if(resource_changed::<PaneRegistry>),
+                        update_active_tab,
+                    )
+                        .chain(),
+                    on_open_pane,
+                ),
+            )
+            .add_systems(PostUpdate, apply_size.before(UiSystems::Layout))
+            .add_observer(init);
+    }
 }

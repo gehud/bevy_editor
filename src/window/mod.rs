@@ -1,5 +1,5 @@
 use bevy::{
-    app::{App, AppExit, First, Plugin, Update},
+    app::{App, First, Plugin, Update},
     asset::{AssetServer, Handle, embedded_asset},
     camera::{Camera2d, ClearColor, RenderTarget},
     color::Color,
@@ -10,7 +10,6 @@ use bevy::{
         error::Result,
         event::EntityEvent,
         hierarchy::{ChildOf, Children},
-        message::MessageWriter,
         observer::On,
         query::{Added, Changed, With},
         reflect::ReflectComponent,
@@ -106,6 +105,7 @@ fn configure_windows(
             .entry::<Window>()
             .and_modify(|mut window| {
                 window.decorations = false;
+                window.transparent = true;
             });
 
         let camera = commands
@@ -236,8 +236,14 @@ fn configure_windows(
                                     .load("embedded://bevy_editor/assets/window/icons/close.png"),
                             )
                             .observe(
-                                |_: On<Pointer<Click>>, mut exit: MessageWriter<AppExit>| {
-                                    exit.write(AppExit::Success);
+                                |trigger: On<Pointer<Click>>,
+                                 editor_window_refs: Query<&EditorWindowRef>,
+                                 mut commands: Commands|
+                                 -> Result {
+                                    commands
+                                        .entity(editor_window_refs.get(trigger.entity)?.0)
+                                        .despawn();
+                                    Ok(())
                                 },
                             );
                         });
@@ -254,141 +260,205 @@ fn configure_windows(
 
             // North resize
             commands
-                .spawn(Node {
-                    position_type: PositionType::Absolute,
-                    top: px(0),
-                    width: percent(100),
-                    height: Val::Px(WINDOW_RESIZE_GRIP_SIZE),
-                    ..default()
-                })
+                .spawn((
+                    EditorWindowRef(window),
+                    Node {
+                        position_type: PositionType::Absolute,
+                        top: px(0),
+                        width: percent(100),
+                        height: Val::Px(WINDOW_RESIZE_GRIP_SIZE),
+                        ..default()
+                    },
+                ))
                 .insert(EntityCursor::System(SystemCursorIcon::RowResize))
                 .observe(
-                    |_: On<Pointer<Press>>,
-                     mut window: Single<&mut Window, With<PrimaryWindow>>| {
-                        window.start_drag_resize(CompassOctant::North);
+                    |trigger: On<Pointer<Press>>,
+                     editor_window_refs: Query<&EditorWindowRef>,
+                     mut windows: Query<&mut Window>|
+                     -> Result {
+                        windows
+                            .get_mut(editor_window_refs.get(trigger.entity)?.0)?
+                            .start_drag_resize(CompassOctant::North);
+                        Ok(())
                     },
                 );
 
             // South resize
             commands
-                .spawn(Node {
-                    position_type: PositionType::Absolute,
-                    bottom: px(0),
-                    width: percent(100),
-                    height: Val::Px(WINDOW_RESIZE_GRIP_SIZE),
-                    ..default()
-                })
+                .spawn((
+                    EditorWindowRef(window),
+                    Node {
+                        position_type: PositionType::Absolute,
+                        bottom: px(0),
+                        width: percent(100),
+                        height: Val::Px(WINDOW_RESIZE_GRIP_SIZE),
+                        ..default()
+                    },
+                ))
                 .insert(EntityCursor::System(SystemCursorIcon::RowResize))
                 .observe(
-                    |_: On<Pointer<Press>>,
-                     mut window: Single<&mut Window, With<PrimaryWindow>>| {
-                        window.start_drag_resize(CompassOctant::South);
+                    |trigger: On<Pointer<Press>>,
+                     editor_window_refs: Query<&EditorWindowRef>,
+                     mut windows: Query<&mut Window>|
+                     -> Result {
+                        windows
+                            .get_mut(editor_window_refs.get(trigger.entity)?.0)?
+                            .start_drag_resize(CompassOctant::South);
+                        Ok(())
                     },
                 );
 
             // West resize
             commands
-                .spawn(Node {
-                    position_type: PositionType::Absolute,
-                    left: px(0),
-                    width: Val::Px(WINDOW_RESIZE_GRIP_SIZE),
-                    height: percent(100),
-                    ..default()
-                })
+                .spawn((
+                    EditorWindowRef(window),
+                    Node {
+                        position_type: PositionType::Absolute,
+                        left: px(0),
+                        width: Val::Px(WINDOW_RESIZE_GRIP_SIZE),
+                        height: percent(100),
+                        ..default()
+                    },
+                ))
                 .insert(EntityCursor::System(SystemCursorIcon::ColResize))
                 .observe(
-                    |_: On<Pointer<Press>>,
-                     mut window: Single<&mut Window, With<PrimaryWindow>>| {
-                        window.start_drag_resize(CompassOctant::West);
+                    |trigger: On<Pointer<Press>>,
+                     editor_window_refs: Query<&EditorWindowRef>,
+                     mut windows: Query<&mut Window>|
+                     -> Result {
+                        windows
+                            .get_mut(editor_window_refs.get(trigger.entity)?.0)?
+                            .start_drag_resize(CompassOctant::West);
+                        Ok(())
                     },
                 );
 
             // East resize
             commands
-                .spawn(Node {
-                    position_type: PositionType::Absolute,
-                    right: px(0),
-                    width: Val::Px(WINDOW_RESIZE_GRIP_SIZE),
-                    height: percent(100),
-                    ..default()
-                })
+                .spawn((
+                    EditorWindowRef(window),
+                    Node {
+                        position_type: PositionType::Absolute,
+                        right: px(0),
+                        width: Val::Px(WINDOW_RESIZE_GRIP_SIZE),
+                        height: percent(100),
+                        ..default()
+                    },
+                ))
                 .insert(EntityCursor::System(SystemCursorIcon::ColResize))
                 .observe(
-                    |_: On<Pointer<Press>>,
-                     mut window: Single<&mut Window, With<PrimaryWindow>>| {
-                        window.start_drag_resize(CompassOctant::East);
+                    |trigger: On<Pointer<Press>>,
+                     editor_window_refs: Query<&EditorWindowRef>,
+                     mut windows: Query<&mut Window>|
+                     -> Result {
+                        windows
+                            .get_mut(editor_window_refs.get(trigger.entity)?.0)?
+                            .start_drag_resize(CompassOctant::East);
+                        Ok(())
                     },
                 );
 
             // Northwest resize
             commands
-                .spawn(Node {
-                    position_type: PositionType::Absolute,
-                    left: px(0),
-                    top: px(0),
-                    width: Val::Px(WINDOW_RESIZE_GRIP_SIZE),
-                    height: Val::Px(WINDOW_RESIZE_GRIP_SIZE),
-                    ..default()
-                })
+                .spawn((
+                    EditorWindowRef(window),
+                    Node {
+                        position_type: PositionType::Absolute,
+                        left: px(0),
+                        top: px(0),
+                        width: Val::Px(WINDOW_RESIZE_GRIP_SIZE),
+                        height: Val::Px(WINDOW_RESIZE_GRIP_SIZE),
+                        ..default()
+                    },
+                ))
                 .insert(EntityCursor::System(SystemCursorIcon::NwResize))
                 .observe(
-                    |_: On<Pointer<Press>>,
-                     mut window: Single<&mut Window, With<PrimaryWindow>>| {
-                        window.start_drag_resize(CompassOctant::NorthWest);
+                    |trigger: On<Pointer<Press>>,
+                     editor_window_refs: Query<&EditorWindowRef>,
+                     mut windows: Query<&mut Window>|
+                     -> Result {
+                        windows
+                            .get_mut(editor_window_refs.get(trigger.entity)?.0)?
+                            .start_drag_resize(CompassOctant::NorthWest);
+                        Ok(())
                     },
                 );
 
             // Northeast resize
             commands
-                .spawn(Node {
-                    position_type: PositionType::Absolute,
-                    right: px(0),
-                    top: px(0),
-                    width: Val::Px(WINDOW_RESIZE_GRIP_SIZE),
-                    height: Val::Px(WINDOW_RESIZE_GRIP_SIZE),
-                    ..default()
-                })
+                .spawn((
+                    EditorWindowRef(window),
+                    Node {
+                        position_type: PositionType::Absolute,
+                        right: px(0),
+                        top: px(0),
+                        width: Val::Px(WINDOW_RESIZE_GRIP_SIZE),
+                        height: Val::Px(WINDOW_RESIZE_GRIP_SIZE),
+                        ..default()
+                    },
+                ))
                 .insert(EntityCursor::System(SystemCursorIcon::NeResize))
                 .observe(
-                    |_: On<Pointer<Press>>,
-                     mut window: Single<&mut Window, With<PrimaryWindow>>| {
-                        window.start_drag_resize(CompassOctant::NorthEast);
+                    |trigger: On<Pointer<Press>>,
+                     editor_window_refs: Query<&EditorWindowRef>,
+                     mut windows: Query<&mut Window>|
+                     -> Result {
+                        windows
+                            .get_mut(editor_window_refs.get(trigger.entity)?.0)?
+                            .start_drag_resize(CompassOctant::NorthEast);
+                        Ok(())
                     },
                 );
 
             // Southwest resize
             commands
-                .spawn(Node {
-                    position_type: PositionType::Absolute,
-                    left: px(0),
-                    bottom: px(0),
-                    width: Val::Px(WINDOW_RESIZE_GRIP_SIZE),
-                    height: Val::Px(WINDOW_RESIZE_GRIP_SIZE),
-                    ..default()
-                })
+                .spawn((
+                    EditorWindowRef(window),
+                    Node {
+                        position_type: PositionType::Absolute,
+                        left: px(0),
+                        bottom: px(0),
+                        width: Val::Px(WINDOW_RESIZE_GRIP_SIZE),
+                        height: Val::Px(WINDOW_RESIZE_GRIP_SIZE),
+                        ..default()
+                    },
+                ))
                 .insert(EntityCursor::System(SystemCursorIcon::SwResize))
                 .observe(
-                    |_: On<Pointer<Press>>,
-                     mut window: Single<&mut Window, With<PrimaryWindow>>| {
-                        window.start_drag_resize(CompassOctant::SouthWest);
+                    |trigger: On<Pointer<Press>>,
+                     editor_window_refs: Query<&EditorWindowRef>,
+                     mut windows: Query<&mut Window>|
+                     -> Result {
+                        windows
+                            .get_mut(editor_window_refs.get(trigger.entity)?.0)?
+                            .start_drag_resize(CompassOctant::SouthWest);
+                        Ok(())
                     },
                 );
 
             // Southeast resize
             commands
-                .spawn(Node {
-                    position_type: PositionType::Absolute,
-                    right: px(0),
-                    bottom: px(0),
-                    width: Val::Px(WINDOW_RESIZE_GRIP_SIZE),
-                    height: Val::Px(WINDOW_RESIZE_GRIP_SIZE),
-                    ..default()
-                })
+                .spawn((
+                    EditorWindowRef(window),
+                    Node {
+                        position_type: PositionType::Absolute,
+                        right: px(0),
+                        bottom: px(0),
+                        width: Val::Px(WINDOW_RESIZE_GRIP_SIZE),
+                        height: Val::Px(WINDOW_RESIZE_GRIP_SIZE),
+                        ..default()
+                    },
+                ))
                 .insert(EntityCursor::System(SystemCursorIcon::SeResize))
                 .observe(
-                    |_: On<Pointer<Press>>,
-                     mut window: Single<&mut Window, With<PrimaryWindow>>| {
-                        window.start_drag_resize(CompassOctant::SouthEast);
+                    |trigger: On<Pointer<Press>>,
+                     editor_window_refs: Query<&EditorWindowRef>,
+                     mut windows: Query<&mut Window>|
+                     -> Result {
+                        windows
+                            .get_mut(editor_window_refs.get(trigger.entity)?.0)?
+                            .start_drag_resize(CompassOctant::SouthEast);
+                        Ok(())
                     },
                 );
         });
