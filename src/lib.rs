@@ -3,54 +3,30 @@ pub mod theme;
 pub mod widget;
 pub mod window;
 
-use std::fmt::Debug;
+mod menu;
 
 use bevy::{
     DefaultPlugins,
     app::{App, Plugin, PluginGroup},
-    asset::{AssetServer, embedded_asset},
-    camera::NormalizedRenderTarget,
-    color::Color,
+    asset::AssetServer,
     ecs::{
-        entity::ContainsEntity,
         error::Result,
-        hierarchy::ChildOf,
         observer::On,
-        system::{Commands, EntityCommands, Query, Res, ResMut, SystemParam},
+        system::{Commands, Query, Res, ResMut},
     },
-    input_focus::{InputFocus, tab_navigation::TabIndex},
-    picking::{
-        events::{Out, Over, Pointer},
-        hover::Hovered,
-    },
-    reflect::Reflect,
-    render::RenderPlugin,
-    text::TextColor,
-    ui::{
-        AlignItems, BackgroundColor, FlexDirection, JustifyContent, Node, OverrideClip,
-        PositionType, UiRect, UiScale, percent, px,
-        widget::{ImageNode, Text, TextShadow},
-    },
-    ui_widgets::{
-        MenuItem, MenuLayout, MenuPopup,
-        popover::{Popover, PopoverAlign, PopoverPlacement, PopoverSide},
-    },
+    ui::{AlignItems, FlexDirection, Node, UiRect, UiScale, percent, px},
     utils::default,
     window::{Window, WindowPlugin},
 };
 
 use crate::{
+    menu::{EditorMenuPlugin, EditorMenuRoot},
     pane::{
         EditorPanePlugin, PaneLayoutRoot,
         panes::{SceneTreePanePlugin, ViewportPanePlugin},
     },
-    theme::{
-        EditorThemePlugin, RoundedCorners, Theme, ThemeBackgroundColor, ThemeBorderColor,
-        ThemeTextColor, ThemeTextFont, ThemeTextFontSize,
-        constants::fonts::REGULAR,
-        tokens::{BORDER, PANE_BG, TEXT_HEADING, TEXT_MAIN, WINDOW_BG},
-    },
-    widget::{ContextMenu, ContextMenuMark, EditorWidgetPlugins, MenuBar, MenuButton},
+    theme::EditorThemePlugin,
+    widget::EditorWidgetPlugins,
     window::{EditorWindow, EditorWindowPlugin, IsWindowMaximized, PrimaryWindowConfigured},
 };
 
@@ -73,6 +49,7 @@ impl Plugin for EditorPlugin {
         .add_plugins(EditorPanePlugin)
         .add_plugins(SceneTreePanePlugin)
         .add_plugins(ViewportPanePlugin)
+        .add_plugins(EditorMenuPlugin)
         .add_observer(setup);
     }
 }
@@ -80,7 +57,6 @@ impl Plugin for EditorPlugin {
 fn setup(
     trigger: On<PrimaryWindowConfigured>,
     editor_windows: Query<&EditorWindow>,
-    assets: Res<AssetServer>,
     mut windows: Query<&mut IsWindowMaximized>,
     mut commands: Commands,
     mut ui_scale: ResMut<UiScale>,
@@ -125,106 +101,14 @@ fn setup(
     commands
         .entity(editor_window.titlebar())
         .with_children(|commands| {
-            commands
-                .spawn(Node {
-                    column_gap: px(15),
+            commands.spawn((
+                Node {
                     align_items: AlignItems::Center,
                     ..default()
-                })
-                .with_children(|commands| {
-                    commands
-                        .spawn(Node {
-                            padding: UiRect::left(px(12)),
-                            align_items: AlignItems::Center,
-                            column_gap: px(6),
-                            ..default()
-                        })
-                        .with_children(|commands| {
-                            commands.spawn((
-                                Node {
-                                    width: px(20),
-                                    height: px(20),
-                                    ..default()
-                                },
-                                ImageNode::new(
-                                    assets
-                                        .load("embedded://bevy_editor/assets/theme/icons/bevy.png"),
-                                ),
-                            ));
-
-                            commands.spawn((
-                                Text::new("Bevy"),
-                                ThemeTextColor(TEXT_HEADING),
-                                ThemeTextFont(TEXT_HEADING),
-                                ThemeTextFontSize(TEXT_HEADING),
-                            ));
-                        });
-
-                    // Menu
-                    commands
-                        .spawn((
-                            MenuBar,
-                            Node {
-                                align_items: AlignItems::Center,
-                                column_gap: px(4),
-                                ..default()
-                            },
-                        ))
-                        .with_children(|commands| {
-                            let menu = commands.target_entity();
-                            spawn_menu_button(commands.commands_mut(), "File", tmp_context_menu())
-                                .insert(ChildOf(menu));
-                            spawn_menu_button(commands.commands_mut(), "Edit", tmp_context_menu())
-                                .insert(ChildOf(menu));
-                        });
-                });
+                },
+                EditorMenuRoot,
+            ));
         });
 
     Ok(())
-}
-
-fn tmp_context_menu() -> ContextMenu {
-    ContextMenu::new()
-        .with_option(true, ContextMenuMark::None, "Option 1", |world| Ok(()))
-        .with_option(true, ContextMenuMark::None, "Option 2", |world| Ok(()))
-}
-
-fn spawn_menu_button<'a>(
-    commands: &'a mut Commands,
-    label: impl Into<String>,
-    menu: ContextMenu,
-) -> EntityCommands<'a> {
-    let root = commands
-        .spawn((
-            MenuButton(menu),
-            Node {
-                padding: UiRect::horizontal(px(8)).with_top(px(4)).with_bottom(px(4)),
-                border_radius: RoundedCorners::All.to_border_radius(6.0),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
-                ..default()
-            },
-            ThemeBackgroundColor(WINDOW_BG),
-        ))
-        .observe(|trigger: On<Pointer<Over>>, mut commands: Commands| {
-            commands
-                .entity(trigger.entity)
-                .insert(ThemeBackgroundColor(PANE_BG));
-        })
-        .observe(|trigger: On<Pointer<Out>>, mut commands: Commands| {
-            commands
-                .entity(trigger.entity)
-                .insert(ThemeBackgroundColor(WINDOW_BG));
-        })
-        .with_children(|commands| {
-            commands.spawn((
-                Text::new(label.into()),
-                ThemeTextColor(TEXT_HEADING),
-                ThemeTextFont(TEXT_MAIN),
-                ThemeTextFontSize(TEXT_HEADING),
-            ));
-        })
-        .id();
-
-    commands.entity(root)
 }

@@ -5,20 +5,9 @@ use bevy::{
     asset::AssetServer,
     camera::{NormalizedRenderTarget, visibility::Visibility},
     ecs::{
-        component::Component,
-        entity::{ContainsEntity, Entity},
-        error::Result,
-        event::EntityEvent,
-        hierarchy::{ChildOf, Children},
-        lifecycle::{Add, Remove},
-        observer::On,
-        query::{Changed, Or, With},
-        resource::Resource,
-        schedule::{IntoScheduleConfigs, common_conditions::resource_changed},
-        system::{
+        component::Component, entity::{ContainsEntity, Entity}, error::Result, event::EntityEvent, hierarchy::{ChildOf, Children}, lifecycle::{Add, Remove}, message::Message, observer::On, query::{Changed, Or, With}, resource::Resource, schedule::{IntoScheduleConfigs, common_conditions::resource_changed}, system::{
             BoxedSystem, Commands, EntityCommands, In, IntoSystem, Query, Res, ResMut, SystemId,
-        },
-        world::{Mut, World},
+        }, world::{Mut, World}
     },
     log::warn,
     picking::{
@@ -62,6 +51,7 @@ impl Plugin for EditorPanePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<PaneRegistry>()
             .init_resource::<ResizeHandleDragState>()
+            .add_message::<OpenPane>()
             .add_systems(Update, cleanup_divider_single_child)
             .add_systems(
                 Update,
@@ -75,6 +65,11 @@ impl Plugin for EditorPanePlugin {
             .add_systems(PostUpdate, apply_size.before(UiSystems::Layout))
             .add_observer(init);
     }
+}
+
+#[derive(Message)]
+pub struct OpenPane {
+    pub name: String
 }
 
 #[derive(Component)]
@@ -691,6 +686,10 @@ pub struct PaneRegistry {
 }
 
 impl PaneRegistry {
+    pub fn iter(&self) -> impl Iterator<Item = &String> {
+        self.panes.keys()
+    }
+
     pub fn register<M>(
         &mut self,
         name: impl Into<String>,
