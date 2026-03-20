@@ -17,6 +17,7 @@ use bevy::{
         world::World,
     },
     image::Image,
+    log::info,
     math::CompassOctant,
     picking::{
         Pickable,
@@ -514,8 +515,10 @@ fn check_actually_maximized(
             };
 
             let is_actually_maximized = winit_window.is_maximized();
+
             if is_actually_maximized != is_maximized.0 {
                 is_maximized.bypass_change_detection().0 = is_actually_maximized;
+
                 commands
                     .run_system_cached_with(set_maximize_style, (window, is_actually_maximized));
             }

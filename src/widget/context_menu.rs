@@ -10,8 +10,10 @@ use bevy::{
         entity::{ContainsEntity, Entity},
         error::Result,
         hierarchy::ChildOf,
-        message::MessageReader,
+        message::{Message, MessageReader},
         observer::On,
+        query::With,
+        schedule::IntoScheduleConfigs,
         system::{Commands, EntityCommands, Query, Res, SystemState},
         world::{DeferredWorld, World},
     },
@@ -24,7 +26,7 @@ use bevy::{
     text::TextFont,
     ui::{
         AlignItems, AlignSelf, BoxShadow, ComputedNode, FlexDirection, JustifyContent, Node,
-        PositionType, ShadowStyle, UiGlobalTransform, UiRect, UiScale, percent, px,
+        PositionType, ShadowStyle, UiGlobalTransform, UiRect, percent, px,
         widget::{ImageNode, Text},
     },
     utils::default,
@@ -39,20 +41,20 @@ use crate::{
     window::EditorWindow,
 };
 
-#[derive(Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Default, Debug, PartialEq, Eq)]
 pub enum ContextMenuMark {
     #[default]
     None,
     Checked,
 }
 
-#[derive(Component, Clone)]
+#[derive(Clone)]
 pub enum ContextMenuItem {
     Option {
         enabled: bool,
         mark: ContextMenuMark,
         label: String,
-        callback: Arc<dyn Fn(&mut DeferredWorld, Entity) -> Result + Send + Sync>,
+        callback: Arc<dyn Fn(&mut DeferredWorld) -> Result + Send + Sync>,
     },
     Submenu {
         label: String,
@@ -61,7 +63,7 @@ pub enum ContextMenuItem {
     Separator,
 }
 
-#[derive(Component, Clone, Default)]
+#[derive(Clone, Default)]
 pub struct ContextMenu {
     pub items: Vec<ContextMenuItem>,
 }
@@ -81,7 +83,7 @@ impl ContextMenu {
         enabled: bool,
         mark: ContextMenuMark,
         label: impl Into<String>,
-        callback: impl Fn(&mut DeferredWorld, Entity) -> Result + Send + Sync + 'static,
+        callback: impl Fn(&mut DeferredWorld) -> Result + Send + Sync + 'static,
     ) -> Self {
         self.items.push(ContextMenuItem::Option {
             enabled,
@@ -106,53 +108,92 @@ impl ContextMenu {
     }
 }
 
+#[derive(Component, Clone)]
+pub struct EntityContextMenu(pub ContextMenu);
+
+#[derive(Message)]
+pub struct SpawnContextMenu {
+    pub editor_window: Entity,
+    pub position: Vec2,
+    pub menu: ContextMenu,
+}
+
+#[derive(Message)]
+pub struct CloseContextMenu;
+
+#[derive(Message)]
+pub enum ContextMenuAction {
+    Discard,
+    Select,
+    Close,
+}
+
+#[derive(Message)]
+pub struct ContextMenuOptionSelected;
+
 pub struct ContextMenuPlugin;
 
 impl Plugin for ContextMenuPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, spawn_menus);
+        app.add_systems(Update, (close_menus, spawn_menus).chain())
+            .add_message::<SpawnContextMenu>()
+            .add_message::<CloseContextMenu>()
+            .add_message::<ContextMenuAction>()
+            .add_observer(on_entity_click);
     }
 }
+
+fn on_entity_click(
+    trigger: On<Pointer<Click>>,
+    editor_windows: Query<(), With<EditorWindow>>,
+    menus: Query<&EntityContextMenu>,
+    mut commands: Commands,
+) {
+    if trigger.button != PointerButton::Secondary {
+        return;
+    }
+
+    let NormalizedRenderTarget::Window(window_ref) = trigger.pointer_location.target else {
+        return;
+    };
+
+    let editor_window = window_ref.entity();
+
+    if !editor_windows.contains(editor_window) {
+        return;
+    };
+
+    let Ok(menu) = menus.get(trigger.entity) else {
+        return;
+    };
+
+    commands.write_message(SpawnContextMenu {
+        editor_window,
+        position: trigger.pointer_location.position,
+        menu: menu.0.clone(),
+    });
+}
+
+#[derive(Component)]
+struct ContextMenuRoot;
 
 fn spawn_menus(
     world: &mut World,
     state: &mut SystemState<(
-        MessageReader<Pointer<Click>>,
-        Query<(Entity, &ContextMenu)>,
+        MessageReader<SpawnContextMenu>,
         Query<&EditorWindow>,
-        Res<UiScale>,
         Res<AssetServer>,
         Commands,
     )>,
 ) -> Result {
-    let (mut clicks, menus, editor_windows, ui_scale, asset_server, mut commands) =
-        state.get_mut(world);
+    let (mut requests, editor_windows, asset_server, mut commands) = state.get_mut(world);
 
-    for click in clicks.read() {
-        let NormalizedRenderTarget::Window(window_ref) = click.pointer_location.target else {
-            continue;
-        };
+    for request in requests.read() {
+        let editor_window = editor_windows.get(request.editor_window)?;
 
-        let Ok(editor_window) = editor_windows.get(window_ref.entity()) else {
-            continue;
-        };
-
-        let Some((target, menu)) = menus.iter().find(|(entity, _)| {
-            if *entity != click.entity {
-                return false;
-            }
-
-            if click.button != PointerButton::Secondary {
-                return false;
-            }
-
-            return true;
-        }) else {
-            continue;
-        };
-
-        let root = commands
+        let context_menu_root = commands
             .spawn((
+                ContextMenuRoot,
                 ChildOf(editor_window.root()),
                 Node {
                     position_type: PositionType::Absolute,
@@ -166,17 +207,17 @@ fn spawn_menus(
                 },
             ))
             .observe(|trigger: On<Pointer<Press>>, mut commands: Commands| {
-                commands.entity(trigger.entity).despawn()
+                commands.entity(trigger.entity).despawn();
+                commands.write_message(ContextMenuAction::Discard);
             })
             .id();
 
         spawn_menu(
             &mut commands,
             &asset_server,
-            root,
-            click.pointer_location.position / ui_scale.0,
-            target,
-            menu,
+            context_menu_root,
+            request.position,
+            &request.menu,
         )?;
 
         break;
@@ -185,6 +226,19 @@ fn spawn_menus(
     state.apply(world);
 
     Ok(())
+}
+
+fn close_menus(
+    mut requests: MessageReader<CloseContextMenu>,
+    roots: Query<Entity, With<ContextMenuRoot>>,
+    mut commands: Commands,
+) {
+    for _ in requests.read() {
+        for root in roots {
+            commands.entity(root).despawn();
+            commands.write_message(ContextMenuAction::Close);
+        }
+    }
 }
 
 #[derive(Component)]
@@ -197,7 +251,6 @@ fn spawn_menu<'a>(
     asset_server: &AssetServer,
     root: Entity,
     position: Vec2,
-    target: Entity,
     menu: &ContextMenu,
 ) -> Result<EntityCommands<'a>> {
     let context_menu = commands
@@ -231,7 +284,7 @@ fn spawn_menu<'a>(
         .id();
 
     for item in menu.items.clone() {
-        spawn_menu_item(commands, asset_server, root, context_menu, target, item)?;
+        spawn_menu_item(commands, asset_server, root, context_menu, item)?;
     }
 
     Ok(commands.entity(context_menu))
@@ -242,7 +295,6 @@ fn spawn_menu_item(
     asset_server: &AssetServer,
     root: Entity,
     context_menu: Entity,
-    target: Entity,
     item: ContextMenuItem,
 ) -> Result {
     let mut menu_item = match item.clone() {
@@ -256,21 +308,14 @@ fn spawn_menu_item(
             asset_server,
             root,
             context_menu,
-            target,
             enabled,
             mark,
             label,
             callback,
         )?,
-        ContextMenuItem::Submenu { label, menu } => spawn_submenu(
-            commands,
-            asset_server,
-            root,
-            context_menu,
-            target,
-            label,
-            menu,
-        )?,
+        ContextMenuItem::Submenu { label, menu } => {
+            spawn_submenu(commands, asset_server, root, context_menu, label, menu)?
+        }
         ContextMenuItem::Separator => spawn_separator(commands, context_menu)?,
     };
 
@@ -298,11 +343,10 @@ fn spawn_option<'a>(
     asset_server: &AssetServer,
     root: Entity,
     context_menu: Entity,
-    target: Entity,
     enabled: bool,
     mark: ContextMenuMark,
     label: String,
-    callback: Arc<dyn Fn(&mut DeferredWorld, Entity) -> Result + Send + Sync>,
+    callback: Arc<dyn Fn(&mut DeferredWorld) -> Result + Send + Sync>,
 ) -> Result<EntityCommands<'a>> {
     let text_color = if enabled { TEXT_MAIN } else { TEXT_DIM };
 
@@ -414,8 +458,9 @@ fn spawn_option<'a>(
                     return Ok(());
                 }
 
-                callback(&mut world, target)?;
+                callback(&mut world)?;
                 commands.entity(root).despawn();
+                commands.write_message(ContextMenuAction::Select);
 
                 Ok(())
             },
@@ -430,26 +475,60 @@ fn spawn_submenu<'a>(
     asset_server: &AssetServer,
     root: Entity,
     context_menu: Entity,
-    target: Entity,
     label: String,
     menu: ContextMenu,
 ) -> Result<EntityCommands<'a>> {
-    let item =
-        commands
-            .spawn((
-                ChildOf(context_menu),
+    let item = commands
+        .spawn((
+            ChildOf(context_menu),
+            Node {
+                margin: UiRect::horizontal(px(6)),
+                border_radius: RoundedCorners::All.to_border_radius(4.0),
+                padding: UiRect::horizontal(px(8)).with_top(px(4)).with_bottom(px(4)),
+                column_gap: px(6),
+                ..default()
+            },
+        ))
+        .with_children(|commands| {
+            commands.spawn((
                 Node {
-                    margin: UiRect::horizontal(px(6)),
-                    border_radius: RoundedCorners::All.to_border_radius(4.0),
-                    padding: UiRect::horizontal(px(8)).with_top(px(4)).with_bottom(px(4)),
-                    column_gap: px(6),
+                    align_self: AlignSelf::Start,
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::Center,
+                    width: px(16),
+                    height: px(16),
                     ..default()
                 },
-            ))
-            .with_children(|commands| {
-                commands.spawn((
+                Pickable::IGNORE,
+            ));
+
+            commands
+                .spawn((
                     Node {
                         align_self: AlignSelf::Start,
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::Center,
+                        ..default()
+                    },
+                    Pickable::IGNORE,
+                ))
+                .with_children(|commands| {
+                    commands.spawn((
+                        Pickable::IGNORE,
+                        Text::new(label),
+                        TextFont {
+                            font: asset_server.load(REGULAR),
+                            font_size: 12.0,
+                            ..default()
+                        },
+                        ThemeTextColor(TEXT_MAIN),
+                    ));
+                });
+
+            commands
+                .spawn((
+                    Node {
+                        align_self: AlignSelf::End,
                         align_items: AlignItems::Center,
                         justify_content: JustifyContent::Center,
                         width: px(16),
@@ -457,90 +536,49 @@ fn spawn_submenu<'a>(
                         ..default()
                     },
                     Pickable::IGNORE,
-                ));
-
-                commands
-                    .spawn((
-                        Node {
-                            align_self: AlignSelf::Start,
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            ..default()
-                        },
+                ))
+                .with_children(|commands| {
+                    commands.spawn((
                         Pickable::IGNORE,
-                    ))
-                    .with_children(|commands| {
-                        commands.spawn((
-                            Pickable::IGNORE,
-                            Text::new(label),
-                            TextFont {
-                                font: asset_server.load(REGULAR),
-                                font_size: 12.0,
-                                ..default()
-                            },
-                            ThemeTextColor(TEXT_MAIN),
-                        ));
-                    });
-
-                commands
-                    .spawn((
-                        Node {
-                            align_self: AlignSelf::End,
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            width: px(16),
-                            height: px(16),
-                            ..default()
-                        },
-                        Pickable::IGNORE,
-                    ))
-                    .with_children(|commands| {
-                        commands.spawn((
-                            Pickable::IGNORE,
-                            ImageNode::new(asset_server.load(
+                        ImageNode::new(
+                            asset_server.load(
                                 "embedded://bevy_editor/assets/widget/icons/chevron_right.png",
-                            )),
-                            ThemeImageColor(BUTTON_TEXT),
-                        ));
-                    });
-            })
-            .observe(
-                move |trigger: On<Pointer<Over>>,
-                      computed_nodes: Query<&ComputedNode>,
-                      ui_global_transforms: Query<&UiGlobalTransform>,
-                      asset_server: Res<AssetServer>,
-                      mut submenus: Query<&mut OpenedSubmenu>,
-                      mut commands: Commands|
-                      -> Result {
-                    let item_translation = ui_global_transforms.get(trigger.entity)?.translation;
-                    let item_size = computed_nodes.get(trigger.entity)?.size();
-                    let menu_size = computed_nodes.get(context_menu)?.size();
+                            ),
+                        ),
+                        ThemeImageColor(BUTTON_TEXT),
+                    ));
+                });
+        })
+        .observe(
+            move |trigger: On<Pointer<Over>>,
+                  computed_nodes: Query<&ComputedNode>,
+                  ui_global_transforms: Query<&UiGlobalTransform>,
+                  asset_server: Res<AssetServer>,
+                  mut submenus: Query<&mut OpenedSubmenu>,
+                  mut commands: Commands|
+                  -> Result {
+                let item_translation = ui_global_transforms.get(trigger.entity)?.translation;
+                let item_size = computed_nodes.get(trigger.entity)?.size();
+                let menu_size = computed_nodes.get(context_menu)?.size();
 
-                    let submenu_position = Vec2::new(
-                        item_translation.x + menu_size.x / 2.0,
-                        item_translation.y - item_size.y / 2.0,
-                    );
+                let submenu_position = Vec2::new(
+                    item_translation.x + menu_size.x / 2.0,
+                    item_translation.y - item_size.y / 2.0,
+                );
 
-                    let new_submenu = spawn_menu(
-                        &mut commands,
-                        &asset_server,
-                        root,
-                        submenu_position,
-                        target,
-                        &menu,
-                    )?
-                    .id();
+                let new_submenu =
+                    spawn_menu(&mut commands, &asset_server, root, submenu_position, &menu)?.id();
 
-                    let mut submenu = submenus.get_mut(context_menu)?;
+                let mut submenu = submenus.get_mut(context_menu)?;
 
-                    if let Some(old_submenu) = submenu.root.replace(new_submenu) {
-                        commands.entity(old_submenu).despawn();
-                    }
+                if let Some(old_submenu) = submenu.root.replace(new_submenu) {
+                    commands.entity(old_submenu).despawn();
+                }
 
-                    Ok(())
-                },
-            )
-            .id();
+                Ok(())
+            },
+        )
+        .id();
 
     Ok(commands.entity(item))
 }

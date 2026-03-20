@@ -17,27 +17,23 @@ use bevy::{
         schedule::{IntoScheduleConfigs, common_conditions::resource_changed},
         system::{
             BoxedSystem, Commands, EntityCommands, In, IntoSystem, Query, Res, ResMut, SystemId,
-            SystemState,
         },
         world::{Mut, World},
     },
-    input_focus::AcquireFocus,
-    log::{warn, warn_once},
-    math::Vec2,
+    log::warn,
     picking::{
         Pickable,
         events::{
             Cancel, Drag, DragDrop, DragEnd, DragEnter, DragLeave, DragOver, DragStart, Pointer,
             Press,
         },
-        hover::Hovered,
         pointer::PointerButton,
     },
     platform::collections::HashMap,
     text::TextFont,
     ui::{
-        AlignItems, ComputedNode, FlexDirection, JustifyContent, Node, Overflow, PositionType,
-        ScrollPosition, UiGlobalTransform, UiRect, UiScale, UiSystems, percent, px, widget::Text,
+        AlignItems, ComputedNode, FlexDirection, Node, Overflow, PositionType, ScrollPosition,
+        UiGlobalTransform, UiRect, UiScale, UiSystems, percent, px, widget::Text,
     },
     utils::default,
     window::SystemCursorIcon,
@@ -50,8 +46,8 @@ use crate::{
         tokens::{BUTTON_BG, PANE_BG, PANE_TAB_ACTIVE, TEXT_MAIN, WINDOW_BG},
     },
     widget::{
-        ContextMenu, ContextMenuMark, EntityCursor, OverrideCursor, ScrollArea, ScrollAxis,
-        Scrollbar, ScrollbarThumb,
+        ContextMenu, ContextMenuMark, EntityContextMenu, EntityCursor, OverrideCursor, ScrollArea,
+        ScrollAxis, Scrollbar, ScrollbarThumb,
     },
     window::EditorWindow,
 };
@@ -187,14 +183,19 @@ fn spawn_pane<'a>(
                         });
 
                     for tab in tabs {
-                        spawn_tab(commands.commands_mut(), asset_server, root, tab)
+                        let id = spawn_tab(commands.commands_mut(), asset_server, root, tab)
                             .insert(ChildOf(tabgroup))
-                            .insert(tab_context_menu())
                             .observe(on_tab_press)
                             .observe(on_tab_drag_start)
                             .observe(on_tab_drag)
                             .observe(on_tab_drag_end)
-                            .observe(on_tab_drag_cancel);
+                            .observe(on_tab_drag_cancel)
+                            .id();
+
+                        commands
+                            .commands_mut()
+                            .entity(id)
+                            .insert(EntityContextMenu(tab_context_menu(id)));
                     }
 
                     let drop_indicator = commands
@@ -293,8 +294,8 @@ fn spawn_pane<'a>(
     commands.entity(root)
 }
 
-fn tab_context_menu() -> ContextMenu {
-    ContextMenu::new().with_option(true, ContextMenuMark::None, "Close", |world, tab| {
+fn tab_context_menu(tab: Entity) -> ContextMenu {
+    ContextMenu::new().with_option(true, ContextMenuMark::None, "Close", move |world| {
         world.commands().entity(tab).despawn();
         Ok(())
     })
@@ -825,7 +826,6 @@ fn spawn_divider<'a>(
 struct ResizeHandleDragState {
     is_dragging: bool,
     parent_node_size: f32,
-    block: Option<Entity>,
 }
 
 fn spawn_resize_handle<'a>(commands: &'a mut Commands, divider: Divider) -> EntityCommands<'a> {
@@ -857,8 +857,7 @@ fn spawn_resize_handle<'a>(commands: &'a mut Commands, divider: Divider) -> Enti
                   mut drag_state: ResMut<ResizeHandleDragState>,
                   parents: Query<&ChildOf>,
                   computed_nodes: Query<&ComputedNode>,
-                  mut override_cursor: ResMut<OverrideCursor>,
-                  mut commands: Commands|
+                  mut override_cursor: ResMut<OverrideCursor>|
                   -> Result {
                 if trigger.button != PointerButton::Primary {
                     return Ok(());

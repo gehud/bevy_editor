@@ -50,7 +50,7 @@ use crate::{
         constants::fonts::REGULAR,
         tokens::{BORDER, PANE_BG, TEXT_HEADING, TEXT_MAIN, WINDOW_BG},
     },
-    widget::{ContextMenu, EditorWidgetPlugins, MenuButton},
+    widget::{ContextMenu, ContextMenuMark, EditorWidgetPlugins, MenuBar, MenuButton},
     window::{EditorWindow, EditorWindowPlugin, IsWindowMaximized, PrimaryWindowConfigured},
 };
 
@@ -162,22 +162,31 @@ fn setup(
 
                     // Menu
                     commands
-                        .spawn(Node {
-                            align_items: AlignItems::Center,
-                            column_gap: px(4),
-                            ..default()
-                        })
+                        .spawn((
+                            MenuBar,
+                            Node {
+                                align_items: AlignItems::Center,
+                                column_gap: px(4),
+                                ..default()
+                            },
+                        ))
                         .with_children(|commands| {
                             let menu = commands.target_entity();
-                            spawn_menu_button(commands.commands_mut(), "File", ContextMenu::new())
+                            spawn_menu_button(commands.commands_mut(), "File", tmp_context_menu())
                                 .insert(ChildOf(menu));
-                            spawn_menu_button(commands.commands_mut(), "Edit", ContextMenu::new())
+                            spawn_menu_button(commands.commands_mut(), "Edit", tmp_context_menu())
                                 .insert(ChildOf(menu));
                         });
                 });
         });
 
     Ok(())
+}
+
+fn tmp_context_menu() -> ContextMenu {
+    ContextMenu::new()
+        .with_option(true, ContextMenuMark::None, "Option 1", |world| Ok(()))
+        .with_option(true, ContextMenuMark::None, "Option 2", |world| Ok(()))
 }
 
 fn spawn_menu_button<'a>(
@@ -187,6 +196,7 @@ fn spawn_menu_button<'a>(
 ) -> EntityCommands<'a> {
     let root = commands
         .spawn((
+            MenuButton(menu),
             Node {
                 padding: UiRect::horizontal(px(8)).with_top(px(4)).with_bottom(px(4)),
                 border_radius: RoundedCorners::All.to_border_radius(6.0),
@@ -208,7 +218,6 @@ fn spawn_menu_button<'a>(
         })
         .with_children(|commands| {
             commands.spawn((
-                MenuButton(menu),
                 Text::new(label.into()),
                 ThemeTextColor(TEXT_HEADING),
                 ThemeTextFont(TEXT_MAIN),
