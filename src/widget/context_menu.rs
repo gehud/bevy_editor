@@ -38,7 +38,7 @@ use crate::{
         constants::fonts::REGULAR,
         tokens::{BORDER, BUTTON_TEXT, PANE_TAB_ACTIVE, TEXT_DIM, TEXT_MAIN, WINDOW_BG},
     },
-    window::EditorWindow,
+    window::{EditorWindow, EditorWindowStructure},
 };
 
 #[derive(Clone, Copy, Default, Debug, PartialEq, Eq)]
@@ -181,7 +181,7 @@ fn spawn_menus(
     world: &mut World,
     state: &mut SystemState<(
         MessageReader<SpawnContextMenu>,
-        Query<&EditorWindow>,
+        Query<&EditorWindowStructure>,
         Res<AssetServer>,
         Commands,
     )>,

@@ -8,11 +8,10 @@ mod menu;
 use bevy::{
     DefaultPlugins,
     app::{App, Plugin, PluginGroup},
-    asset::AssetServer,
     ecs::{
         error::Result,
         observer::On,
-        system::{Commands, Query, Res, ResMut},
+        system::{Commands, Query, ResMut},
     },
     ui::{AlignItems, FlexDirection, Node, UiRect, UiScale, percent, px},
     utils::default,
@@ -27,7 +26,7 @@ use crate::{
     },
     theme::EditorThemePlugin,
     widget::EditorWidgetPlugins,
-    window::{EditorWindow, EditorWindowPlugin, IsWindowMaximized, PrimaryWindowConfigured},
+    window::{EditorWindowPlugin, EditorWindowStructure, PrimaryEditorWindowConfigured},
 };
 
 #[derive(Default)]
@@ -55,16 +54,14 @@ impl Plugin for EditorPlugin {
 }
 
 fn setup(
-    trigger: On<PrimaryWindowConfigured>,
-    editor_windows: Query<&EditorWindow>,
-    mut windows: Query<&mut IsWindowMaximized>,
+    trigger: On<PrimaryEditorWindowConfigured>,
+    mut editor_windows: Query<&EditorWindowStructure>,
     mut commands: Commands,
     mut ui_scale: ResMut<UiScale>,
 ) -> Result {
     // ui_scale.0 = 1.5;
-    // windows.get_mut(trigger.entity)?.0 = true;
 
-    let editor_window = editor_windows.get(trigger.entity)?;
+    let editor_window = editor_windows.get_mut(trigger.entity)?;
 
     commands
         .entity(editor_window.content())

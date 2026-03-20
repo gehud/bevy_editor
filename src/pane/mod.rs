@@ -5,9 +5,21 @@ use bevy::{
     asset::AssetServer,
     camera::{NormalizedRenderTarget, visibility::Visibility},
     ecs::{
-        component::Component, entity::{ContainsEntity, Entity}, error::Result, event::EntityEvent, hierarchy::{ChildOf, Children}, lifecycle::{Add, Remove}, message::Message, observer::On, query::{Changed, Or, With}, resource::Resource, schedule::{IntoScheduleConfigs, common_conditions::resource_changed}, system::{
+        component::Component,
+        entity::{ContainsEntity, Entity},
+        error::Result,
+        event::EntityEvent,
+        hierarchy::{ChildOf, Children},
+        lifecycle::{Add, Remove},
+        message::Message,
+        observer::On,
+        query::{Changed, Or, With},
+        resource::Resource,
+        schedule::{IntoScheduleConfigs, common_conditions::resource_changed},
+        system::{
             BoxedSystem, Commands, EntityCommands, In, IntoSystem, Query, Res, ResMut, SystemId,
-        }, world::{Mut, World}
+        },
+        world::{Mut, World},
     },
     log::warn,
     picking::{
@@ -38,7 +50,7 @@ use crate::{
         ContextMenu, ContextMenuMark, EntityContextMenu, EntityCursor, OverrideCursor, ScrollArea,
         ScrollAxis, Scrollbar, ScrollbarThumb,
     },
-    window::EditorWindow,
+    window::{EditorWindow, EditorWindowStructure},
 };
 
 pub const PANE_BORDER_RADIUS: f32 = 6.0;
@@ -69,7 +81,7 @@ impl Plugin for EditorPanePlugin {
 
 #[derive(Message)]
 pub struct OpenPane {
-    pub name: String
+    pub name: String,
 }
 
 #[derive(Component)]
@@ -446,7 +458,7 @@ fn on_tab_press(
 
 fn on_tab_drag_start(
     trigger: On<Pointer<DragStart>>,
-    editor_windows: Query<&EditorWindow>,
+    editor_windows: Query<&EditorWindowStructure>,
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     tabs: Query<(&PaneTab, &PaneRef)>,
