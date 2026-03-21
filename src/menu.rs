@@ -1,3 +1,5 @@
+use std::env;
+
 use bevy::{
     app::{App, Plugin, Update},
     asset::AssetServer,
@@ -21,6 +23,7 @@ use bevy::{
 };
 
 use crate::{
+    PLAY_MODE_VAR,
     pane::{OpenPane, PaneRegistry},
     theme::{
         RoundedCorners, ThemeBackgroundColor, ThemeBorderColor, ThemeTextColor, ThemeTextFont,
@@ -105,44 +108,35 @@ fn setup(trigger: On<Add, EditorMenuRoot>, assets: Res<AssetServer>, mut command
                 ..default()
             })
             .with_children(|commands| {
-                commands
-                    .spawn((
-                        Node {
-                            height: px(22),
-                            border: UiRect::all(px(1)),
-                            border_radius: RoundedCorners::All.to_border_radius(5.0),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            column_gap: px(6),
-                            padding: UiRect::horizontal(px(6)),
-                            ..default()
-                        },
-                        ThemeBorderColor::all(BORDER),
-                        ThemeBackgroundColor(BUTTON_BG),
-                    ))
-                    .with_children(|commands| {
-                        commands.spawn((
+                if env::var(PLAY_MODE_VAR).is_ok() {
+                    commands
+                        .spawn((
                             Node {
-                                width: px(13),
-                                height: px(13),
+                                height: px(22),
+                                border: UiRect::all(px(1)),
+                                border_radius: RoundedCorners::All.to_border_radius(5.0),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::Center,
+                                padding: UiRect::horizontal(px(6)),
                                 ..default()
                             },
-                            ImageNode::new(
-                                assets.load("embedded://bevy_editor/assets/theme/icons/play.png"),
-                            ),
-                        ));
-
-                        commands.spawn((
-                            Node {
-                                width: px(13),
-                                height: px(13),
-                                ..default()
-                            },
-                            ImageNode::new(
-                                assets.load("embedded://bevy_editor/assets/theme/icons/pause.png"),
-                            ),
-                        ));
-                    });
+                            ThemeBorderColor::all(BORDER),
+                            ThemeBackgroundColor(BUTTON_BG),
+                        ))
+                        .with_children(|commands| {
+                            commands.spawn((
+                                Node {
+                                    width: px(13),
+                                    height: px(13),
+                                    ..default()
+                                },
+                                ImageNode::new(
+                                    assets
+                                        .load("embedded://bevy_editor/assets/theme/icons/play.png"),
+                                ),
+                            ));
+                        });
+                }
             });
     });
 }

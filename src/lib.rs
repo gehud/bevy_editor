@@ -5,6 +5,8 @@ pub mod window;
 
 mod menu;
 
+use std::env;
+
 use bevy::{
     DefaultPlugins,
     app::{App, Plugin, PluginGroup, PreUpdate, Update},
@@ -123,4 +125,18 @@ fn setup(
         });
 
     Ok(())
+}
+
+pub const PLAY_MODE_VAR: &'static str = "BEVY_EDITOR_PLAY";
+
+pub fn is_play_mode() -> bool {
+    let Ok(var) = env::var(PLAY_MODE_VAR) else {
+        return false;
+    };
+
+    let Ok(value) = var.parse::<bool>() else {
+        return false;
+    };
+
+    value
 }

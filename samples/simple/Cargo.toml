@@ -1,0 +1,12 @@
+[package]
+name = "Simple"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+editor = []
+default = ["editor"]
+
+[dependencies]
+bevy = "0.18.1"
+bevy_editor = "0.1.0"
