@@ -21,14 +21,15 @@ use bevy::{
         },
         world::{Mut, World},
     },
-    log::warn,
+    log::{info, warn},
     picking::{
         Pickable,
         events::{
-            Cancel, Drag, DragDrop, DragEnd, DragEnter, DragLeave, DragOver, DragStart, Pointer,
-            Press,
+            Cancel, Drag, DragDrop, DragEnd, DragEnter, DragLeave, DragOver, DragStart, Move,
+            Pointer, Press,
         },
-        pointer::PointerButton,
+        hover::HoverMap,
+        pointer::{PointerButton, PointerId, PointerLocation},
     },
     platform::collections::HashMap,
     text::TextFont,
@@ -172,7 +173,6 @@ fn spawn_pane<'a>(
                             .insert(ChildOf(tabgroup))
                             .observe(on_tab_press)
                             .observe(on_tab_drag_start)
-                            .observe(on_tab_drag)
                             .observe(on_tab_drag_end)
                             .observe(on_tab_drag_cancel)
                             .id();
@@ -477,15 +477,26 @@ fn on_tab_drag_start(
     Ok(())
 }
 
-fn on_tab_drag(
-    trigger: On<Pointer<Drag>>,
+fn on_tab_drag_over(
+    trigger: On<Pointer<DragOver>>,
     dragged_tabs: Query<&DraggedTab>,
+    parents: Query<&ChildOf>,
     mut nodes: Query<&mut Node>,
     ui_scale: Res<UiScale>,
+    mut commands: Commands,
 ) -> Result {
-    let Ok(dragged_tab) = dragged_tabs.get(trigger.entity) else {
+    let Ok(dragged_tab) = dragged_tabs.get(trigger.dragged) else {
         return Ok(());
     };
+
+    let indicator_root = parents.get(dragged_tab.indicator)?.parent();
+    info!("{}", indicator_root);
+
+    if indicator_root != trigger.entity {
+        commands
+            .entity(trigger.entity)
+            .add_child(dragged_tab.indicator);
+    }
 
     let mut indicator = nodes.get_mut(dragged_tab.indicator)?;
 
@@ -981,6 +992,20 @@ fn on_open_pane(
     }
 }
 
+fn setup_window(
+    trigger: On<EditorWindowConfigured>,
+    editor_windows: Query<&EditorWindowStructure>,
+    mut commands: Commands,
+) -> Result {
+    let editor_window = editor_windows.get(trigger.entity)?;
+
+    commands
+        .entity(editor_window.area())
+        .observe(on_tab_drag_over);
+
+    Ok(())
+}
+
 fn setup_pane_window(
     trigger: On<EditorWindowConfigured>,
     spawned_pane_windows: Query<&SpawnedPaneWindow>,
@@ -1079,6 +1104,7 @@ impl Plugin for EditorPanePlugin {
                 ),
             )
             .add_systems(PostUpdate, apply_size.before(UiSystems::Layout))
+            .add_observer(setup_window)
             .add_observer(setup_pane_window)
             .add_observer(init);
     }

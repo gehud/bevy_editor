@@ -6,16 +6,9 @@ pub mod window;
 mod menu;
 
 use bevy::{
-    DefaultPlugins,
-    app::{App, Plugin, PluginGroup},
-    ecs::{
-        error::Result,
-        observer::On,
-        system::{Commands, Query, ResMut},
-    },
-    ui::{AlignItems, FlexDirection, Node, UiRect, UiScale, percent, px},
-    utils::default,
-    window::{Window, WindowPlugin},
+    DefaultPlugins, app::{App, Plugin, PluginGroup, Update}, camera::Camera, ecs::{
+        entity::Entity, error::Result, observer::On, query::With, system::{Commands, Query, ResMut}
+    }, log::info, picking::pointer::{PointerId, PointerLocation}, ui::{AlignItems, FlexDirection, Node, UiRect, UiScale, percent, px}, utils::default, window::{ExitCondition, Window, WindowPlugin}
 };
 
 use crate::{
@@ -41,6 +34,7 @@ impl Plugin for EditorPlugin {
                 transparent: true,
                 ..default()
             }),
+            exit_condition: ExitCondition::OnPrimaryClosed,
             ..default()
         }))
         .add_plugins(EditorThemePlugin)

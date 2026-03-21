@@ -10,14 +10,17 @@ use bevy::{
         error::Result,
         event::EntityEvent,
         hierarchy::{ChildOf, Children},
+        lifecycle::{Despawn, HookContext, Remove},
+        message::MessageReader,
         observer::On,
         query::{Added, Changed, With},
         reflect::ReflectComponent,
         schedule::IntoScheduleConfigs,
         system::{Commands, EntityCommands, In, Query, Res, Single, SystemState},
-        world::World,
+        world::{DeferredWorld, World},
     },
     image::Image,
+    log::info,
     math::CompassOctant,
     picking::{
         Pickable,
@@ -29,7 +32,7 @@ use bevy::{
         UiTargetCamera, Val, percent, px, widget::ImageNode,
     },
     utils::default,
-    window::{PrimaryWindow, SystemCursorIcon, Window, WindowRef},
+    window::{PrimaryWindow, SystemCursorIcon, Window, WindowEvent, WindowRef},
     winit::WINIT_WINDOWS,
 };
 
@@ -49,9 +52,11 @@ pub const WINDOW_BUTTON_RADIUS: f32 = WINDOW_BUTTON_SIZE / 2.0;
 #[derive(Clone, Component, Debug, Reflect)]
 #[reflect(Clone, Component, Debug)]
 pub struct EditorWindowStructure {
+    camera: Entity,
     root: Entity,
     titlebar: Entity,
     content: Entity,
+    area: Entity,
     maximize: Entity,
 }
 
@@ -66,6 +71,10 @@ impl EditorWindowStructure {
 
     pub fn content(&self) -> Entity {
         self.content
+    }
+
+    pub fn area(&self) -> Entity {
+        self.area
     }
 }
 
@@ -114,6 +123,7 @@ fn configure_windows(
 
         let mut titlebar = Entity::PLACEHOLDER;
         let mut content = Entity::PLACEHOLDER;
+        let mut area = Entity::PLACEHOLDER;
         let mut maximize = Entity::PLACEHOLDER;
 
         let root = commands
@@ -232,8 +242,7 @@ fn configure_windows(
                                 commands.target_entity(),
                                 &mut commands.commands(),
                                 window,
-                                assets
-                                    .load("embedded://bevy_editor/assets/window/icons/close.png"),
+                                assets.load("embedded://bevy_editor/assets/window/icons/close.png"),
                             )
                             .observe(
                                 |trigger: On<Pointer<Click>>,
@@ -251,11 +260,14 @@ fn configure_windows(
 
             // User content
             content = commands
-                .spawn(Node {
-                    width: percent(100),
-                    height: percent(100),
-                    ..default()
-                })
+                .spawn((
+                    Node {
+                        width: percent(100),
+                        height: percent(100),
+                        ..default()
+                    },
+                    Pickable::IGNORE,
+                ))
                 .id();
 
             // North resize
@@ -461,14 +473,39 @@ fn configure_windows(
                         Ok(())
                     },
                 );
+
+            area = commands
+                .spawn((
+                    Pickable {
+                        should_block_lower: false,
+                        ..default()
+                    },
+                    Node {
+                        position_type: PositionType::Absolute,
+                        width: percent(100),
+                        height: percent(100),
+                        ..default()
+                    },
+                ))
+                .id();
         });
 
-        commands.entity(window).insert(EditorWindowStructure {
-            root,
-            titlebar,
-            content,
-            maximize,
-        });
+        commands
+            .entity(window)
+            .insert(EditorWindowStructure {
+                camera,
+                root,
+                titlebar,
+                content,
+                area,
+                maximize,
+            })
+            .observe(
+                move |_: On<Remove, EditorWindowStructure>, mut commands: Commands| {
+                    commands.entity(root).despawn();
+                    commands.entity(camera).despawn();
+                },
+            );
 
         commands.trigger(EditorWindowConfigured { entity: window });
 
@@ -609,13 +646,29 @@ fn maximize_windows(
     Ok(())
 }
 
+fn auto_focus(
+    mut window_events: MessageReader<WindowEvent>,
+    mut windows: Query<&mut Window>,
+) -> Result {
+    for window_event in window_events.read() {
+        match window_event {
+            WindowEvent::CursorEntered(entered) => {
+                windows.get_mut(entered.window)?.focused = true;
+            }
+            _ => {}
+        }
+    }
+
+    Ok(())
+}
+
 pub struct EditorWindowPlugin;
 
 impl Plugin for EditorWindowPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(ClearColor(Color::NONE))
             .add_systems(First, (configure_windows, check_actually_maximized).chain())
-            .add_systems(Update, maximize_windows);
+            .add_systems(Update, (maximize_windows, auto_focus));
 
         embedded_asset!(app, "src/window", "assets/window/icons/close.png");
         embedded_asset!(app, "src/window", "assets/window/icons/maximize.png");
