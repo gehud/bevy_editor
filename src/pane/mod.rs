@@ -29,7 +29,7 @@ use bevy::{
             Pointer, Press,
         },
         hover::HoverMap,
-        pointer::{PointerButton, PointerId, PointerLocation},
+        pointer::{PointerButton, PointerId, PointerLocation, PointerMap},
     },
     platform::collections::HashMap,
     text::TextFont,
@@ -38,7 +38,7 @@ use bevy::{
         UiGlobalTransform, UiRect, UiScale, UiSystems, percent, px, widget::Text,
     },
     utils::default,
-    window::{SystemCursorIcon, Window},
+    window::{SystemCursorIcon, Window, WindowEvent},
 };
 
 use crate::{
@@ -51,7 +51,10 @@ use crate::{
         ContextMenu, ContextMenuMark, EntityContextMenu, EntityCursor, OverrideCursor, ScrollArea,
         ScrollAxis, Scrollbar, ScrollbarThumb,
     },
-    window::{EditorWindow, EditorWindowConfigured, EditorWindowStructure},
+    window::{
+        EditorWindow, EditorWindowAutoFocus, EditorWindowConfigured, EditorWindowDropLocation,
+        EditorWindowStructure,
+    },
 };
 
 pub const PANE_BORDER_RADIUS: f32 = 6.0;
@@ -173,6 +176,7 @@ fn spawn_pane<'a>(
                             .insert(ChildOf(tabgroup))
                             .observe(on_tab_press)
                             .observe(on_tab_drag_start)
+                            .observe(on_tab_drag)
                             .observe(on_tab_drag_end)
                             .observe(on_tab_drag_cancel)
                             .id();
@@ -440,6 +444,7 @@ fn on_tab_drag_start(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     tabs: Query<(&PaneTab, &PaneRef)>,
+    mut auto_focus: ResMut<EditorWindowAutoFocus>,
     mut override_cursor: ResMut<OverrideCursor>,
 ) -> Result {
     if trigger.button != PointerButton::Primary {
@@ -472,36 +477,53 @@ fn on_tab_drag_start(
         drop_index: 0,
     });
 
+    auto_focus.0 = true;
     override_cursor.0 = Some(EntityCursor::System(SystemCursorIcon::Grabbing));
 
     Ok(())
 }
 
-fn on_tab_drag_over(
-    trigger: On<Pointer<DragOver>>,
+fn on_tab_drag(
+    trigger: On<Pointer<Drag>>,
     dragged_tabs: Query<&DraggedTab>,
+    pointer_map: Res<PointerMap>,
+    pointers: Query<&EditorWindowDropLocation>,
+    editor_windows: Query<&EditorWindowStructure>,
     parents: Query<&ChildOf>,
     mut nodes: Query<&mut Node>,
     ui_scale: Res<UiScale>,
     mut commands: Commands,
 ) -> Result {
-    let Ok(dragged_tab) = dragged_tabs.get(trigger.dragged) else {
+    let Ok(dragged_tab) = dragged_tabs.get(trigger.entity) else {
         return Ok(());
     };
 
-    let indicator_root = parents.get(dragged_tab.indicator)?.parent();
-    info!("{}", indicator_root);
+    let Some(location) = pointers
+        .get(pointer_map.get_entity(trigger.pointer_id).unwrap())?
+        .location
+        .clone()
+    else {
+        return Ok(());
+    };
 
-    if indicator_root != trigger.entity {
+    let NormalizedRenderTarget::Window(window_ref) = location.target else {
+        return Ok(());
+    };
+
+    let editor_window = editor_windows.get(window_ref.entity())?;
+
+    let indicator_root = parents.get(dragged_tab.indicator)?.parent();
+
+    if indicator_root != editor_window.root() {
         commands
-            .entity(trigger.entity)
+            .entity(editor_window.root())
             .add_child(dragged_tab.indicator);
     }
 
     let mut indicator = nodes.get_mut(dragged_tab.indicator)?;
 
-    indicator.left = px(trigger.pointer_location.position.x / ui_scale.0);
-    indicator.top = px(trigger.pointer_location.position.y / ui_scale.0);
+    indicator.left = px(location.position.x / ui_scale.0);
+    indicator.top = px(location.position.y / ui_scale.0);
 
     Ok(())
 }
@@ -509,6 +531,7 @@ fn on_tab_drag_over(
 fn on_tab_drag_end(
     trigger: On<Pointer<DragEnd>>,
     dragged_tabs: Query<&DraggedTab>,
+    mut auto_focus: ResMut<EditorWindowAutoFocus>,
     mut commands: Commands,
     mut override_cursor: ResMut<OverrideCursor>,
 ) {
@@ -519,11 +542,13 @@ fn on_tab_drag_end(
     commands.entity(dragged_tab.indicator).despawn();
     commands.entity(trigger.entity).remove::<DraggedTab>();
     override_cursor.0 = None;
+    auto_focus.0 = false;
 }
 
 fn on_tab_drag_cancel(
     trigger: On<Pointer<Cancel>>,
     dragged_tabs: Query<&DraggedTab>,
+    mut auto_focus: ResMut<EditorWindowAutoFocus>,
     mut commands: Commands,
     mut override_cursor: ResMut<OverrideCursor>,
 ) {
@@ -534,6 +559,7 @@ fn on_tab_drag_cancel(
     commands.entity(dragged_tab.indicator).despawn();
     commands.entity(trigger.entity).remove::<DraggedTab>();
     override_cursor.0 = None;
+    auto_focus.0 = false;
 }
 
 fn spawn_tab<'a>(
@@ -992,20 +1018,6 @@ fn on_open_pane(
     }
 }
 
-fn setup_window(
-    trigger: On<EditorWindowConfigured>,
-    editor_windows: Query<&EditorWindowStructure>,
-    mut commands: Commands,
-) -> Result {
-    let editor_window = editor_windows.get(trigger.entity)?;
-
-    commands
-        .entity(editor_window.area())
-        .observe(on_tab_drag_over);
-
-    Ok(())
-}
-
 fn setup_pane_window(
     trigger: On<EditorWindowConfigured>,
     spawned_pane_windows: Query<&SpawnedPaneWindow>,
@@ -1104,7 +1116,6 @@ impl Plugin for EditorPanePlugin {
                 ),
             )
             .add_systems(PostUpdate, apply_size.before(UiSystems::Layout))
-            .add_observer(setup_window)
             .add_observer(setup_pane_window)
             .add_observer(init);
     }

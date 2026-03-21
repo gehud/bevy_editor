@@ -1,12 +1,12 @@
 use bevy::{
-    app::{App, First, Plugin, Update},
+    app::{App, First, Plugin, PreUpdate, Update},
     asset::{AssetServer, Handle, embedded_asset},
-    camera::{Camera2d, ClearColor, RenderTarget},
+    camera::{Camera2d, ClearColor, NormalizedRenderTarget, RenderTarget},
     color::Color,
     ecs::{
         change_detection::DetectChangesMut,
         component::Component,
-        entity::Entity,
+        entity::{ContainsEntity, Entity},
         error::Result,
         event::EntityEvent,
         hierarchy::{ChildOf, Children},
@@ -15,24 +15,29 @@ use bevy::{
         observer::On,
         query::{Added, Changed, With},
         reflect::ReflectComponent,
+        resource::Resource,
         schedule::IntoScheduleConfigs,
         system::{Commands, EntityCommands, In, Query, Res, Single, SystemState},
         world::{DeferredWorld, World},
     },
     image::Image,
     log::info,
-    math::CompassOctant,
+    math::{CompassOctant, Vec2},
     picking::{
-        Pickable,
+        Pickable, PickingSystems,
         events::{Click, Out, Over, Pointer, Press},
+        pointer::{Location, PointerId, PointerLocation},
     },
-    reflect::Reflect,
+    reflect::{Reflect, prelude::ReflectDefault},
     ui::{
         AlignItems, BackgroundColor, FlexDirection, JustifyContent, Node, PositionType, UiRect,
         UiTargetCamera, Val, percent, px, widget::ImageNode,
     },
     utils::default,
-    window::{PrimaryWindow, SystemCursorIcon, Window, WindowEvent, WindowRef},
+    window::{
+        CursorGrabMode, CursorOptions, NormalizedWindowRef, PrimaryWindow, SystemCursorIcon,
+        Window, WindowEvent, WindowRef,
+    },
     winit::WINIT_WINDOWS,
 };
 
@@ -56,7 +61,6 @@ pub struct EditorWindowStructure {
     root: Entity,
     titlebar: Entity,
     content: Entity,
-    area: Entity,
     maximize: Entity,
 }
 
@@ -71,10 +75,6 @@ impl EditorWindowStructure {
 
     pub fn content(&self) -> Entity {
         self.content
-    }
-
-    pub fn area(&self) -> Entity {
-        self.area
     }
 }
 
@@ -123,7 +123,6 @@ fn configure_windows(
 
         let mut titlebar = Entity::PLACEHOLDER;
         let mut content = Entity::PLACEHOLDER;
-        let mut area = Entity::PLACEHOLDER;
         let mut maximize = Entity::PLACEHOLDER;
 
         let root = commands
@@ -473,21 +472,6 @@ fn configure_windows(
                         Ok(())
                     },
                 );
-
-            area = commands
-                .spawn((
-                    Pickable {
-                        should_block_lower: false,
-                        ..default()
-                    },
-                    Node {
-                        position_type: PositionType::Absolute,
-                        width: percent(100),
-                        height: percent(100),
-                        ..default()
-                    },
-                ))
-                .id();
         });
 
         commands
@@ -497,7 +481,6 @@ fn configure_windows(
                 root,
                 titlebar,
                 content,
-                area,
                 maximize,
             })
             .observe(
@@ -646,20 +629,104 @@ fn maximize_windows(
     Ok(())
 }
 
+#[derive(Clone, Copy, Debug, Default, Reflect, Resource)]
+pub struct EditorWindowAutoFocus(pub bool);
+
 fn auto_focus(
+    auto_focus: Res<EditorWindowAutoFocus>,
     mut window_events: MessageReader<WindowEvent>,
-    mut windows: Query<&mut Window>,
-) -> Result {
+    mut windows: Query<&mut Window, With<EditorWindow>>,
+) {
+    if !auto_focus.0 {
+        window_events.clear();
+        return;
+    }
+
     for window_event in window_events.read() {
         match window_event {
             WindowEvent::CursorEntered(entered) => {
-                windows.get_mut(entered.window)?.focused = true;
+                if let Ok(mut window) = windows.get_mut(entered.window) {
+                    window.focused = true;
+                };
             }
             _ => {}
         }
     }
+}
 
-    Ok(())
+#[derive(Debug, Default, Clone, Component, Reflect, PartialEq)]
+#[reflect(Component, Default, Debug, PartialEq, Clone)]
+pub struct EditorWindowDropLocation {
+    pub location: Option<Location>,
+}
+
+fn insert_pointer_drop_location(pointers: Query<Entity, Added<PointerId>>, mut commands: Commands) {
+    for pointer in pointers {
+        commands
+            .entity(pointer)
+            .insert(EditorWindowDropLocation::default());
+    }
+}
+
+fn update_pointer_drop_location(
+    world: &mut World,
+    state: &mut SystemState<(
+        Query<(&PointerLocation, &mut EditorWindowDropLocation)>,
+        Query<(Entity, &Window), With<EditorWindow>>,
+        Single<Entity, With<PrimaryWindow>>,
+    )>,
+) {
+    let (pointers, editor_windows, primary_window) = state.get_mut(world);
+
+    for (pointer_location, mut drop_location) in pointers {
+        drop_location.location = None;
+
+        let Some(location) = &pointer_location.location else {
+            continue;
+        };
+
+        let NormalizedRenderTarget::Window(window_ref) = location.target else {
+            continue;
+        };
+
+        let Ok((source, _)) = editor_windows.get(window_ref.entity()) else {
+            continue;
+        };
+
+        let Some((destination, _)) = editor_windows.iter().find(|(_, window)| window.focused)
+        else {
+            continue;
+        };
+
+        if source == destination {
+            drop_location.location = Some(location.clone());
+            continue;
+        }
+
+        WINIT_WINDOWS.with_borrow(|winit_windows| {
+            let source_window = winit_windows.get_window(source).unwrap();
+            let source_window_position = source_window.inner_position().unwrap_or_default();
+            let source_absolute_position = Vec2 {
+                x: source_window_position.x as f32 + location.position.x,
+                y: source_window_position.y as f32 + location.position.y,
+            };
+
+            let destination_window = winit_windows.get_window(destination).unwrap();
+            let destination_window_position =
+                destination_window.inner_position().unwrap_or_default();
+            let destination_absolute_position = Vec2 {
+                x: source_absolute_position.x - destination_window_position.x as f32,
+                y: source_absolute_position.y - destination_window_position.y as f32,
+            };
+
+            drop_location.location = Some(Location {
+                position: destination_absolute_position,
+                target: RenderTarget::Window(WindowRef::Entity(destination))
+                    .normalize(Some(*primary_window))
+                    .unwrap(),
+            });
+        });
+    }
 }
 
 pub struct EditorWindowPlugin;
@@ -667,7 +734,14 @@ pub struct EditorWindowPlugin;
 impl Plugin for EditorWindowPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(ClearColor(Color::NONE))
+            .init_resource::<EditorWindowAutoFocus>()
             .add_systems(First, (configure_windows, check_actually_maximized).chain())
+            .add_systems(
+                PreUpdate,
+                (insert_pointer_drop_location, update_pointer_drop_location)
+                    .chain()
+                    .in_set(PickingSystems::Last),
+            )
             .add_systems(Update, (maximize_windows, auto_focus));
 
         embedded_asset!(app, "src/window", "assets/window/icons/close.png");
