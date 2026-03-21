@@ -27,7 +27,7 @@ use bevy::{
     state::{app::AppExtStates, condition::in_state, state::States},
     ui::{AlignItems, FlexDirection, JustifyContent, Node, UiRect, UiScale, percent, px},
     utils::default,
-    window::{ExitCondition, Window, WindowPlugin},
+    window::{ExitCondition, Window, WindowPlugin}, winit::WinitSettings,
 };
 
 use crate::{
@@ -63,6 +63,7 @@ impl Plugin for EditorPlugin {
         .add_plugins(SceneTreePanePlugin)
         .add_plugins(ViewportPanePlugin)
         .add_plugins(EditorMenuPlugin)
+        .insert_resource(WinitSettings::desktop_app())
         .add_observer(setup);
     }
 }
