@@ -2,32 +2,19 @@ mod camera;
 mod grid;
 
 use bevy::{
-    app::{App, First, Plugin, PostUpdate, Startup},
-    asset::{Assets, RenderAssetUsages, uuid::Uuid},
-    camera::{Camera, Camera3d, ClearColorConfig, NormalizedRenderTarget, RenderTarget},
+    app::{App, Plugin, Startup},
+    asset::{Assets, RenderAssetUsages},
+    camera::{Camera, Camera3d, ClearColorConfig, RenderTarget},
     ecs::{
-        component::Component,
-        entity::Entity,
         lifecycle::Despawn,
-        message::MessageReader,
         observer::On,
-        query::{Changed, With},
-        schedule::IntoScheduleConfigs,
-        system::{Commands, In, Query, ResMut},
+        system::{Commands, In, ResMut},
     },
     image::{BevyDefault, Image},
     math::Vec3,
-    picking::{
-        PickingSystems,
-        events::{Out, Over, Pointer},
-        pointer::{Location, PointerId, PointerInput},
-    },
-    render::render_resource::{Extent3d, TextureFormat, TextureUsages},
+    render::render_resource::{TextureDimension, TextureFormat, TextureUsages},
     transform::components::Transform,
-    ui::{
-        ComputedNode, Node, UiGlobalTransform, UiSystems, percent,
-        widget::{ImageNode, NodeImageMode},
-    },
+    ui::{Node, percent, widget::ViewportNode},
     utils::default,
 };
 
@@ -49,19 +36,9 @@ impl Plugin for ViewportPanePlugin {
         app.add_plugins(InfiniteGridPlugin)
             .add_plugins(ViewportCameraPlugin)
             .add_systems(Startup, setup_grid)
-            .add_systems(
-                PostUpdate,
-                update_render_target_size.after(UiSystems::Layout),
-            )
             .register_pane("Viewport", setup);
     }
 }
-
-#[derive(Component)]
-struct Viewport;
-
-#[derive(Component)]
-struct Active;
 
 fn setup_grid(mut commands: Commands) {
     commands.spawn((
@@ -81,9 +58,15 @@ fn setup(
     mut images: ResMut<Assets<Image>>,
     mut commands: Commands,
 ) {
-    let mut image = Image::new_target_texture(1, 1, TextureFormat::bevy_default(), None);
-    image.asset_usage = RenderAssetUsages::RENDER_WORLD;
-    image.texture_descriptor.usage |= TextureUsages::COPY_SRC;
+    let mut image = Image::new_uninit(
+        default(),
+        TextureDimension::D2,
+        TextureFormat::bevy_default(),
+        RenderAssetUsages::RENDER_WORLD,
+    );
+
+    image.texture_descriptor.usage =
+        TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST | TextureUsages::RENDER_ATTACHMENT;
 
     let image = images.add(image);
 
@@ -93,6 +76,7 @@ fn setup(
             Camera3d::default(),
             Camera {
                 clear_color: ClearColorConfig::Custom(palette::GRAY_0),
+                order: -1,
                 ..default()
             },
             RenderTarget::Image(image.clone().into()),
@@ -110,35 +94,12 @@ fn setup(
                         height: percent(100),
                         ..default()
                     },
-                    Viewport,
-                    ImageNode {
-                        image: image,
-                        image_mode: NodeImageMode::Stretch,
-                        ..default()
-                    },
+                    ViewportNode::new(camera),
                 ))
-                .observe(|trigger: On<Pointer<Over>>, mut commands: Commands| {
-                    commands.entity(trigger.entity).insert(Active);
-                })
-                .observe(|trigger: On<Pointer<Out>>, mut commands: Commands| {
-                    commands.entity(trigger.entity).remove::<Active>();
-                })
-                .observe(move |_: On<Despawn, Viewport>, mut commands: Commands| {
-                    commands.entity(camera).despawn();
-                });
+                .observe(
+                    move |_: On<Despawn, ViewportNode>, mut commands: Commands| {
+                        commands.entity(camera).despawn();
+                    },
+                );
         });
-}
-
-fn update_render_target_size(
-    viewports: Query<(&ImageNode, &ComputedNode), (With<Viewport>, Changed<ComputedNode>)>,
-    mut images: ResMut<Assets<Image>>,
-) {
-    for (image_node, node) in viewports {
-        let image = images.get_mut(&image_node.image).unwrap();
-        image.resize(Extent3d {
-            width: node.size().x.max(1.0) as u32,
-            height: node.size().y.max(1.0) as u32,
-            ..default()
-        });
-    }
 }

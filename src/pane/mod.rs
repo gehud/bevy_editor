@@ -51,10 +51,7 @@ use crate::{
         ContextMenu, ContextMenuMark, EntityContextMenu, EntityCursor, OverrideCursor, ScrollArea,
         ScrollAxis, Scrollbar, ScrollbarThumb,
     },
-    window::{
-        EditorWindow, EditorWindowAutoFocus, EditorWindowConfigured, EditorWindowDropLocation,
-        EditorWindowStructure,
-    },
+    window::{EditorWindow, EditorWindowAutoFocus, EditorWindowConfigured, EditorWindowStructure},
 };
 
 pub const PANE_BORDER_RADIUS: f32 = 6.0;
@@ -487,7 +484,7 @@ fn on_tab_drag(
     trigger: On<Pointer<Drag>>,
     dragged_tabs: Query<&DraggedTab>,
     pointer_map: Res<PointerMap>,
-    pointers: Query<&EditorWindowDropLocation>,
+    pointers: Query<&PointerLocation>,
     editor_windows: Query<&EditorWindowStructure>,
     parents: Query<&ChildOf>,
     mut nodes: Query<&mut Node>,
@@ -498,6 +495,8 @@ fn on_tab_drag(
         return Ok(());
     };
 
+    // The drag event uses the initial drag location.
+    // To correctly update the position, we need the current pointer location.
     let Some(location) = pointers
         .get(pointer_map.get_entity(trigger.pointer_id).unwrap())?
         .location

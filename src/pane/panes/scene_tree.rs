@@ -1,13 +1,11 @@
-use std::f32::consts::PI;
-
 use bevy::{
     app::{App, Plugin, Startup},
     asset::Assets,
     color::Color,
     ecs::system::{Commands, In, ResMut},
-    light::{DirectionalLight, PointLight},
+    light::PointLight,
     math::{
-        EulerRot, Quat, Vec3,
+        Quat,
         primitives::{Circle, Cuboid},
     },
     mesh::{Mesh, Mesh3d},

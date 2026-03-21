@@ -10,7 +10,7 @@ use bevy::{
         error::Result,
         event::EntityEvent,
         hierarchy::{ChildOf, Children},
-        lifecycle::{Despawn, HookContext, Remove},
+        lifecycle::Remove,
         message::MessageReader,
         observer::On,
         query::{Added, Changed, With},
@@ -18,26 +18,22 @@ use bevy::{
         resource::Resource,
         schedule::IntoScheduleConfigs,
         system::{Commands, EntityCommands, In, Query, Res, Single, SystemState},
-        world::{DeferredWorld, World},
+        world::World,
     },
     image::Image,
-    log::info,
     math::{CompassOctant, Vec2},
     picking::{
         Pickable, PickingSystems,
         events::{Click, Out, Over, Pointer, Press},
-        pointer::{Location, PointerId, PointerLocation},
+        pointer::{Location, PointerLocation},
     },
-    reflect::{Reflect, prelude::ReflectDefault},
+    reflect::Reflect,
     ui::{
         AlignItems, BackgroundColor, FlexDirection, JustifyContent, Node, PositionType, UiRect,
         UiTargetCamera, Val, percent, px, widget::ImageNode,
     },
     utils::default,
-    window::{
-        CursorGrabMode, CursorOptions, NormalizedWindowRef, PrimaryWindow, SystemCursorIcon,
-        Window, WindowEvent, WindowRef,
-    },
+    window::{PrimaryWindow, SystemCursorIcon, Window, WindowEvent, WindowRef},
     winit::WINIT_WINDOWS,
 };
 
@@ -654,34 +650,20 @@ fn auto_focus(
     }
 }
 
-#[derive(Debug, Default, Clone, Component, Reflect, PartialEq)]
-#[reflect(Component, Default, Debug, PartialEq, Clone)]
-pub struct EditorWindowDropLocation {
-    pub location: Option<Location>,
-}
-
-fn insert_pointer_drop_location(pointers: Query<Entity, Added<PointerId>>, mut commands: Commands) {
-    for pointer in pointers {
-        commands
-            .entity(pointer)
-            .insert(EditorWindowDropLocation::default());
-    }
-}
-
-fn update_pointer_drop_location(
+// Dragging from one window to another results in a strange pointer target result.
+// We need to redefine the location depending on where the window pointer is dragged.
+fn override_pointer_drag_location(
     world: &mut World,
     state: &mut SystemState<(
-        Query<(&PointerLocation, &mut EditorWindowDropLocation)>,
+        Query<&mut PointerLocation>,
         Query<(Entity, &Window), With<EditorWindow>>,
         Single<Entity, With<PrimaryWindow>>,
     )>,
 ) {
     let (pointers, editor_windows, primary_window) = state.get_mut(world);
 
-    for (pointer_location, mut drop_location) in pointers {
-        drop_location.location = None;
-
-        let Some(location) = &pointer_location.location else {
+    for mut pointer_location in pointers {
+        let Some(location) = &pointer_location.location.clone() else {
             continue;
         };
 
@@ -699,7 +681,6 @@ fn update_pointer_drop_location(
         };
 
         if source == destination {
-            drop_location.location = Some(location.clone());
             continue;
         }
 
@@ -719,7 +700,7 @@ fn update_pointer_drop_location(
                 y: source_absolute_position.y - destination_window_position.y as f32,
             };
 
-            drop_location.location = Some(Location {
+            pointer_location.location = Some(Location {
                 position: destination_absolute_position,
                 target: RenderTarget::Window(WindowRef::Entity(destination))
                     .normalize(Some(*primary_window))
@@ -738,9 +719,9 @@ impl Plugin for EditorWindowPlugin {
             .add_systems(First, (configure_windows, check_actually_maximized).chain())
             .add_systems(
                 PreUpdate,
-                (insert_pointer_drop_location, update_pointer_drop_location)
-                    .chain()
-                    .in_set(PickingSystems::Last),
+                override_pointer_drag_location
+                    .after(PickingSystems::ProcessInput)
+                    .before(PickingSystems::Backend),
             )
             .add_systems(Update, (maximize_windows, auto_focus));
 
