@@ -6,9 +6,26 @@ pub mod window;
 mod menu;
 
 use bevy::{
-    DefaultPlugins, app::{App, Plugin, PluginGroup, Update}, camera::Camera, ecs::{
-        entity::Entity, error::Result, observer::On, query::With, system::{Commands, Query, ResMut}
-    }, log::info, picking::pointer::{PointerId, PointerLocation}, ui::{AlignItems, FlexDirection, Node, UiRect, UiScale, percent, px}, utils::default, window::{ExitCondition, Window, WindowPlugin}
+    DefaultPlugins,
+    app::{App, Plugin, PluginGroup, PreUpdate, Update},
+    camera::Camera,
+    ecs::{
+        entity::Entity,
+        error::Result,
+        observer::On,
+        query::With,
+        schedule::{IntoScheduleConfigs, SystemSet},
+        system::{Commands, Query, ResMut},
+    },
+    log::info,
+    picking::{
+        Pickable,
+        pointer::{PointerId, PointerLocation},
+    },
+    state::{app::AppExtStates, condition::in_state, state::States},
+    ui::{AlignItems, FlexDirection, JustifyContent, Node, UiRect, UiScale, percent, px},
+    utils::default,
+    window::{ExitCondition, Window, WindowPlugin},
 };
 
 use crate::{
@@ -59,6 +76,21 @@ fn setup(
     let editor_window = editor_windows.get_mut(trigger.entity)?;
 
     commands
+        .entity(editor_window.titlebar())
+        .with_children(|commands| {
+            commands.spawn((
+                EditorMenuRoot,
+                Pickable::IGNORE,
+                Node {
+                    width: percent(100),
+                    height: percent(100),
+                    justify_content: JustifyContent::SpaceBetween,
+                    ..default()
+                },
+            ));
+        });
+
+    commands
         .entity(editor_window.content())
         .with_children(|commands| {
             commands
@@ -88,18 +120,6 @@ fn setup(
                         ..default()
                     });
                 });
-        });
-
-    commands
-        .entity(editor_window.titlebar())
-        .with_children(|commands| {
-            commands.spawn((
-                Node {
-                    align_items: AlignItems::Center,
-                    ..default()
-                },
-                EditorMenuRoot,
-            ));
         });
 
     Ok(())

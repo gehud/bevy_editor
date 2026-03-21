@@ -9,11 +9,12 @@ use bevy::{
         observer::On,
         query::With,
         schedule::{IntoScheduleConfigs, common_conditions::resource_changed},
-        system::{Commands, EntityCommands, Query, Res},
+        system::{Commands, EntityCommands, Query, Res, ResMut},
     },
-    picking::events::{Out, Over, Pointer},
+    picking::events::{Click, Out, Over, Pointer},
+    state::state::{NextState, State},
     ui::{
-        AlignItems, JustifyContent, Node, UiRect, px,
+        AlignItems, AlignSelf, JustifyContent, Node, UiRect, px,
         widget::{ImageNode, Text},
     },
     utils::default,
@@ -22,8 +23,9 @@ use bevy::{
 use crate::{
     pane::{OpenPane, PaneRegistry},
     theme::{
-        RoundedCorners, ThemeBackgroundColor, ThemeTextColor, ThemeTextFont, ThemeTextFontSize,
-        tokens::{PANE_BG, TEXT_HEADING, TEXT_MAIN, WINDOW_BG},
+        RoundedCorners, ThemeBackgroundColor, ThemeBorderColor, ThemeTextColor, ThemeTextFont,
+        ThemeTextFontSize,
+        tokens::{BORDER, BUTTON_BG, PANE_BG, TEXT_HEADING, TEXT_MAIN, WINDOW_BG},
     },
     widget::{ContextMenu, ContextMenuMark, MenuBar, MenuButton},
 };
@@ -93,6 +95,53 @@ fn setup(trigger: On<Add, EditorMenuRoot>, assets: Res<AssetServer>, mut command
                         let bar = commands.target_entity();
                         spawn_menu_button(commands.commands_mut(), "View", bar)
                             .insert(ViewMenuButton);
+                    });
+            });
+
+        commands
+            .spawn(Node {
+                align_items: AlignItems::Center,
+                padding: UiRect::left(px(10)),
+                ..default()
+            })
+            .with_children(|commands| {
+                commands
+                    .spawn((
+                        Node {
+                            height: px(22),
+                            border: UiRect::all(px(1)),
+                            border_radius: RoundedCorners::All.to_border_radius(5.0),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::Center,
+                            column_gap: px(6),
+                            padding: UiRect::horizontal(px(6)),
+                            ..default()
+                        },
+                        ThemeBorderColor::all(BORDER),
+                        ThemeBackgroundColor(BUTTON_BG),
+                    ))
+                    .with_children(|commands| {
+                        commands.spawn((
+                            Node {
+                                width: px(13),
+                                height: px(13),
+                                ..default()
+                            },
+                            ImageNode::new(
+                                assets.load("embedded://bevy_editor/assets/theme/icons/play.png"),
+                            ),
+                        ));
+
+                        commands.spawn((
+                            Node {
+                                width: px(13),
+                                height: px(13),
+                                ..default()
+                            },
+                            ImageNode::new(
+                                assets.load("embedded://bevy_editor/assets/theme/icons/pause.png"),
+                            ),
+                        ));
                     });
             });
     });
