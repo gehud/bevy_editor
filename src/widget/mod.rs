@@ -21,7 +21,8 @@
 use bevy::app::{Plugin, PluginGroup, PluginGroupBuilder, PostUpdate, PropagateSet};
 use bevy::asset::embedded_asset;
 use bevy::ecs::schedule::IntoScheduleConfigs;
-use bevy::input_focus::{InputDispatchPlugin, tab_navigation::TabNavigationPlugin};
+use bevy::input_focus::directional_navigation::DirectionalNavigationPlugin;
+use bevy::input_focus::{InputDispatchPlugin, InputFocusVisible};
 use bevy::text::TextFont;
 use bevy::ui::UiSystems;
 use bevy::ui_render::UiMaterialPlugin;
@@ -115,7 +116,7 @@ impl PluginGroup for EditorWidgetPlugins {
         PluginGroupBuilder::start::<Self>()
             .add_group(UiWidgetsPlugins)
             .add(InputDispatchPlugin)
-            .add(TabNavigationPlugin)
+            .add(DirectionalNavigationPlugin)
             .add(EditorWidgetPlugin)
     }
 }

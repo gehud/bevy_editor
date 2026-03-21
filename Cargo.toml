@@ -10,6 +10,7 @@ custom_cursor = ["bevy/custom_cursor"]
 [dependencies]
 bevy = { version = "0.18.1", features = [
     "debug",
+    "track_location",
     "experimental_bevy_ui_widgets",
 ] }
 accesskit = { version = "0.21" }

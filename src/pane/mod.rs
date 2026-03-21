@@ -1,10 +1,13 @@
 pub(crate) mod panes;
 
+use std::usize;
+
 use bevy::{
     app::{App, Plugin, PostUpdate, Update},
     asset::AssetServer,
     camera::{NormalizedRenderTarget, visibility::Visibility},
     ecs::{
+        change_detection::{DetectChanges, DetectChangesMut},
         component::Component,
         entity::{ContainsEntity, Entity},
         error::Result,
@@ -15,12 +18,16 @@ use bevy::{
         observer::On,
         query::{Changed, Or, With},
         resource::Resource,
-        schedule::{IntoScheduleConfigs, common_conditions::resource_changed},
+        schedule::{
+            IntoScheduleConfigs,
+            common_conditions::{resource_changed, resource_exists_and_changed},
+        },
         system::{
             BoxedSystem, Commands, EntityCommands, In, IntoSystem, Query, Res, ResMut, SystemId,
         },
-        world::{Mut, World},
+        world::{Mut, Ref, World},
     },
+    input_focus::{InputFocus, IsFocused, IsFocusedHelper},
     log::{info, warn},
     picking::{
         Pickable,
@@ -271,6 +278,11 @@ fn spawn_pane<'a>(
                 ..default()
             },
         ))
+        .observe(
+            |trigger: On<Pointer<Press>>, mut focus: ResMut<InputFocus>| {
+                focus.set(trigger.entity);
+            },
+        )
         .id();
 
     commands
@@ -392,7 +404,11 @@ fn on_tabbar_drag_drop(
         .entity(tabbar.tabgroup)
         .insert_child(drop_index, trigger.dropped)
         .entry::<PaneTabgroup>()
-        .and_modify(move |mut tabgroup| tabgroup.active_tab_index = drop_index);
+        .and_modify(move |mut tabgroup| {
+            if tabgroup.active_tab_index != drop_index {
+                tabgroup.active_tab_index = drop_index;
+            }
+        });
 
     Ok(())
 }
@@ -419,6 +435,7 @@ fn on_tab_press(
     parents: Query<&ChildOf>,
     mut tabgroups: Query<&mut PaneTabgroup>,
     children: Query<&Children>,
+    mut focus: ResMut<InputFocus>,
 ) -> Result {
     if trigger.button != PointerButton::Primary {
         return Ok(());
@@ -430,7 +447,11 @@ fn on_tab_press(
         .iter()
         .position(|sibling| *sibling == trigger.entity)
         .unwrap();
-    tabgroups.get_mut(parent)?.active_tab_index = index;
+    let mut tabgroup = tabgroups.get_mut(parent)?;
+    if tabgroup.active_tab_index != index {
+        tabgroup.active_tab_index = index;
+    }
+    focus.set(trigger.entity);
 
     Ok(())
 }
@@ -460,6 +481,10 @@ fn on_tab_drag_start(
     let indicator = spawn_tab(&mut commands, &asset_server, pane.entity, tab.name.clone())
         .insert(ChildOf(editor_window.root()))
         .insert(Pickable::IGNORE)
+        .insert((
+            ThemeBackgroundColor(PANE_BG),
+            ThemeBorderColor::all(PANE_TAB_ACTIVE),
+        ))
         .entry::<Node>()
         .and_modify(|mut node| {
             node.position_type = PositionType::Absolute;
@@ -585,8 +610,8 @@ fn spawn_tab<'a>(
                 ..default()
             },
             EntityCursor::System(SystemCursorIcon::Pointer),
-            ThemeBackgroundColor(PANE_BG),
-            ThemeBorderColor::all(PANE_TAB_ACTIVE),
+            ThemeBackgroundColor(WINDOW_BG),
+            ThemeBorderColor::all(WINDOW_BG),
         ))
         .id();
 
@@ -616,37 +641,6 @@ fn clamp_active_tab_index(
     }
 }
 
-// fn on_show_tab(
-//     world: &mut World,
-//     roots_query: &mut QueryState<Entity, Added<PaneRoot>>,
-//     pane_root_node_query: &mut QueryState<(&PaneRoot, &PaneStructure)>,
-//     mut system_ids: Local<HashMap<String, SystemId<In<PaneStructure>>>>,
-// ) {
-//     let roots: Vec<_> = roots_query.iter(world).collect();
-//     for entity in roots {
-//         world.resource_scope(|world, mut pane_registry: Mut<PaneRegistry>| {
-//             let (pane_root, &structure) = pane_root_node_query.get(world, entity).unwrap();
-//             let pane = pane_registry
-//                 .panes
-//                 .iter_mut()
-//                 .find(|pane| pane.name == pane_root.name);
-
-//             if let Some(pane) = pane {
-//                 let id = system_ids.entry(pane.name.clone()).or_insert_with(|| {
-//                     world.register_boxed_system(pane.creation_callback.take().unwrap())
-//                 });
-
-//                 world.run_system_with(*id, structure).unwrap();
-//             } else {
-//                 warn!(
-//                     "No pane found in the registry with name: '{}'",
-//                     pane_root.name
-//                 );
-//             }
-//         });
-//     }
-// }
-
 fn register_pane_callbacks(world: &mut World) {
     world.resource_scope(|world, mut pane_registry: Mut<PaneRegistry>| {
         for (_, state) in &mut pane_registry.panes {
@@ -655,43 +649,6 @@ fn register_pane_callbacks(world: &mut World) {
             }
         }
     });
-}
-
-fn update_active_tab(
-    tabgroups: Query<
-        (&PaneRef, &PaneTabgroup, &Children),
-        Or<(Changed<PaneTabgroup>, Changed<Children>)>,
-    >,
-    pane_registry: Res<PaneRegistry>,
-    pane_tabs: Query<&PaneTab>,
-    pane_structures: Query<&PaneStructure>,
-    mut commands: Commands,
-) -> Result {
-    for (pane, tabgroup, tabs) in tabgroups {
-        for (i, tab) in tabs.iter().enumerate() {
-            let active = i == tabgroup.active_tab_index;
-            commands.entity(*tab).insert((
-                ThemeBackgroundColor(if active { PANE_BG } else { WINDOW_BG }),
-                ThemeBorderColor::all(if active { PANE_TAB_ACTIVE } else { WINDOW_BG }),
-            ));
-
-            if active {
-                let tab_name = &pane_tabs.get(*tab)?.name;
-                let pane_structure = *pane_structures.get(pane.entity)?;
-                commands.entity(pane_structure.content).despawn_children();
-
-                if let Some(pane_state) = pane_registry.panes.get(tab_name) {
-                    if let Some(creation_system) = pane_state.creation_system {
-                        commands.run_system_with(creation_system, pane_structure);
-                    }
-                } else {
-                    warn!("Missing tab pane: {}", tab_name);
-                }
-            }
-        }
-    }
-
-    Ok(())
 }
 
 #[derive(Component, Clone, Copy)]
@@ -1097,6 +1054,59 @@ fn init(trigger: On<Add, PaneLayoutRoot>, mut commands: Commands, asset_server: 
     .insert(ChildOf(asset_browser_divider));
 }
 
+fn focus_tabs(
+    focus: IsFocusedHelper,
+    input_focus: Res<InputFocus>,
+    tabgroups: Query<(&PaneRef, Ref<PaneTabgroup>, Ref<Children>)>,
+    pane_registry: Res<PaneRegistry>,
+    pane_tabs: Query<&PaneTab>,
+    pane_structures: Query<&PaneStructure>,
+    mut commands: Commands,
+) -> Result {
+    for (pane, tabgroup, tabs) in tabgroups {
+        let pane_structure = pane_structures.get(pane.entity)?;
+        let is_tabgroup_changed = tabgroup.is_changed() || tabs.is_changed();
+
+        for (i, tab) in tabs.iter().enumerate() {
+            let is_active = i == tabgroup.active_tab_index;
+
+            if is_tabgroup_changed || input_focus.is_changed() {
+                let is_focused =
+                    focus.is_focused(*tab) || focus.is_focus_within(pane_structure.content);
+
+                commands
+                    .entity(*tab)
+                    .insert(ThemeBackgroundColor(if is_active {
+                        PANE_BG
+                    } else {
+                        WINDOW_BG
+                    }))
+                    .insert(ThemeBorderColor::all(if is_active {
+                        if is_focused { PANE_TAB_ACTIVE } else { PANE_BG }
+                    } else {
+                        WINDOW_BG
+                    }));
+            }
+
+            if is_active && is_tabgroup_changed {
+                let tab_name = &pane_tabs.get(*tab)?.name;
+
+                commands.entity(pane_structure.content).despawn_children();
+
+                if let Some(pane_state) = pane_registry.panes.get(tab_name) {
+                    if let Some(creation_system) = pane_state.creation_system {
+                        commands.run_system_with(creation_system, *pane_structure);
+                    }
+                } else {
+                    warn!("Missing tab pane: {}", tab_name);
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
 pub struct EditorPanePlugin;
 
 impl Plugin for EditorPanePlugin {
@@ -1111,12 +1121,12 @@ impl Plugin for EditorPanePlugin {
                     (
                         clamp_active_tab_index,
                         register_pane_callbacks.run_if(resource_changed::<PaneRegistry>),
-                        update_active_tab,
                     )
                         .chain(),
                     on_open_pane,
                 ),
             )
+            .add_systems(PostUpdate, focus_tabs)
             .add_systems(PostUpdate, apply_size.before(UiSystems::Layout))
             .add_observer(setup_pane_window)
             .add_observer(init);
