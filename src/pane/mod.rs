@@ -7,7 +7,7 @@ use bevy::{
     asset::AssetServer,
     camera::{NormalizedRenderTarget, visibility::Visibility},
     ecs::{
-        change_detection::{DetectChanges, DetectChangesMut},
+        change_detection::DetectChanges,
         component::Component,
         entity::{ContainsEntity, Entity},
         error::Result,
@@ -18,25 +18,21 @@ use bevy::{
         observer::On,
         query::{Changed, Or, With},
         resource::Resource,
-        schedule::{
-            IntoScheduleConfigs,
-            common_conditions::{resource_changed, resource_exists_and_changed},
-        },
+        schedule::{IntoScheduleConfigs, common_conditions::resource_changed},
         system::{
             BoxedSystem, Commands, EntityCommands, In, IntoSystem, Query, Res, ResMut, SystemId,
         },
         world::{Mut, Ref, World},
     },
     input_focus::{InputFocus, IsFocused, IsFocusedHelper},
-    log::{info, warn},
+    log::warn,
     picking::{
         Pickable,
         events::{
-            Cancel, Drag, DragDrop, DragEnd, DragEnter, DragLeave, DragOver, DragStart, Move,
-            Pointer, Press,
+            Cancel, Drag, DragDrop, DragEnd, DragEnter, DragLeave, DragOver, DragStart, Pointer,
+            Press,
         },
-        hover::HoverMap,
-        pointer::{PointerButton, PointerId, PointerLocation, PointerMap},
+        pointer::{PointerButton, PointerLocation, PointerMap},
     },
     platform::collections::HashMap,
     text::TextFont,
@@ -45,7 +41,7 @@ use bevy::{
         UiGlobalTransform, UiRect, UiScale, UiSystems, percent, px, widget::Text,
     },
     utils::default,
-    window::{SystemCursorIcon, Window, WindowEvent},
+    window::{SystemCursorIcon, Window},
 };
 
 use crate::{
@@ -58,7 +54,7 @@ use crate::{
         ContextMenu, ContextMenuMark, EntityContextMenu, EntityCursor, OverrideCursor, ScrollArea,
         ScrollAxis, Scrollbar, ScrollbarThumb,
     },
-    window::{EditorWindow, EditorWindowAutoFocus, EditorWindowConfigured, EditorWindowStructure},
+    window::{EditorWindowAutoFocus, EditorWindowConfigured, EditorWindowStructure},
 };
 
 pub const PANE_BORDER_RADIUS: f32 = 6.0;

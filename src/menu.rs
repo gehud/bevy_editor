@@ -1,7 +1,4 @@
-use std::{
-    env::{self, current_exe},
-    process::Command,
-};
+use std::{env::current_exe, process::Command};
 
 use bevy::{
     app::{App, Plugin, Update},
@@ -15,15 +12,14 @@ use bevy::{
         observer::On,
         query::With,
         schedule::{IntoScheduleConfigs, common_conditions::resource_changed},
-        system::{Commands, EntityCommands, Query, Res, ResMut},
+        system::{Commands, EntityCommands, Query, Res},
     },
     picking::{
         Pickable,
         events::{Click, Out, Over, Pointer},
     },
-    state::state::{NextState, State},
     ui::{
-        AlignItems, AlignSelf, JustifyContent, Node, UiRect, px,
+        AlignItems, JustifyContent, Node, UiRect, px,
         widget::{ImageNode, Text},
     },
     utils::default,
@@ -115,41 +111,38 @@ fn setup(trigger: On<Add, EditorMenuRoot>, assets: Res<AssetServer>, mut command
                 ..default()
             })
             .with_children(|commands| {
-                if env::var(PLAY_MODE_VAR).is_ok() {
-                    commands
-                        .spawn((
+                commands
+                    .spawn((
+                        Node {
+                            height: px(22),
+                            border: UiRect::all(px(1)),
+                            border_radius: RoundedCorners::All.to_border_radius(5.0),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::Center,
+                            padding: UiRect::horizontal(px(6)),
+                            ..default()
+                        },
+                        ThemeBorderColor::all(BORDER),
+                        ThemeBackgroundColor(BUTTON_BG),
+                    ))
+                    .with_children(|commands| {
+                        commands.spawn((
+                            Pickable::IGNORE,
                             Node {
-                                height: px(22),
-                                border: UiRect::all(px(1)),
-                                border_radius: RoundedCorners::All.to_border_radius(5.0),
-                                align_items: AlignItems::Center,
-                                justify_content: JustifyContent::Center,
-                                padding: UiRect::horizontal(px(6)),
+                                width: px(13),
+                                height: px(13),
                                 ..default()
                             },
-                            ThemeBorderColor::all(BORDER),
-                            ThemeBackgroundColor(BUTTON_BG),
-                        ))
-                        .with_children(|commands| {
-                            commands.spawn((
-                                Pickable::IGNORE,
-                                Node {
-                                    width: px(13),
-                                    height: px(13),
-                                    ..default()
-                                },
-                                ImageNode::new(
-                                    assets
-                                        .load("embedded://bevy_editor/assets/theme/icons/play.png"),
-                                ),
-                            ));
-                        })
-                        .observe(|_: On<Pointer<Click>>| -> Result {
-                            let exe_path = current_exe()?;
-                            Command::new(exe_path).env(PLAY_MODE_VAR, "true").spawn()?;
-                            Ok(())
-                        });
-                }
+                            ImageNode::new(
+                                assets.load("embedded://bevy_editor/assets/theme/icons/play.png"),
+                            ),
+                        ));
+                    })
+                    .observe(|_: On<Pointer<Click>>| -> Result {
+                        let exe_path = current_exe()?;
+                        Command::new(exe_path).env(PLAY_MODE_VAR, "true").spawn()?;
+                        Ok(())
+                    });
             });
     });
 }

@@ -21,8 +21,8 @@
 use bevy::app::{Plugin, PluginGroup, PluginGroupBuilder, PostUpdate, PropagateSet};
 use bevy::asset::embedded_asset;
 use bevy::ecs::schedule::IntoScheduleConfigs;
+use bevy::input_focus::InputDispatchPlugin;
 use bevy::input_focus::directional_navigation::DirectionalNavigationPlugin;
-use bevy::input_focus::{InputDispatchPlugin, InputFocusVisible};
 use bevy::text::TextFont;
 use bevy::ui::UiSystems;
 use bevy::ui_render::UiMaterialPlugin;

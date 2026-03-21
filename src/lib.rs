@@ -9,25 +9,16 @@ use std::env;
 
 use bevy::{
     DefaultPlugins,
-    app::{App, Plugin, PluginGroup, PreUpdate, Update},
-    camera::Camera,
+    app::{App, Plugin, PluginGroup},
     ecs::{
-        entity::Entity,
         error::Result,
         observer::On,
-        query::With,
-        schedule::{IntoScheduleConfigs, SystemSet},
         system::{Commands, Query, ResMut},
     },
-    log::info,
-    picking::{
-        Pickable,
-        pointer::{PointerId, PointerLocation},
-    },
-    state::{app::AppExtStates, condition::in_state, state::States},
-    ui::{AlignItems, FlexDirection, JustifyContent, Node, UiRect, UiScale, percent, px},
+    picking::Pickable,
+    ui::{FlexDirection, JustifyContent, Node, UiRect, UiScale, percent, px},
     utils::default,
-    window::{ExitCondition, Window, WindowPlugin}, winit::WinitSettings,
+    window::{ExitCondition, Window, WindowPlugin},
 };
 
 use crate::{
@@ -63,7 +54,6 @@ impl Plugin for EditorPlugin {
         .add_plugins(SceneTreePanePlugin)
         .add_plugins(ViewportPanePlugin)
         .add_plugins(EditorMenuPlugin)
-        .insert_resource(WinitSettings::desktop_app())
         .add_observer(setup);
     }
 }
