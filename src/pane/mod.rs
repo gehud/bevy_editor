@@ -1024,7 +1024,9 @@ fn setup_pane_window(
     assets: Res<AssetServer>,
     mut commands: Commands,
 ) -> Result {
-    let Ok(spawned_pane_window) = spawned_pane_windows.get(trigger.entity) else {
+    let target = trigger.entity;
+
+    let Ok(spawned_pane_window) = spawned_pane_windows.get(target) else {
         return Ok(());
     };
 
@@ -1049,12 +1051,13 @@ fn setup_pane_window(
                         vec![spawned_pane_window.name.clone()],
                     )
                     .insert(ChildOf(root));
+                })
+                .observe(move |_: On<Remove, Children>, mut commands: Commands| {
+                    commands.entity(target).despawn();
                 });
         });
 
-    commands
-        .entity(trigger.entity)
-        .remove::<SpawnedPaneWindow>();
+    commands.entity(target).remove::<SpawnedPaneWindow>();
 
     Ok(())
 }
