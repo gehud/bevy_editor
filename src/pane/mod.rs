@@ -96,9 +96,11 @@ struct PaneTabgroup {
 
 fn spawn_pane<'a>(
     commands: &'a mut Commands,
+    focus: &mut InputFocus,
     assets: &AssetServer,
     size: f32,
     tabs: Vec<String>,
+    focus_first: bool,
 ) -> EntityCommands<'a> {
     assert!(tabs.len() != 0, "Cannot spawn pane with no tabs.");
 
@@ -175,6 +177,7 @@ fn spawn_pane<'a>(
                             ..default()
                         });
 
+                    let mut is_first_tab = true;
                     for tab in tabs {
                         let id = spawn_tab(commands.commands_mut(), assets, root, tab)
                             .insert(ChildOf(tabgroup))
@@ -185,10 +188,16 @@ fn spawn_pane<'a>(
                             .observe(on_tab_drag_cancel)
                             .id();
 
+                        if focus_first && is_first_tab {
+                            focus.set(id);
+                        }
+
                         commands
                             .commands_mut()
                             .entity(id)
                             .insert(EntityContextMenu(tab_context_menu(id)));
+
+                        is_first_tab = false;
                     }
 
                     let drop_indicator = commands
@@ -979,6 +988,7 @@ fn setup_pane_window(
     spawned_pane_windows: Query<&SpawnedPaneWindow>,
     editor_windows: Query<&EditorWindowStructure>,
     assets: Res<AssetServer>,
+    mut focus: ResMut<InputFocus>,
     mut commands: Commands,
 ) -> Result {
     let target = trigger.entity;
@@ -1003,9 +1013,11 @@ fn setup_pane_window(
                     let root = commands.target_entity();
                     spawn_pane(
                         commands.commands_mut(),
+                        &mut focus,
                         &assets,
                         1.0,
                         vec![spawned_pane_window.name.clone()],
+                        true,
                     )
                     .insert(ChildOf(root));
                 })
@@ -1019,7 +1031,12 @@ fn setup_pane_window(
     Ok(())
 }
 
-fn init(trigger: On<Add, PaneLayoutRoot>, mut commands: Commands, asset_server: Res<AssetServer>) {
+fn init(
+    trigger: On<Add, PaneLayoutRoot>,
+    asset_server: Res<AssetServer>,
+    mut focus: ResMut<InputFocus>,
+    mut commands: Commands,
+) {
     let root = trigger.entity;
 
     let divider = spawn_divider(&mut commands, Divider::Horizontal, 1.)
@@ -1030,11 +1047,25 @@ fn init(trigger: On<Add, PaneLayoutRoot>, mut commands: Commands, asset_server: 
         .insert(ChildOf(divider))
         .id();
 
-    spawn_pane(&mut commands, &asset_server, 0.4, vec!["Scene Tree".into()])
-        .insert(ChildOf(sub_divider));
+    spawn_pane(
+        &mut commands,
+        &mut focus,
+        &asset_server,
+        0.4,
+        vec!["Scene Tree".into()],
+        false,
+    )
+    .insert(ChildOf(sub_divider));
     spawn_resize_handle(&mut commands, Divider::Vertical).insert(ChildOf(sub_divider));
-    spawn_pane(&mut commands, &asset_server, 0.6, vec!["Properties".into()])
-        .insert(ChildOf(sub_divider));
+    spawn_pane(
+        &mut commands,
+        &mut focus,
+        &asset_server,
+        0.6,
+        vec!["Properties".into()],
+        false,
+    )
+    .insert(ChildOf(sub_divider));
 
     spawn_resize_handle(&mut commands, Divider::Horizontal).insert(ChildOf(divider));
 
@@ -1042,14 +1073,23 @@ fn init(trigger: On<Add, PaneLayoutRoot>, mut commands: Commands, asset_server: 
         .insert(ChildOf(divider))
         .id();
 
-    spawn_pane(&mut commands, &asset_server, 0.70, vec!["Viewport".into()])
-        .insert(ChildOf(asset_browser_divider));
+    spawn_pane(
+        &mut commands,
+        &mut focus,
+        &asset_server,
+        0.70,
+        vec!["Viewport".into()],
+        false,
+    )
+    .insert(ChildOf(asset_browser_divider));
     spawn_resize_handle(&mut commands, Divider::Vertical).insert(ChildOf(asset_browser_divider));
     spawn_pane(
         &mut commands,
+        &mut focus,
         &asset_server,
         0.30,
         vec!["Asset Browser".into()],
+        false,
     )
     .insert(ChildOf(asset_browser_divider));
 }
