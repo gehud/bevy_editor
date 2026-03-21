@@ -1,4 +1,7 @@
-use std::env;
+use std::{
+    env::{self, current_exe},
+    process::Command,
+};
 
 use bevy::{
     app::{App, Plugin, Update},
@@ -6,6 +9,7 @@ use bevy::{
     ecs::{
         component::Component,
         entity::Entity,
+        error::Result,
         hierarchy::ChildOf,
         lifecycle::Add,
         observer::On,
@@ -13,7 +17,10 @@ use bevy::{
         schedule::{IntoScheduleConfigs, common_conditions::resource_changed},
         system::{Commands, EntityCommands, Query, Res, ResMut},
     },
-    picking::events::{Click, Out, Over, Pointer},
+    picking::{
+        Pickable,
+        events::{Click, Out, Over, Pointer},
+    },
     state::state::{NextState, State},
     ui::{
         AlignItems, AlignSelf, JustifyContent, Node, UiRect, px,
@@ -125,6 +132,7 @@ fn setup(trigger: On<Add, EditorMenuRoot>, assets: Res<AssetServer>, mut command
                         ))
                         .with_children(|commands| {
                             commands.spawn((
+                                Pickable::IGNORE,
                                 Node {
                                     width: px(13),
                                     height: px(13),
@@ -135,6 +143,11 @@ fn setup(trigger: On<Add, EditorMenuRoot>, assets: Res<AssetServer>, mut command
                                         .load("embedded://bevy_editor/assets/theme/icons/play.png"),
                                 ),
                             ));
+                        })
+                        .observe(|_: On<Pointer<Click>>| -> Result {
+                            let exe_path = current_exe()?;
+                            Command::new(exe_path).env(PLAY_MODE_VAR, "true").spawn()?;
+                            Ok(())
                         });
                 }
             });
