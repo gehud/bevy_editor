@@ -4,7 +4,7 @@ use std::usize;
 
 use bevy::{
     app::{App, Plugin, PostUpdate, Update},
-    asset::AssetServer,
+    asset::{AssetServer, embedded_asset},
     camera::{NormalizedRenderTarget, visibility::Visibility},
     ecs::{
         change_detection::DetectChanges,
@@ -1170,5 +1170,8 @@ impl Plugin for EditorPanePlugin {
             .add_systems(PostUpdate, apply_size.before(UiSystems::Layout))
             .add_observer(setup_pane_window)
             .add_observer(init);
+
+        embedded_asset!(app, "src/pane", "assets/pane/icons/file.png");
+        embedded_asset!(app, "src/pane", "assets/pane/icons/folder.png");
     }
 }

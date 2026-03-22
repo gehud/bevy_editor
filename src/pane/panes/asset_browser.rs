@@ -1,7 +1,8 @@
-use std::path::PathBuf;
+use std::{env::current_dir, fs::read_dir, path::PathBuf};
 
 use bevy::{
     app::{App, Plugin, Update},
+    asset::AssetServer,
     ecs::{
         component::Component,
         entity::Entity,
@@ -11,7 +12,7 @@ use bevy::{
         lifecycle::Add,
         observer::On,
         query::Changed,
-        system::{Commands, In, Query},
+        system::{Commands, In, Query, Res},
     },
     log::info,
     picking::{
@@ -19,8 +20,9 @@ use bevy::{
         events::{Click, Out, Over, Pointer},
     },
     ui::{
-        AlignItems, FlexDirection, JustifyContent, Node, Overflow, UiRect, percent, px,
-        widget::Text,
+        AlignContent, AlignItems, FlexDirection, FlexWrap, JustifyContent, Node, Overflow, UiRect,
+        percent, px,
+        widget::{ImageNode, Text},
     },
     utils::default,
 };
@@ -98,6 +100,9 @@ fn setup(In(pane_structure): In<PaneStructure>, mut commands: Commands) {
                         .spawn(Node {
                             width: percent(100),
                             height: percent(100),
+                            padding: UiRect::horizontal(px(12))
+                                .with_top(px(8))
+                                .with_bottom(px(8)),
                             ..default()
                         })
                         .id();
@@ -111,6 +116,8 @@ fn setup(In(pane_structure): In<PaneStructure>, mut commands: Commands) {
                                 width: percent(100),
                                 height: percent(100),
                                 overflow: Overflow::scroll_y(),
+                                flex_wrap: FlexWrap::NoWrap,
+                                align_content: AlignContent::Start,
                                 ..default()
                             },
                         ))
@@ -125,7 +132,7 @@ fn setup(In(pane_structure): In<PaneStructure>, mut commands: Commands) {
                     commands.commands_mut().entity(root).insert(AssetBrowser {
                         path_root: path,
                         content_root: content,
-                        inspected_path: "./assets/a/b".into(),
+                        inspected_path: "./assets".into(),
                     });
                 });
         });
@@ -133,9 +140,14 @@ fn setup(In(pane_structure): In<PaneStructure>, mut commands: Commands) {
 
 fn update_browser(
     browsers: Query<(Entity, &mut AssetBrowser), Changed<AssetBrowser>>,
+    assets: Res<AssetServer>,
     mut commands: Commands,
 ) -> Result {
     for (browser_entity, mut browser) in browsers {
+        if !browser.inspected_path.exists() {
+            continue;
+        }
+
         commands
             .entity(browser.path_root)
             .despawn_children()
@@ -144,7 +156,7 @@ fn update_browser(
 
                 let mut path = Some(browser.inspected_path.as_path());
                 while let Some(path_entry) = path {
-                    if !spawn_dir_button(
+                    if !spawn_path_component(
                         commands.commands_mut(),
                         browser_entity,
                         container,
@@ -153,16 +165,83 @@ fn update_browser(
                         break;
                     }
 
-                    spawn_dir_separator(commands.commands_mut(), container);
+                    spawn_path_separator(commands.commands_mut(), container);
                     path = path_entry.parent();
                 }
             });
+
+        commands.entity(browser.content_root).despawn_children();
+
+        for entry in browser.inspected_path.read_dir()? {
+            let path = entry?.path();
+            spawn_dir_entry(&mut commands, &assets, path, browser.content_root);
+        }
     }
 
     Ok(())
 }
 
-fn spawn_dir_button(
+fn spawn_dir_entry(
+    commands: &mut Commands,
+    assets: &AssetServer,
+    path: PathBuf,
+    container: Entity,
+) {
+    commands
+        .spawn((
+            ChildOf(container),
+            Node {
+                width: px(74),
+                height: px(80),
+                flex_direction: FlexDirection::Column,
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                row_gap: px(10),
+                border_radius: RoundedCorners::All.to_border_radius(5.0),
+                padding: UiRect::horizontal(px(5)).with_top(px(3)),
+                ..default()
+            },
+            ThemeBackgroundColor(PANE_BG),
+        ))
+        .observe(|trigger: On<Pointer<Over>>, mut commands: Commands| {
+            commands
+                .entity(trigger.entity)
+                .insert(ThemeBackgroundColor(BUTTON_BG));
+        })
+        .observe(|trigger: On<Pointer<Out>>, mut commands: Commands| {
+            commands
+                .entity(trigger.entity)
+                .insert(ThemeBackgroundColor(PANE_BG));
+        })
+        .with_children(|commands| {
+            let is_dir = path.is_dir();
+            let file_name = path.file_name().unwrap().to_string_lossy();
+
+            commands.spawn((
+                Pickable::IGNORE,
+                Node {
+                    width: px(30),
+                    height: px(30),
+                    ..default()
+                },
+                ImageNode::new(assets.load(if is_dir {
+                    "embedded://bevy_editor/assets/pane/icons/folder.png"
+                } else {
+                    "embedded://bevy_editor/assets/pane/icons/file.png"
+                })),
+            ));
+
+            commands.spawn((
+                Pickable::IGNORE,
+                Text::new(file_name),
+                ThemeTextFont(TEXT_MAIN),
+                ThemeTextFontSize(TEXT_MAIN),
+                ThemeTextColor(TEXT_MAIN),
+            ));
+        });
+}
+
+fn spawn_path_component(
     commands: &mut Commands,
     browser: Entity,
     container: Entity,
@@ -215,7 +294,7 @@ fn spawn_dir_button(
     true
 }
 
-fn spawn_dir_separator(commands: &mut Commands, container: Entity) {
+fn spawn_path_separator(commands: &mut Commands, container: Entity) {
     commands
         .spawn((
             ChildOf(container),
