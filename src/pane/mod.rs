@@ -159,9 +159,15 @@ fn spawn_pane<'a>(
                             },
                             PaneRef { entity: root },
                         ))
-                        .observe(move |_: On<Remove, Children>, mut commands: Commands| {
-                            commands.entity(root).despawn();
-                        })
+                        .observe(
+                            move |_: On<Remove, Children>,
+                                  entities: Query<Entity>,
+                                  mut commands: Commands| {
+                                if entities.contains(root) {
+                                    commands.entity(root).despawn();
+                                }
+                            },
+                        )
                         .id();
 
                     commands
@@ -1018,9 +1024,15 @@ fn setup_pane_window(
                     )
                     .insert(ChildOf(root));
                 })
-                .observe(move |_: On<Remove, Children>, mut commands: Commands| {
-                    commands.entity(target).despawn();
-                });
+                .observe(
+                    move |_: On<Remove, Children>,
+                          entities: Query<Entity>,
+                          mut commands: Commands| {
+                        if entities.contains(target) {
+                            commands.entity(target).despawn();
+                        }
+                    },
+                );
         });
 
     commands.entity(target).remove::<SpawnedPaneWindow>();

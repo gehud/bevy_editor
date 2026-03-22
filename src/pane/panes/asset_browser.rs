@@ -25,8 +25,8 @@ use bevy::{
         events::{Click, Out, Over, Pointer},
     },
     ui::{
-        AlignContent, AlignItems, FlexDirection, FlexWrap, JustifyContent, Node, Overflow, UiRect,
-        percent, px,
+        AlignContent, AlignItems, FlexDirection, FlexWrap, JustifyContent, Node, Overflow,
+        OverflowAxis, UiRect, percent, px,
         widget::{ImageNode, Text},
     },
     utils::default,
@@ -120,7 +120,10 @@ fn setup(In(pane_structure): In<PaneStructure>, mut commands: Commands) {
                             Node {
                                 width: percent(100),
                                 height: percent(100),
-                                overflow: Overflow::scroll_y(),
+                                overflow: Overflow {
+                                    y: OverflowAxis::Scroll,
+                                    x: OverflowAxis::Hidden,
+                                },
                                 flex_wrap: FlexWrap::Wrap,
                                 align_content: AlignContent::Start,
                                 ..default()
