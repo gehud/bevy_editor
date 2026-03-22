@@ -1,4 +1,7 @@
-use std::{env::current_exe, process::Command};
+use std::{
+    env::{current_dir, current_exe},
+    process::Command,
+};
 
 use bevy::{
     app::{App, Plugin, Update},
@@ -140,7 +143,11 @@ fn setup(trigger: On<Add, EditorMenuRoot>, assets: Res<AssetServer>, mut command
                     })
                     .observe(|_: On<Pointer<Click>>| -> Result {
                         let exe_path = current_exe()?;
-                        Command::new(exe_path).env(PLAY_MODE_VAR, "true").spawn()?;
+                        let current_dir = current_dir()?;
+                        Command::new(exe_path)
+                            .current_dir(current_dir)
+                            .env(PLAY_MODE_VAR, "true")
+                            .spawn()?;
                         Ok(())
                     });
             });

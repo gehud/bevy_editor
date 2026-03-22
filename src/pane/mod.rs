@@ -45,6 +45,7 @@ use bevy::{
 };
 
 use crate::{
+    pane::panes::{AssetBrowserPanePlugin, SceneTreePanePlugin, ViewportPanePlugin},
     theme::{
         RoundedCorners, ThemeBackgroundColor, ThemeBorderColor, ThemeTextColor,
         constants::fonts::REGULAR,
@@ -1148,6 +1149,9 @@ pub struct EditorPanePlugin;
 impl Plugin for EditorPanePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<PaneRegistry>()
+            .add_plugins(ViewportPanePlugin)
+            .add_plugins(AssetBrowserPanePlugin)
+            .add_plugins(SceneTreePanePlugin)
             .init_resource::<ResizeHandleDragState>()
             .add_message::<OpenPane>()
             .add_systems(Update, cleanup_divider_single_child)

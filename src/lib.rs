@@ -23,10 +23,7 @@ use bevy::{
 
 use crate::{
     menu::{EditorMenuPlugin, EditorMenuRoot},
-    pane::{
-        EditorPanePlugin, PaneLayoutRoot,
-        panes::{SceneTreePanePlugin, ViewportPanePlugin},
-    },
+    pane::{EditorPanePlugin, PaneLayoutRoot},
     theme::EditorThemePlugin,
     widget::EditorWidgetPlugins,
     window::{EditorWindowPlugin, EditorWindowStructure, PrimaryEditorWindowConfigured},
@@ -51,8 +48,6 @@ impl Plugin for EditorPlugin {
         .add_plugins(EditorWindowPlugin)
         .add_plugins(EditorWidgetPlugins)
         .add_plugins(EditorPanePlugin)
-        .add_plugins(SceneTreePanePlugin)
-        .add_plugins(ViewportPanePlugin)
         .add_plugins(EditorMenuPlugin)
         .add_observer(setup);
     }
