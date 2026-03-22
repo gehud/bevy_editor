@@ -1,4 +1,9 @@
-use std::{env::current_dir, fs::read_dir, path::PathBuf};
+use std::{
+    env::current_dir,
+    fs::{DirEntry, read_dir},
+    path::PathBuf,
+    time::{Duration, Instant},
+};
 
 use bevy::{
     app::{App, Plugin, Update},
@@ -116,7 +121,7 @@ fn setup(In(pane_structure): In<PaneStructure>, mut commands: Commands) {
                                 width: percent(100),
                                 height: percent(100),
                                 overflow: Overflow::scroll_y(),
-                                flex_wrap: FlexWrap::NoWrap,
+                                flex_wrap: FlexWrap::Wrap,
                                 align_content: AlignContent::Start,
                                 ..default()
                             },
@@ -139,11 +144,11 @@ fn setup(In(pane_structure): In<PaneStructure>, mut commands: Commands) {
 }
 
 fn update_browser(
-    browsers: Query<(Entity, &mut AssetBrowser), Changed<AssetBrowser>>,
+    browsers: Query<(Entity, &AssetBrowser), Changed<AssetBrowser>>,
     assets: Res<AssetServer>,
     mut commands: Commands,
 ) -> Result {
-    for (browser_entity, mut browser) in browsers {
+    for (browser_entity, browser) in browsers {
         if !browser.inspected_path.exists() {
             continue;
         }
@@ -174,21 +179,41 @@ fn update_browser(
 
         for entry in browser.inspected_path.read_dir()? {
             let path = entry?.path();
-            spawn_dir_entry(&mut commands, &assets, path, browser.content_root);
+            spawn_dir_entry(
+                &mut commands,
+                &assets,
+                path,
+                browser_entity,
+                browser.content_root,
+            );
         }
     }
 
     Ok(())
 }
 
+#[derive(Component)]
+struct DirEntryButton {
+    last_click: Instant,
+}
+
+const DOUBLE_CLICK_SUBSEC_MILLIS: u32 = 250;
+
 fn spawn_dir_entry(
     commands: &mut Commands,
     assets: &AssetServer,
     path: PathBuf,
+    browser: Entity,
     container: Entity,
 ) {
+    let is_dir = path.is_dir();
+    let file_name = path.file_name().unwrap().to_string_lossy().to_string();
+
     commands
         .spawn((
+            DirEntryButton {
+                last_click: Instant::now(),
+            },
             ChildOf(container),
             Node {
                 width: px(74),
@@ -213,10 +238,32 @@ fn spawn_dir_entry(
                 .entity(trigger.entity)
                 .insert(ThemeBackgroundColor(PANE_BG));
         })
-        .with_children(|commands| {
-            let is_dir = path.is_dir();
-            let file_name = path.file_name().unwrap().to_string_lossy();
+        .observe(
+            move |trigger: On<Pointer<Click>>,
+                  mut buttons: Query<&mut DirEntryButton>,
+                  mut browsers: Query<&mut AssetBrowser>|
+                  -> Result {
+                let mut button = buttons.get_mut(trigger.entity)?;
 
+                if is_dir {
+                    let now = Instant::now();
+                    let last_click = button.last_click;
+
+                    let is_double_click =
+                        (now - last_click).subsec_millis() <= DOUBLE_CLICK_SUBSEC_MILLIS;
+
+                    if is_double_click {
+                        let mut browser = browsers.get_mut(browser)?;
+                        browser.inspected_path = path.clone();
+                    }
+
+                    button.last_click = now;
+                }
+
+                Ok(())
+            },
+        )
+        .with_children(|commands| {
             commands.spawn((
                 Pickable::IGNORE,
                 Node {

@@ -280,7 +280,7 @@ fn spawn_pane<'a>(
                 width: percent(100),
                 height: percent(100),
                 padding: UiRect::all(px(6)),
-                overflow: Overflow::clip(),
+                overflow: Overflow::hidden(),
                 ..default()
             },
         ))
