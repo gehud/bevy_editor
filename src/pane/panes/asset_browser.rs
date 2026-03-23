@@ -1,5 +1,5 @@
 use std::{
-    env::current_dir,
+    env::{consts::EXE_EXTENSION, current_dir},
     fs::{DirEntry, read_dir},
     path::PathBuf,
     time::{Duration, Instant},
@@ -7,7 +7,7 @@ use std::{
 
 use bevy::{
     app::{App, Plugin, Update},
-    asset::AssetServer,
+    asset::{AssetLoader, AssetPath, AssetServer, LoadContext, io::{AssetReader, AssetSource, AssetSourceId, file::FileAssetReader}},
     ecs::{
         component::Component,
         entity::Entity,
@@ -24,6 +24,7 @@ use bevy::{
         Pickable,
         events::{Click, Out, Over, Pointer},
     },
+    tasks::block_on,
     ui::{
         AlignContent, AlignItems, FlexDirection, FlexWrap, JustifyContent, Node, Overflow,
         OverflowAxis, UiRect, percent, px,
@@ -210,7 +211,15 @@ fn spawn_dir_entry(
     container: Entity,
 ) {
     let is_dir = path.is_dir();
-    let file_name = path.file_name().unwrap().to_string_lossy().to_string();
+
+    let file_name = path
+        .file_name()
+        .map(|file_name| file_name.to_string_lossy().to_string())
+        .unwrap_or_default();
+    let extension = path
+        .extension()
+        .map(|extension| extension.to_string_lossy().to_string())
+        .unwrap_or_default();
 
     commands
         .spawn((
@@ -244,24 +253,25 @@ fn spawn_dir_entry(
         .observe(
             move |trigger: On<Pointer<Click>>,
                   mut buttons: Query<&mut DirEntryButton>,
-                  mut browsers: Query<&mut AssetBrowser>|
+                  mut browsers: Query<&mut AssetBrowser>,
+                  assets: Res<AssetServer>|
                   -> Result {
                 let mut button = buttons.get_mut(trigger.entity)?;
 
-                if is_dir {
-                    let now = Instant::now();
-                    let last_click = button.last_click;
+                let now = Instant::now();
+                let last_click = button.last_click;
+                let is_double_click =
+                    (now - last_click).subsec_millis() <= DOUBLE_CLICK_SUBSEC_MILLIS;
 
-                    let is_double_click =
-                        (now - last_click).subsec_millis() <= DOUBLE_CLICK_SUBSEC_MILLIS;
-
-                    if is_double_click {
+                if is_double_click {
+                    if is_dir {
                         let mut browser = browsers.get_mut(browser)?;
                         browser.inspected_path = path.clone();
+                    } else {
                     }
-
-                    button.last_click = now;
                 }
+
+                button.last_click = now;
 
                 Ok(())
             },

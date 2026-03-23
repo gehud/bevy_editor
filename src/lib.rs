@@ -1,3 +1,4 @@
+pub mod asset;
 pub mod pane;
 pub mod theme;
 pub mod widget;
@@ -10,6 +11,7 @@ use std::env;
 use bevy::{
     DefaultPlugins,
     app::{App, Plugin, PluginGroup},
+    asset::AssetPlugin,
     ecs::{
         error::Result,
         observer::On,
@@ -22,6 +24,7 @@ use bevy::{
 };
 
 use crate::{
+    asset::EditorAssetPlugin,
     menu::{EditorMenuPlugin, EditorMenuRoot},
     pane::{EditorPanePlugin, PaneLayoutRoot},
     theme::EditorThemePlugin,
@@ -34,22 +37,27 @@ pub struct EditorPlugin;
 
 impl Plugin for EditorPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                title: "Bevy".into(),
-                decorations: false,
-                transparent: true,
-                ..default()
-            }),
-            exit_condition: ExitCondition::OnPrimaryClosed,
-            ..default()
-        }))
-        .add_plugins(EditorThemePlugin)
-        .add_plugins(EditorWindowPlugin)
-        .add_plugins(EditorWidgetPlugins)
-        .add_plugins(EditorPanePlugin)
-        .add_plugins(EditorMenuPlugin)
-        .add_observer(setup);
+        app.add_plugins(EditorAssetPlugin)
+            .add_plugins(
+                DefaultPlugins
+                    .set(WindowPlugin {
+                        primary_window: Some(Window {
+                            title: "Bevy".into(),
+                            decorations: false,
+                            transparent: true,
+                            ..default()
+                        }),
+                        exit_condition: ExitCondition::OnPrimaryClosed,
+                        ..default()
+                    })
+                    .disable::<AssetPlugin>(),
+            )
+            .add_plugins(EditorThemePlugin)
+            .add_plugins(EditorWindowPlugin)
+            .add_plugins(EditorWidgetPlugins)
+            .add_plugins(EditorPanePlugin)
+            .add_plugins(EditorMenuPlugin)
+            .add_observer(setup);
     }
 }
 

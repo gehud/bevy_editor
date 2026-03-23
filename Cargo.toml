@@ -4,20 +4,21 @@ version = "0.1.0"
 edition = "2024"
 
 [workspace]
-members = ["samples/*"]
+resolver = "3"
+members = ["samples/simple"]
 
 [features]
 default = ["custom_cursor"]
 custom_cursor = ["bevy/custom_cursor"]
 
 [dependencies]
-bevy = { version = "0.18.1", features = [
+bevy = { git = "https://github.com/gehud/bevy.git", branch = "editor", features = [
     "debug",
     "track_location",
     "experimental_bevy_ui_widgets",
 ] }
 accesskit = { version = "0.21" }
-variadics_please = { version = "1.1.0" }
+rusqlite = { version = "0.39.0", features = ["bundled"] }
 
-[patch.crates-io]
-bevy_editor = { path = "." }
+[patch.'https://github.com/gehud/bevy_editor']
+bevy_editor = { path = "./" }

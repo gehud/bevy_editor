@@ -8,5 +8,5 @@ editor = []
 default = ["editor"]
 
 [dependencies]
-bevy = "0.18.1"
-bevy_editor = "0.1.0"
+bevy = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_editor = { git = "https://github.com/gehud/bevy_editor.git" }
