@@ -18,7 +18,8 @@ bevy = { git = "https://github.com/gehud/bevy.git", branch = "editor", features 
     "experimental_bevy_ui_widgets",
 ] }
 accesskit = { version = "0.21" }
-rusqlite = { version = "0.39.0", features = ["bundled"] }
+rusqlite = { version = "0.39.0", features = ["bundled", "chrono"] }
+chrono = "0.4.44"
 
 [patch.'https://github.com/gehud/bevy_editor']
 bevy_editor = { path = "./" }
