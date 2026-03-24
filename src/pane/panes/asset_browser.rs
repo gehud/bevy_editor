@@ -7,17 +7,23 @@ use std::{
 
 use bevy::{
     app::{App, Plugin, Update},
-    asset::{AssetLoader, AssetPath, AssetServer, LoadContext, io::{AssetReader, AssetSource, AssetSourceId, file::FileAssetReader}},
+    asset::{
+        AssetLoader, AssetPath, AssetServer, LoadContext,
+        io::{AssetReader, AssetSource, AssetSourceId, file::FileAssetReader},
+    },
     ecs::{
+        change_detection::DetectChanges,
         component::Component,
         entity::Entity,
         error::Result,
         event::EntityEvent,
-        hierarchy::ChildOf,
+        hierarchy::{ChildOf, Children},
         lifecycle::Add,
+        message::MessageReader,
         observer::On,
         query::Changed,
         system::{Commands, In, Query, Res},
+        world::Ref,
     },
     log::info,
     picking::{
@@ -25,19 +31,21 @@ use bevy::{
         events::{Click, Out, Over, Pointer},
     },
     tasks::block_on,
+    text::TextLayout,
     ui::{
         AlignContent, AlignItems, FlexDirection, FlexWrap, JustifyContent, Node, Overflow,
-        OverflowAxis, UiRect, percent, px,
+        OverflowAxis, PositionType, UiRect, percent, px,
         widget::{ImageNode, Text},
     },
     utils::default,
 };
 
 use crate::{
+    asset::{DatabaseRefresed, database::AssetDatabase},
     pane::{PaneStructure, RegisterPane},
     theme::{
         RoundedCorners, ThemeBackgroundColor, ThemeTextColor, ThemeTextFont, ThemeTextFontSize,
-        tokens::{BUTTON_BG, PANE_BG, TEXT_MAIN},
+        tokens::{BUTTON_BG, PANE_BG, TEXT_MAIN, WINDOW_BG},
     },
     widget::ScrollArea,
 };
@@ -148,12 +156,22 @@ fn setup(In(pane_structure): In<PaneStructure>, mut commands: Commands) {
 }
 
 fn update_browser(
-    browsers: Query<(Entity, &AssetBrowser), Changed<AssetBrowser>>,
-    assets: Res<AssetServer>,
+    mut database_refresh_events: MessageReader<DatabaseRefresed>,
+    browsers: Query<(Entity, Ref<AssetBrowser>)>,
+    asset_server: Res<AssetServer>,
+    asset_database: Res<AssetDatabase>,
     mut commands: Commands,
 ) -> Result {
+    let database_regreshed = !database_refresh_events.is_empty();
+    database_refresh_events.clear();
+
     for (browser_entity, browser) in browsers {
         if !browser.inspected_path.exists() {
+            continue;
+        }
+
+        let should_update = database_regreshed || browser.is_changed();
+        if !should_update {
             continue;
         }
 
@@ -185,11 +203,12 @@ fn update_browser(
             let path = entry?.path();
             spawn_dir_entry(
                 &mut commands,
-                &assets,
+                &asset_server,
+                &asset_database,
                 path,
                 browser_entity,
                 browser.content_root,
-            );
+            )?;
         }
     }
 
@@ -198,32 +217,44 @@ fn update_browser(
 
 #[derive(Component)]
 struct DirEntryButton {
+    asset_path: PathBuf,
     last_click: Instant,
 }
 
 const DOUBLE_CLICK_SUBSEC_MILLIS: u32 = 250;
 
+#[derive(Component)]
+struct InspectLabeledAssetsButton {
+    entry: Entity,
+    inspecting: bool,
+    indicator: Entity,
+    roots: Vec<Entity>,
+}
+
 fn spawn_dir_entry(
     commands: &mut Commands,
-    assets: &AssetServer,
+    asset_server: &AssetServer,
+    asset_database: &AssetDatabase,
     path: PathBuf,
     browser: Entity,
     container: Entity,
-) {
+) -> Result {
     let is_dir = path.is_dir();
 
     let file_name = path
         .file_name()
         .map(|file_name| file_name.to_string_lossy().to_string())
         .unwrap_or_default();
-    let extension = path
-        .extension()
-        .map(|extension| extension.to_string_lossy().to_string())
-        .unwrap_or_default();
 
-    commands
+    let asset_path = path.strip_prefix("./assets")?.to_path_buf();
+    let has_labels = !asset_database
+        .get_asset_labeled_uuids(asset_path.clone())?
+        .is_empty();
+
+    let entry = commands
         .spawn((
             DirEntryButton {
+                asset_path,
                 last_click: Instant::now(),
             },
             ChildOf(container),
@@ -235,11 +266,16 @@ fn spawn_dir_entry(
                 justify_content: JustifyContent::Center,
                 row_gap: px(10),
                 border_radius: RoundedCorners::All.to_border_radius(5.0),
+                overflow: Overflow::hidden(),
                 padding: UiRect::horizontal(px(5)).with_top(px(3)),
                 ..default()
             },
             ThemeBackgroundColor(PANE_BG),
         ))
+        .id();
+
+    commands
+        .entity(entry)
         .observe(|trigger: On<Pointer<Over>>, mut commands: Commands| {
             commands
                 .entity(trigger.entity)
@@ -253,8 +289,7 @@ fn spawn_dir_entry(
         .observe(
             move |trigger: On<Pointer<Click>>,
                   mut buttons: Query<&mut DirEntryButton>,
-                  mut browsers: Query<&mut AssetBrowser>,
-                  assets: Res<AssetServer>|
+                  mut browsers: Query<&mut AssetBrowser>|
                   -> Result {
                 let mut button = buttons.get_mut(trigger.entity)?;
 
@@ -267,7 +302,6 @@ fn spawn_dir_entry(
                     if is_dir {
                         let mut browser = browsers.get_mut(browser)?;
                         browser.inspected_path = path.clone();
-                    } else {
                     }
                 }
 
@@ -277,28 +311,197 @@ fn spawn_dir_entry(
             },
         )
         .with_children(|commands| {
-            commands.spawn((
-                Pickable::IGNORE,
-                Node {
-                    width: px(30),
-                    height: px(30),
-                    ..default()
-                },
-                ImageNode::new(assets.load(if is_dir {
-                    "embedded://bevy_editor/assets/pane/icons/folder.png"
-                } else {
-                    "embedded://bevy_editor/assets/pane/icons/file.png"
-                })),
-            ));
+            commands
+                .spawn((
+                    Pickable::IGNORE,
+                    Node {
+                        width: px(30),
+                        height: px(30),
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::End,
+                        ..default()
+                    },
+                    ImageNode::new(asset_server.load(if is_dir {
+                        "embedded://bevy_editor/assets/pane/icons/folder.png"
+                    } else {
+                        "embedded://bevy_editor/assets/pane/icons/file.png"
+                    })),
+                ))
+                .with_children(|commands| {
+                    if has_labels {
+                        let button = commands
+                            .spawn((
+                                Node {
+                                    width: px(28),
+                                    height: px(28),
+                                    margin: UiRect::horizontal(px(-14)),
+                                    border_radius: RoundedCorners::All.to_border_radius(14.0),
+                                    padding: UiRect::all(px(4)),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::Center,
+                                    ..default()
+                                },
+                                ThemeBackgroundColor(WINDOW_BG),
+                            ))
+                            .observe(on_inspect_labeled_assets_click)
+                            .id();
+
+                        let indicator = commands
+                            .commands_mut()
+                            .spawn((
+                                ChildOf(button),
+                                Pickable::IGNORE,
+                                Node {
+                                    width: percent(100),
+                                    height: percent(100),
+                                    ..default()
+                                },
+                                ImageNode::new(asset_server.load(
+                                    "embedded://bevy_editor/assets/widget/icons/chevron_right.png",
+                                )),
+                            ))
+                            .id();
+
+                        commands
+                            .commands_mut()
+                            .entity(button)
+                            .insert(InspectLabeledAssetsButton {
+                                entry,
+                                inspecting: false,
+                                indicator,
+                                roots: Vec::new(),
+                            });
+                    }
+                });
 
             commands.spawn((
                 Pickable::IGNORE,
                 Text::new(file_name),
+                TextLayout::new_with_no_wrap(),
                 ThemeTextFont(TEXT_MAIN),
                 ThemeTextFontSize(TEXT_MAIN),
                 ThemeTextColor(TEXT_MAIN),
             ));
         });
+
+    Ok(())
+}
+
+fn on_inspect_labeled_assets_click(
+    trigger: On<Pointer<Click>>,
+    dir_entry_buttons: Query<&DirEntryButton>,
+    mut labeled_asset_buttons: Query<&mut InspectLabeledAssetsButton>,
+    asset_database: Res<AssetDatabase>,
+    asset_server: Res<AssetServer>,
+    mut image_nodes: Query<&mut ImageNode>,
+    parents: Query<&ChildOf>,
+    children: Query<&Children>,
+    mut commands: Commands,
+) -> Result {
+    let mut labeled_asset_button = labeled_asset_buttons.get_mut(trigger.entity)?;
+    labeled_asset_button.inspecting = !labeled_asset_button.inspecting;
+    let mut indicator = image_nodes.get_mut(labeled_asset_button.indicator)?;
+
+    indicator.image = asset_server.load(if labeled_asset_button.inspecting {
+        "embedded://bevy_editor/assets/widget/icons/chevron_left.png"
+    } else {
+        "embedded://bevy_editor/assets/widget/icons/chevron_right.png"
+    });
+
+    if !labeled_asset_button.inspecting {
+        for entity in &labeled_asset_button.roots {
+            commands.entity(*entity).despawn();
+        }
+
+        labeled_asset_button.roots.clear();
+    } else {
+        let container = parents.get(labeled_asset_button.entry)?.parent();
+        let dir_entry_button = dir_entry_buttons.get(labeled_asset_button.entry)?;
+        let siblings = children.get(container)?;
+
+        let mut insert_index = siblings
+            .iter()
+            .position(|sibling| *sibling == labeled_asset_button.entry)
+            .unwrap()
+            + 1;
+
+        let labeled_assets =
+            asset_database.get_asset_labeled_uuids(dir_entry_button.asset_path.clone())?;
+
+        for (i, labeled_asset) in labeled_assets.iter().enumerate() {
+            let labeled_path = asset_database.get_path_by_uuid(&labeled_asset)?;
+            let label = labeled_path.label().unwrap_or_default();
+
+            let is_last = i == labeled_assets.len() - 1;
+
+            let entity =
+                commands
+                    .spawn((
+                        Pickable::IGNORE,
+                        Node {
+                            width: px(74),
+                            height: px(80),
+                            padding: UiRect::vertical(px(5)),
+                            ..default()
+                        },
+                    ))
+                    .with_children(|commands| {
+                        commands
+                            .spawn((
+                                Node {
+                                    width: percent(100),
+                                    height: percent(100),
+                                    flex_direction: FlexDirection::Column,
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::Center,
+                                    row_gap: px(10),
+                                    overflow: Overflow::hidden(),
+                                    border_radius: RoundedCorners::Right
+                                        .to_border_radius(if is_last { 5.0 } else { 0.0 }),
+                                    padding: UiRect::horizontal(px(5)).with_top(px(3)),
+                                    ..default()
+                                },
+                                ThemeBackgroundColor(WINDOW_BG),
+                            ))
+                            .with_children(|commands| {
+                                commands.spawn((
+                                    Pickable::IGNORE,
+                                    Node {
+                                        width: px(30),
+                                        height: px(30),
+                                        align_items: AlignItems::Center,
+                                        justify_content: JustifyContent::End,
+                                        ..default()
+                                    },
+                                    ImageNode::new(
+                                        asset_server.load(
+                                            "embedded://bevy_editor/assets/pane/icons/file.png",
+                                        ),
+                                    ),
+                                ));
+
+                                commands.spawn((
+                                    Pickable::IGNORE,
+                                    Text::new(label),
+                                    TextLayout::new_with_no_wrap(),
+                                    ThemeTextFont(TEXT_MAIN),
+                                    ThemeTextFontSize(TEXT_MAIN),
+                                    ThemeTextColor(TEXT_MAIN),
+                                ));
+                            });
+                    })
+                    .id();
+
+            commands
+                .entity(container)
+                .insert_child(insert_index, entity);
+            insert_index += 1;
+
+            labeled_asset_button.roots.push(entity);
+        }
+    }
+
+    Ok(())
 }
 
 fn spawn_path_component(

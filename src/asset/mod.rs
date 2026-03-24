@@ -1,4 +1,4 @@
-mod database;
+pub(crate) mod database;
 
 use std::{
     env::current_dir,
@@ -24,12 +24,13 @@ use rusqlite::{Error as SqliteError, params};
 
 use crate::asset::database::AssetDatabase;
 
-const DATABASE_PATH: &'static str = ".bevy/assets.db";
-const FILE_PATH: &'static str = "assets";
-const PROCESSED_FILE_PATH: &'static str = ".bevy/imported";
+const DATABASE_PATH: &'static str = "imported_assets/index.db";
 
 #[derive(Message)]
 pub struct RefreshDatabase;
+
+#[derive(Message)]
+pub struct DatabaseRefresed;
 
 fn open_database(mut commands: Commands) -> Result {
     commands.insert_resource(AssetDatabase::open(DATABASE_PATH)?);
@@ -41,6 +42,7 @@ fn refresh(
     mut requests: MessageReader<RefreshDatabase>,
     assets: Res<AssetServer>,
     database: Res<AssetDatabase>,
+    mut commands: Commands,
 ) -> Result {
     if requests.is_empty() {
         return Ok(());
@@ -48,7 +50,9 @@ fn refresh(
 
     requests.clear();
 
-    refresh_recurse(FILE_PATH, &assets, &database)?;
+    refresh_recurse("assets", &assets, &database)?;
+
+    commands.write_message(DatabaseRefresed);
 
     Ok(())
 }
@@ -78,11 +82,7 @@ fn refresh_recurse(
             }
 
             let metadata = path.metadata()?;
-            let path = path
-                .strip_prefix(FILE_PATH)?
-                .to_string_lossy()
-                .to_string()
-                .replace('\\', "/");
+            let path = AssetDatabase::normalize_path(path.strip_prefix("assets")?);
 
             let row = database.connection().query_one(
                 "select modified_at from assets where path = ?1 and label is null",
@@ -148,9 +148,13 @@ impl Plugin for EditorAssetPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(AssetPlugin {
             watch_for_changes_override: Some(true),
+            meta_check: AssetMetaCheck::Never,
+            use_asset_processor_override: Some(true),
+            mode: AssetMode::Processed,
             ..default()
         })
         .add_message::<RefreshDatabase>()
+        .add_message::<DatabaseRefresed>()
         .add_systems(PreStartup, open_database)
         .add_systems(Update, refresh);
     }
