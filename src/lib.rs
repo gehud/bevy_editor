@@ -4,6 +4,7 @@ pub mod theme;
 pub mod widget;
 pub mod window;
 
+mod assets;
 mod menu;
 
 use std::env;
@@ -11,7 +12,7 @@ use std::env;
 use bevy::{
     DefaultPlugins,
     app::{App, Plugin, PluginGroup},
-    asset::AssetPlugin,
+    asset::{AssetPlugin, embedded_asset},
     ecs::{
         error::Result,
         observer::On,
@@ -25,6 +26,7 @@ use bevy::{
 
 use crate::{
     asset::EditorAssetPlugin,
+    assets::EditorAssetsPlugin,
     menu::{EditorMenuPlugin, EditorMenuRoot},
     pane::{EditorPanePlugin, PaneLayoutRoot},
     theme::EditorThemePlugin,
@@ -52,6 +54,7 @@ impl Plugin for EditorPlugin {
                     })
                     .disable::<AssetPlugin>(),
             )
+            .add_plugins(EditorAssetsPlugin)
             .add_plugins(EditorThemePlugin)
             .add_plugins(EditorWindowPlugin)
             .add_plugins(EditorWidgetPlugins)

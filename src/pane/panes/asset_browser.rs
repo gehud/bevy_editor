@@ -322,9 +322,9 @@ fn spawn_dir_entry(
                         ..default()
                     },
                     ImageNode::new(asset_server.load(if is_dir {
-                        "embedded://bevy_editor/assets/pane/icons/folder.png"
+                        "embedded://bevy_editor//icons/folder.png"
                     } else {
-                        "embedded://bevy_editor/assets/pane/icons/file.png"
+                        "embedded://bevy_editor//icons/file.png"
                     })),
                 ))
                 .with_children(|commands| {
@@ -357,7 +357,7 @@ fn spawn_dir_entry(
                                     ..default()
                                 },
                                 ImageNode::new(asset_server.load(
-                                    "embedded://bevy_editor/assets/widget/icons/chevron_right.png",
+                                    "embedded://bevy_editor//icons/chevron_right.png",
                                 )),
                             ))
                             .id();
@@ -403,9 +403,9 @@ fn on_inspect_labeled_assets_click(
     let mut indicator = image_nodes.get_mut(labeled_asset_button.indicator)?;
 
     indicator.image = asset_server.load(if labeled_asset_button.inspecting {
-        "embedded://bevy_editor/assets/widget/icons/chevron_left.png"
+        "embedded://bevy_editor//icons/chevron_left.png"
     } else {
-        "embedded://bevy_editor/assets/widget/icons/chevron_right.png"
+        "embedded://bevy_editor//icons/chevron_right.png"
     });
 
     if !labeled_asset_button.inspecting {
@@ -475,7 +475,7 @@ fn on_inspect_labeled_assets_click(
                                     },
                                     ImageNode::new(
                                         asset_server.load(
-                                            "embedded://bevy_editor/assets/pane/icons/file.png",
+                                            "embedded://bevy_editor//icons/file.png",
                                         ),
                                     ),
                                 ));

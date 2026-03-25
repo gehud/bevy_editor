@@ -78,7 +78,7 @@ fn setup(trigger: On<Add, EditorMenuRoot>, assets: Res<AssetServer>, mut command
                                 ..default()
                             },
                             ImageNode::new(
-                                assets.load("embedded://bevy_editor/assets/theme/icons/bevy.png"),
+                                assets.load("embedded://bevy_editor/icons/bevy.png"),
                             ),
                         ));
 
@@ -137,7 +137,7 @@ fn setup(trigger: On<Add, EditorMenuRoot>, assets: Res<AssetServer>, mut command
                                 ..default()
                             },
                             ImageNode::new(
-                                assets.load("embedded://bevy_editor/assets/theme/icons/play.png"),
+                                assets.load("embedded://bevy_editor/icons/play.png"),
                             ),
                         ));
                     })

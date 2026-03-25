@@ -390,7 +390,7 @@ fn spawn_option<'a>(
                         commands.commands_mut().entity(mark_node).insert((
                             ImageNode::new(
                                 asset_server
-                                    .load("embedded://bevy_editor/assets/widget/icons/check.png"),
+                                    .load("embedded://bevy_editor//icons/check.png"),
                             ),
                             ThemeImageColor(text_color.clone()),
                         ));
@@ -542,7 +542,7 @@ fn spawn_submenu<'a>(
                         Pickable::IGNORE,
                         ImageNode::new(
                             asset_server.load(
-                                "embedded://bevy_editor/assets/widget/icons/chevron_right.png",
+                                "embedded://bevy_editor//icons/chevron_right.png",
                             ),
                         ),
                         ThemeImageColor(BUTTON_TEXT),

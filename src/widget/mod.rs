@@ -66,18 +66,6 @@ pub struct EditorWidgetPlugin;
 
 impl Plugin for EditorWidgetPlugin {
     fn build(&self, app: &mut bevy::app::App) {
-        // Embedded shader
-        embedded_asset!(
-            app,
-            "src/widget",
-            "assets/widget/shaders/alpha_pattern.wgsl"
-        );
-        embedded_asset!(app, "src/widget", "assets/widget/shaders/color_plane.wgsl");
-
-        embedded_asset!(app, "src/widget", "assets/widget/icons/check.png");
-        embedded_asset!(app, "src/widget", "assets/widget/icons/chevron_left.png");
-        embedded_asset!(app, "src/widget", "assets/widget/icons/chevron_right.png");
-
         app.add_plugins((
             AlphaPatternPlugin,
             ButtonPlugin,

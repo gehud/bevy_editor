@@ -3,15 +3,15 @@
 /// Font asset paths
 pub mod fonts {
     /// Default regular font path
-    pub const REGULAR: &str = "embedded://bevy_editor/assets/theme/fonts/FiraSans-Regular.ttf";
+    pub const REGULAR: &str = "embedded://bevy_editor/fonts/FiraSans-Regular.ttf";
     /// Regular italic font path
-    pub const ITALIC: &str = "embedded://bevy_editor/assets/theme/fonts/FiraSans-Italic.ttf";
+    pub const ITALIC: &str = "embedded://bevy_editor/fonts/FiraSans-Italic.ttf";
     /// Bold font path
-    pub const BOLD: &str = "embedded://bevy_editor/assets/theme/fonts/FiraSans-Bold.ttf";
+    pub const BOLD: &str = "embedded://bevy_editor/fonts/FiraSans-Bold.ttf";
     /// Bold italic font path
-    pub const BOLD_ITALIC: &str = "embedded://bevy_editor/assets/theme/fonts/FiraSans-BoldItalic.ttf";
+    pub const BOLD_ITALIC: &str = "embedded://bevy_editor/fonts/FiraSans-BoldItalic.ttf";
     /// Monospace font path
-    pub const MONO: &str = "embedded://bevy_editor/assets/theme/fonts/FiraMono-Medium.ttf";
+    pub const MONO: &str = "embedded://bevy_editor/fonts/FiraMono-Medium.ttf";
 }
 
 /// Size constants

@@ -271,22 +271,6 @@ pub struct EditorThemePlugin;
 
 impl Plugin for EditorThemePlugin {
     fn build(&self, app: &mut App) {
-        // Embedded font
-        embedded_asset!(app, "src/theme", "assets/theme/fonts/FiraSans-Bold.ttf");
-        embedded_asset!(
-            app,
-            "src/theme",
-            "assets/theme/fonts/FiraSans-BoldItalic.ttf"
-        );
-        embedded_asset!(app, "src/theme", "assets/theme/fonts/FiraSans-Regular.ttf");
-        embedded_asset!(app, "src/theme", "assets/theme/fonts/FiraSans-Italic.ttf");
-        embedded_asset!(app, "src/theme", "assets/theme/fonts/FiraMono-Medium.ttf");
-
-        embedded_asset!(app, "src/theme", "assets/theme/icons/bevy.png");
-        embedded_asset!(app, "src/theme", "assets/theme/icons/pause.png");
-        embedded_asset!(app, "src/theme", "assets/theme/icons/play.png");
-        embedded_asset!(app, "src/theme", "assets/theme/icons/stop.png");
-
         app.init_resource::<Theme>()
             .add_systems(PostUpdate, update_theme)
             .add_observer(on_changed_background_color)

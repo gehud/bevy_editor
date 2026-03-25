@@ -197,7 +197,7 @@ fn configure_windows(
                                 &mut commands.commands(),
                                 window,
                                 assets.load(
-                                    "embedded://bevy_editor/assets/window/icons/minimize.png",
+                                    "embedded://bevy_editor//icons/minimize.png",
                                 ),
                             )
                             .observe(
@@ -217,7 +217,7 @@ fn configure_windows(
                                 &mut commands.commands(),
                                 window,
                                 assets.load(
-                                    "embedded://bevy_editor/assets/window/icons/maximize.png",
+                                    "embedded://bevy_editor//icons/maximize.png",
                                 ),
                             )
                             .observe(
@@ -237,7 +237,7 @@ fn configure_windows(
                                 commands.target_entity(),
                                 &mut commands.commands(),
                                 window,
-                                assets.load("embedded://bevy_editor/assets/window/icons/close.png"),
+                                assets.load("embedded://bevy_editor//icons/close.png"),
                             )
                             .observe(
                                 |trigger: On<Pointer<Click>>,
@@ -563,9 +563,9 @@ fn set_maximize_style(
     let mut image = image_nodes.get_mut(children.get(editor_window.maximize)?[0])?;
 
     image.image = if is_maximized {
-        asset_server.load("embedded://bevy_editor/assets/window/icons/restore.png")
+        asset_server.load("embedded://bevy_editor//icons/restore.png")
     } else {
-        asset_server.load("embedded://bevy_editor/assets/window/icons/maximize.png")
+        asset_server.load("embedded://bevy_editor//icons/maximize.png")
     };
 
     let border_radius = if is_maximized {
@@ -724,10 +724,5 @@ impl Plugin for EditorWindowPlugin {
                     .before(PickingSystems::Backend),
             )
             .add_systems(Update, (maximize_windows, auto_focus));
-
-        embedded_asset!(app, "src/window", "assets/window/icons/close.png");
-        embedded_asset!(app, "src/window", "assets/window/icons/maximize.png");
-        embedded_asset!(app, "src/window", "assets/window/icons/minimize.png");
-        embedded_asset!(app, "src/window", "assets/window/icons/restore.png");
     }
 }
