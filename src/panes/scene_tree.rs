@@ -28,7 +28,7 @@ use bevy::{
 };
 
 use crate::{
-    pane::{Pane, PaneApp},
+    pane::{PaneApp, PaneStructure},
     theme::{ThemeTextColor, ThemeTextFont, ThemeTextFontSize, tokens::TEXT_MAIN},
     widget::ScrollArea,
 };
@@ -87,41 +87,39 @@ fn spawn_scene(
 #[derive(Component)]
 struct SceneTreeRoot;
 
-fn setup(In(pane_structure): In<Pane>, mut commands: Commands) {
-    commands
-        .entity(pane_structure.content)
-        .with_children(|commands| {
-            let area = commands
-                .spawn((Node {
+fn setup(In(pane): In<PaneStructure>, mut commands: Commands) {
+    commands.entity(pane.content()).with_children(|commands| {
+        let area = commands
+            .spawn((Node {
+                width: percent(100),
+                height: percent(100),
+                ..default()
+            },))
+            .id();
+
+        let target = commands
+            .commands_mut()
+            .spawn((
+                ChildOf(area),
+                SceneTreeRoot,
+                Pickable::IGNORE,
+                Node {
                     width: percent(100),
                     height: percent(100),
+                    overflow: Overflow::scroll_y(),
                     ..default()
-                },))
-                .id();
+                },
+            ))
+            .id();
 
-            let target = commands
-                .commands_mut()
-                .spawn((
-                    ChildOf(area),
-                    SceneTreeRoot,
-                    Pickable::IGNORE,
-                    Node {
-                        width: percent(100),
-                        height: percent(100),
-                        overflow: Overflow::scroll_y(),
-                        ..default()
-                    },
-                ))
-                .id();
-
-            commands.commands_mut().entity(area).insert(ScrollArea {
-                target,
-                vertical: true,
-                ..default()
-            });
-
-            commands.commands_mut().write_message(RedrawScene);
+        commands.commands_mut().entity(area).insert(ScrollArea {
+            target,
+            vertical: true,
+            ..default()
         });
+
+        commands.commands_mut().write_message(RedrawScene);
+    });
 }
 
 #[derive(Message)]

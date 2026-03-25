@@ -1,9 +1,12 @@
 use bevy::{
     app::{App, Plugin},
-    ecs::system::In,
+    color::Color,
+    ecs::system::{Commands, In},
+    ui::{BackgroundColor, Node, Overflow, percent, px},
+    utils::default,
 };
 
-use crate::pane::{Pane, PaneApp};
+use crate::pane::{PaneApp, PaneStructure};
 
 pub struct PropertiesPlugin;
 
@@ -13,4 +16,6 @@ impl Plugin for PropertiesPlugin {
     }
 }
 
-fn setup(In(pane_structure): In<Pane>) {}
+fn setup(In(pane): In<PaneStructure>, mut commands: Commands) {
+
+}

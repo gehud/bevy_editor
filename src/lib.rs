@@ -109,6 +109,7 @@ fn setup(
                     commands.spawn(Node {
                         width: percent(100),
                         height: px(24),
+                        flex_shrink: 0.0,
                         padding: UiRect::horizontal(px(8)),
                         ..default()
                     });

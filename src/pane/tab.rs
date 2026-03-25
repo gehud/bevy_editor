@@ -33,7 +33,7 @@ use bevy::{
 };
 
 use crate::{
-    pane::{Pane, PaneRef, PaneRegistry},
+    pane::{PaneStructure, PaneRef, PaneRegistry},
     theme::{
         RoundedCorners, ThemeBackgroundColor, ThemeBorderColor, ThemeTextColor,
         constants::fonts::REGULAR,
@@ -403,7 +403,7 @@ fn focus_tabs(
     tabgroups: Query<(&PaneRef, Ref<PaneTabgroup>, Ref<Children>)>,
     pane_registry: Res<PaneRegistry>,
     pane_tabs: Query<&PaneTab>,
-    pane_structures: Query<&Pane>,
+    pane_structures: Query<&PaneStructure>,
     mut commands: Commands,
 ) -> Result {
     for (pane, tabgroup, tabs) in tabgroups {
@@ -415,7 +415,7 @@ fn focus_tabs(
 
             if is_tabgroup_changed || input_focus.is_changed() {
                 let is_focused =
-                    focus.is_focused(*tab) || focus.is_focus_within(pane_structure.content);
+                    focus.is_focused(*tab) || focus.is_focus_within(pane_structure.content());
 
                 commands
                     .entity(*tab)
@@ -434,7 +434,7 @@ fn focus_tabs(
             if is_active && is_tabgroup_changed {
                 let tab_name = &pane_tabs.get(*tab)?.name;
 
-                commands.entity(pane_structure.content).despawn_children();
+                commands.entity(pane_structure.content()).despawn_children();
 
                 if let Some(system) = pane_registry.get(tab_name) {
                     commands.run_system_with(system, *pane_structure);

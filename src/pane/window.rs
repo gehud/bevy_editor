@@ -241,12 +241,25 @@ pub(super) fn spawn_pane<'a>(
         })
         .id();
 
-    let content = commands
+    let content_origin = commands
         .spawn((
+            Pickable::IGNORE,
             ChildOf(area),
             Node {
                 width: percent(100),
                 height: percent(100),
+                ..default()
+            },
+        ))
+        .id();
+
+    let content = commands
+        .spawn((
+            ChildOf(content_origin),
+            Node {
+                width: percent(100),
+                height: percent(100),
+                position_type: PositionType::Absolute,
                 overflow: Overflow::hidden(),
                 ..default()
             },
@@ -258,15 +271,23 @@ pub(super) fn spawn_pane<'a>(
         )
         .id();
 
-    commands.entity(root).insert(Pane { root, content });
+    commands
+        .entity(root)
+        .insert(PaneStructure { root, content });
 
     commands.entity(root)
 }
 
 #[derive(Component, Clone, Copy)]
-pub struct Pane {
-    pub root: Entity,
-    pub content: Entity,
+pub struct PaneStructure {
+    root: Entity,
+    content: Entity,
+}
+
+impl PaneStructure {
+    pub fn content(&self) -> Entity {
+        self.content
+    }
 }
 
 #[derive(Component)]

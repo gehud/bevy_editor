@@ -145,6 +145,7 @@ fn configure_windows(
                 .spawn((Node {
                     width: percent(100),
                     height: px(34),
+                    flex_shrink: 0.0,
                     ..default()
                 },))
                 .with_children(|commands| {

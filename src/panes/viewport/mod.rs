@@ -30,7 +30,7 @@ use bevy::{
 };
 
 use crate::{
-    pane::{Pane, PaneApp},
+    pane::{PaneStructure, PaneApp},
     panes::viewport::grid::{InfiniteGrid, InfiniteGridPlugin, InfiniteGridSettings},
     theme::palette,
 };
@@ -73,11 +73,7 @@ struct ViewportCamera {
     fly_speed: f32,
 }
 
-fn setup(
-    In(pane_structure): In<Pane>,
-    mut images: ResMut<Assets<Image>>,
-    mut commands: Commands,
-) {
+fn setup(In(pane): In<PaneStructure>, mut images: ResMut<Assets<Image>>, mut commands: Commands) {
     let mut image = Image::new_uninit(
         default(),
         TextureDimension::D2,
@@ -118,27 +114,25 @@ fn setup(
         ))
         .id();
 
-    commands
-        .entity(pane_structure.content)
-        .with_children(|commands| {
-            commands
-                .spawn((
-                    Node {
-                        width: percent(100),
-                        height: percent(100),
-                        ..default()
-                    },
-                    ViewportNode::new(camera),
-                ))
-                .observe(on_viewport_drag_start)
-                .observe(on_viewport_drag)
-                .observe(on_viewport_drag_end)
-                .observe(
-                    move |_: On<Despawn, ViewportNode>, mut commands: Commands| {
-                        commands.entity(camera).despawn();
-                    },
-                );
-        });
+    commands.entity(pane.content()).with_children(|commands| {
+        commands
+            .spawn((
+                Node {
+                    width: percent(100),
+                    height: percent(100),
+                    ..default()
+                },
+                ViewportNode::new(camera),
+            ))
+            .observe(on_viewport_drag_start)
+            .observe(on_viewport_drag)
+            .observe(on_viewport_drag_end)
+            .observe(
+                move |_: On<Despawn, ViewportNode>, mut commands: Commands| {
+                    commands.entity(camera).despawn();
+                },
+            );
+    });
 }
 
 fn on_viewport_drag_start(

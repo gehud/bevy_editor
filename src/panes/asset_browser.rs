@@ -42,7 +42,7 @@ use bevy::{
 
 use crate::{
     asset::{DatabaseRefresed, database::AssetDatabase},
-    pane::{Pane, PaneApp},
+    pane::{PaneStructure, PaneApp},
     theme::{
         RoundedCorners, ThemeBackgroundColor, ThemeTextColor, ThemeTextFont, ThemeTextFontSize,
         tokens::{BUTTON_BG, PANE_BG, TEXT_MAIN, WINDOW_BG},
@@ -66,9 +66,9 @@ struct AssetBrowser {
     inspected_path: PathBuf,
 }
 
-fn setup(In(pane_structure): In<Pane>, mut commands: Commands) {
+fn setup(In(pane): In<PaneStructure>, mut commands: Commands) {
     commands
-        .entity(pane_structure.content)
+        .entity(pane.content())
         .with_children(|commands| {
             commands
                 .spawn((

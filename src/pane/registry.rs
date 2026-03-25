@@ -10,11 +10,11 @@ use bevy::{
     platform::collections::HashMap,
 };
 
-use super::Pane;
+use super::PaneStructure;
 
 enum PaneSystem {
-    Unregistered(BoxedSystem<In<Pane>>),
-    Registered(SystemId<In<Pane>>),
+    Unregistered(BoxedSystem<In<PaneStructure>>),
+    Registered(SystemId<In<PaneStructure>>),
 }
 
 struct PaneState {
@@ -34,7 +34,7 @@ impl PaneRegistry {
         })
     }
 
-    pub fn get(&self, name: impl AsRef<str>) -> Option<SystemId<In<Pane>>> {
+    pub fn get(&self, name: impl AsRef<str>) -> Option<SystemId<In<PaneStructure>>> {
         let state = self.panes.get(name.as_ref())?;
         let system = state.system.as_ref()?;
 
@@ -47,7 +47,7 @@ impl PaneRegistry {
     pub fn register<M>(
         &mut self,
         name: impl Into<String>,
-        system: impl IntoSystem<In<Pane>, (), M>,
+        system: impl IntoSystem<In<PaneStructure>, (), M>,
     ) {
         let name = name.into();
         if let Some(old) = self.panes.insert(
@@ -68,7 +68,7 @@ pub trait PaneApp {
     fn register_pane<M>(
         &mut self,
         name: impl Into<String>,
-        system: impl IntoSystem<In<Pane>, (), M>,
+        system: impl IntoSystem<In<PaneStructure>, (), M>,
     ) -> &mut Self;
 }
 
@@ -76,7 +76,7 @@ impl PaneApp for App {
     fn register_pane<M>(
         &mut self,
         name: impl Into<String>,
-        system: impl IntoSystem<In<Pane>, (), M>,
+        system: impl IntoSystem<In<PaneStructure>, (), M>,
     ) -> &mut Self {
         self.world_mut()
             .resource_mut::<PaneRegistry>()
