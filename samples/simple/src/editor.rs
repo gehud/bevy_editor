@@ -5,7 +5,7 @@ use bevy::{
 };
 
 use bevy_editor::{
-    pane::{PaneStructure, RegisterPane},
+    pane::{Pane, PaneApp},
     theme::{ThemeTextColor, ThemeTextFont, ThemeTextFontSize, tokens::TEXT_MAIN},
 };
 
@@ -17,7 +17,7 @@ impl Plugin for MyEditorPlugin {
     }
 }
 
-fn setup(In(pane_structure): In<PaneStructure>, mut commands: Commands) {
+fn setup(In(pane_structure): In<Pane>, mut commands: Commands) {
     commands
         .entity(pane_structure.content)
         .with_children(|commands| {

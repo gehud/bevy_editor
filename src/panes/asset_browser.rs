@@ -42,7 +42,7 @@ use bevy::{
 
 use crate::{
     asset::{DatabaseRefresed, database::AssetDatabase},
-    pane::{PaneStructure, RegisterPane},
+    pane::{Pane, PaneApp},
     theme::{
         RoundedCorners, ThemeBackgroundColor, ThemeTextColor, ThemeTextFont, ThemeTextFontSize,
         tokens::{BUTTON_BG, PANE_BG, TEXT_MAIN, WINDOW_BG},
@@ -50,9 +50,9 @@ use crate::{
     widget::ScrollArea,
 };
 
-pub struct AssetBrowserPanePlugin;
+pub struct AssetBrowserPlugin;
 
-impl Plugin for AssetBrowserPanePlugin {
+impl Plugin for AssetBrowserPlugin {
     fn build(&self, app: &mut App) {
         app.register_pane("Asset Browser", setup)
             .add_systems(Update, update_browser);
@@ -66,7 +66,7 @@ struct AssetBrowser {
     inspected_path: PathBuf,
 }
 
-fn setup(In(pane_structure): In<PaneStructure>, mut commands: Commands) {
+fn setup(In(pane_structure): In<Pane>, mut commands: Commands) {
     commands
         .entity(pane_structure.content)
         .with_children(|commands| {

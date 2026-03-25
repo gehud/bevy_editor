@@ -1,4 +1,6 @@
-pub(crate) mod panes;
+mod registry;
+
+pub use registry::*;
 
 use std::usize;
 
@@ -45,9 +47,6 @@ use bevy::{
 };
 
 use crate::{
-    pane::panes::{
-        AssetBrowserPanePlugin, PropertiesPanePlugin, SceneTreePanePlugin, ViewportPanePlugin,
-    },
     theme::{
         RoundedCorners, ThemeBackgroundColor, ThemeBorderColor, ThemeTextColor,
         constants::fonts::REGULAR,
@@ -299,9 +298,7 @@ fn spawn_pane<'a>(
         )
         .id();
 
-    commands
-        .entity(root)
-        .insert(PaneStructure { root, content });
+    commands.entity(root).insert(Pane { root, content });
 
     commands.entity(root)
 }
@@ -655,76 +652,10 @@ fn clamp_active_tab_index(
     }
 }
 
-fn register_pane_callbacks(world: &mut World) {
-    world.resource_scope(|world, mut pane_registry: Mut<PaneRegistry>| {
-        for (_, state) in &mut pane_registry.panes {
-            if let Some(creation_callback) = state.creation_callback.take() {
-                state.creation_system = Some(world.register_boxed_system(creation_callback));
-            }
-        }
-    });
-}
-
 #[derive(Component, Clone, Copy)]
-pub struct PaneStructure {
+pub struct Pane {
     pub root: Entity,
     pub content: Entity,
-}
-
-struct PaneState {
-    name: String,
-    creation_callback: Option<BoxedSystem<In<PaneStructure>>>,
-    creation_system: Option<SystemId<In<PaneStructure>>>,
-}
-
-#[derive(Resource, Default)]
-pub struct PaneRegistry {
-    panes: HashMap<String, PaneState>,
-}
-
-impl PaneRegistry {
-    pub fn iter(&self) -> impl Iterator<Item = &String> {
-        self.panes.keys()
-    }
-
-    pub fn register<M>(
-        &mut self,
-        name: impl Into<String>,
-        system: impl IntoSystem<In<PaneStructure>, (), M>,
-    ) {
-        let name = name.into();
-        if let Some(old) = self.panes.insert(
-            name.clone(),
-            PaneState {
-                name: name.clone(),
-                creation_callback: Some(Box::new(IntoSystem::into_system(system))),
-                creation_system: None,
-            },
-        ) {
-            warn!("'{}' pane replaced with {} pane.", old.name, name);
-        }
-    }
-}
-
-pub trait RegisterPane {
-    fn register_pane<M>(
-        &mut self,
-        name: impl Into<String>,
-        system: impl IntoSystem<In<PaneStructure>, (), M>,
-    ) -> &mut Self;
-}
-
-impl RegisterPane for App {
-    fn register_pane<M>(
-        &mut self,
-        name: impl Into<String>,
-        system: impl IntoSystem<In<PaneStructure>, (), M>,
-    ) -> &mut Self {
-        self.world_mut()
-            .resource_mut::<PaneRegistry>()
-            .register(name, system);
-        self
-    }
 }
 
 fn cleanup_divider_single_child(
@@ -1111,7 +1042,7 @@ fn focus_tabs(
     tabgroups: Query<(&PaneRef, Ref<PaneTabgroup>, Ref<Children>)>,
     pane_registry: Res<PaneRegistry>,
     pane_tabs: Query<&PaneTab>,
-    pane_structures: Query<&PaneStructure>,
+    pane_structures: Query<&Pane>,
     mut commands: Commands,
 ) -> Result {
     for (pane, tabgroup, tabs) in tabgroups {
@@ -1144,10 +1075,8 @@ fn focus_tabs(
 
                 commands.entity(pane_structure.content).despawn_children();
 
-                if let Some(pane_state) = pane_registry.panes.get(tab_name) {
-                    if let Some(creation_system) = pane_state.creation_system {
-                        commands.run_system_with(creation_system, *pane_structure);
-                    }
+                if let Some(system) = pane_registry.get(tab_name) {
+                    commands.run_system_with(system, *pane_structure);
                 } else {
                     warn!("Missing tab pane: {}", tab_name);
                 }
@@ -1162,24 +1091,17 @@ pub struct EditorPanePlugin;
 
 impl Plugin for EditorPanePlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<PaneRegistry>()
-            .add_plugins(ViewportPanePlugin)
-            .add_plugins(AssetBrowserPanePlugin)
-            .add_plugins(PropertiesPanePlugin)
-            .add_plugins(SceneTreePanePlugin)
+        app.add_plugins(PaneRegistryPlugin)
             .init_resource::<ResizeHandleDragState>()
             .add_message::<OpenPane>()
-            .add_systems(Update, cleanup_divider_single_child)
             .add_systems(
                 Update,
                 (
-                    (
-                        clamp_active_tab_index,
-                        register_pane_callbacks.run_if(resource_changed::<PaneRegistry>),
-                    )
-                        .chain(),
+                    cleanup_divider_single_child,
+                    clamp_active_tab_index,
                     on_open_pane,
-                ),
+                )
+                    .after(PaneRegistrySystems::Registration),
             )
             .add_systems(PostUpdate, focus_tabs)
             .add_systems(PostUpdate, apply_size.before(UiSystems::Layout))

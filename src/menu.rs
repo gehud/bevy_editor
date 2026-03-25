@@ -168,7 +168,7 @@ fn update_view_menu(
 
     let mut menu = ContextMenu::new();
 
-    for name in pane_registry.iter() {
+    for name in pane_registry.names() {
         let name = name.clone();
         menu = menu.with_option(true, ContextMenuMark::None, name.clone(), move |world| {
             world

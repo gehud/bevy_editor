@@ -6,6 +6,7 @@ pub mod window;
 
 mod assets;
 mod menu;
+mod panes;
 
 use std::env;
 
@@ -29,6 +30,7 @@ use crate::{
     assets::EditorAssetsPlugin,
     menu::{EditorMenuPlugin, EditorMenuRoot},
     pane::{EditorPanePlugin, PaneLayoutRoot},
+    panes::EditorPanePlugins,
     theme::EditorThemePlugin,
     widget::EditorWidgetPlugins,
     window::{EditorWindowPlugin, EditorWindowStructure, PrimaryEditorWindowConfigured},
@@ -39,26 +41,18 @@ pub struct EditorPlugin;
 
 impl Plugin for EditorPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(EditorAssetPlugin)
+        app.add_plugins(EditorWindowPlugin)
+            .add_plugins(EditorAssetPlugin)
             .add_plugins(
                 DefaultPlugins
-                    .set(WindowPlugin {
-                        primary_window: Some(Window {
-                            title: "Bevy".into(),
-                            decorations: false,
-                            transparent: true,
-                            ..default()
-                        }),
-                        exit_condition: ExitCondition::OnPrimaryClosed,
-                        ..default()
-                    })
+                    .build()
+                    .disable::<WindowPlugin>()
                     .disable::<AssetPlugin>(),
             )
             .add_plugins(EditorAssetsPlugin)
             .add_plugins(EditorThemePlugin)
-            .add_plugins(EditorWindowPlugin)
             .add_plugins(EditorWidgetPlugins)
-            .add_plugins(EditorPanePlugin)
+            .add_plugins(EditorPanePlugins)
             .add_plugins(EditorMenuPlugin)
             .add_observer(setup);
     }

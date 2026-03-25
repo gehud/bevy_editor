@@ -28,14 +28,14 @@ use bevy::{
 };
 
 use crate::{
-    pane::{PaneStructure, RegisterPane},
+    pane::{Pane, PaneApp},
     theme::{ThemeTextColor, ThemeTextFont, ThemeTextFontSize, tokens::TEXT_MAIN},
     widget::ScrollArea,
 };
 
-pub struct SceneTreePanePlugin;
+pub struct SceneTreePlugin;
 
-impl Plugin for SceneTreePanePlugin {
+impl Plugin for SceneTreePlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<RedrawScene>()
             .add_systems(Startup, spawn_scene)
@@ -87,7 +87,7 @@ fn spawn_scene(
 #[derive(Component)]
 struct SceneTreeRoot;
 
-fn setup(In(pane_structure): In<PaneStructure>, mut commands: Commands) {
+fn setup(In(pane_structure): In<Pane>, mut commands: Commands) {
     commands
         .entity(pane_structure.content)
         .with_children(|commands| {

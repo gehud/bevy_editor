@@ -1,32 +1,10 @@
-//! `bevy_editor::widget` is a collection of styled and themed widgets for building editors and
-//! inspectors.
-//!
-//! The aesthetic choices made here are designed with a future Bevy Editor in mind,
-//! but this crate is deliberately exposed to the public to allow the broader ecosystem to easily create
-//! tooling for themselves and others that fits cohesively together.
-//!
-//! While it may be tempting to use this crate for your game's UI, it's deliberately not intended for that.
-//! We've opted for a clean, functional style, and prioritized consistency over customization.
-//! That said, if you like what you see, it can be a helpful learning tool.
-//! Consider copying this code into your own project,
-//! and refining the styles and abstractions provided to meet your needs.
-//!
-//! ## Warning: Experimental!
-//! All that said, this crate is still experimental and unfinished!
-//! It will change in breaking ways, and there will be both bugs and limitations.
-//!
-//! Please report issues, submit fixes and propose changes.
-//! Thanks for stress-testing; let's build something better together.
-
-use bevy::app::{Plugin, PluginGroup, PluginGroupBuilder, PostUpdate, PropagateSet};
-use bevy::asset::embedded_asset;
-use bevy::ecs::schedule::IntoScheduleConfigs;
-use bevy::input_focus::InputDispatchPlugin;
-use bevy::input_focus::directional_navigation::DirectionalNavigationPlugin;
-use bevy::text::TextFont;
-use bevy::ui::UiSystems;
-use bevy::ui_render::UiMaterialPlugin;
-use bevy::ui_widgets::UiWidgetsPlugins;
+use bevy::{
+    app::{Plugin, PluginGroup, PluginGroupBuilder},
+    input_focus::{InputDispatchPlugin, directional_navigation::DirectionalNavigationPlugin},
+    ui_render::UiMaterialPlugin,
+    ui_widgets::UiWidgetsPlugins,
+    window::SystemCursorIcon,
+};
 
 mod alpha_pattern;
 mod button;
@@ -58,10 +36,6 @@ pub use slider::*;
 pub use toggle_switch::*;
 pub use virtual_keyboard::*;
 
-use crate::widget::alpha_pattern::{
-    AlphaPatternMaterial, AlphaPatternPlugin, AlphaPatternResource,
-};
-
 pub struct EditorWidgetPlugin;
 
 impl Plugin for EditorWidgetPlugin {
@@ -83,15 +57,8 @@ impl Plugin for EditorWidgetPlugin {
             UiMaterialPlugin::<AlphaPatternMaterial>::default(),
         ));
 
-        // This needs to run in UiSystems::Propagate so the fonts are up-to-date for `measure_text_system`
-        // and `detect_text_needs_rerender` in UiSystems::Content
-        app.configure_sets(
-            PostUpdate,
-            PropagateSet::<TextFont>::default().in_set(UiSystems::Propagate),
-        );
-
         app.insert_resource(DefaultCursor(EntityCursor::System(
-            bevy::window::SystemCursorIcon::Default,
+            SystemCursorIcon::Default,
         )));
 
         app.init_resource::<AlphaPatternResource>();

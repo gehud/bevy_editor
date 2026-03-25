@@ -1,4 +1,3 @@
-//! The editor standard color palette.
 use bevy::color::Color;
 
 /// <div style="background-color: #000000; width: 10px; padding: 10px; border: 1px solid;"></div>

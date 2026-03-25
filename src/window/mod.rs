@@ -33,7 +33,10 @@ use bevy::{
         UiTargetCamera, Val, percent, px, widget::ImageNode,
     },
     utils::default,
-    window::{PrimaryWindow, SystemCursorIcon, Window, WindowEvent, WindowRef},
+    window::{
+        ExitCondition, PrimaryWindow, SystemCursorIcon, Window, WindowEvent, WindowPlugin,
+        WindowRef,
+    },
     winit::WINIT_WINDOWS,
 };
 
@@ -196,9 +199,7 @@ fn configure_windows(
                                 commands.target_entity(),
                                 &mut commands.commands(),
                                 window,
-                                assets.load(
-                                    "embedded://bevy_editor//icons/minimize.png",
-                                ),
+                                assets.load("embedded://bevy_editor//icons/minimize.png"),
                             )
                             .observe(
                                 |trigger: On<Pointer<Click>>,
@@ -216,9 +217,7 @@ fn configure_windows(
                                 commands.target_entity(),
                                 &mut commands.commands(),
                                 window,
-                                assets.load(
-                                    "embedded://bevy_editor//icons/maximize.png",
-                                ),
+                                assets.load("embedded://bevy_editor//icons/maximize.png"),
                             )
                             .observe(
                                 |trigger: On<Pointer<Click>>,
@@ -714,15 +713,25 @@ pub struct EditorWindowPlugin;
 
 impl Plugin for EditorWindowPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(ClearColor(Color::NONE))
-            .init_resource::<EditorWindowAutoFocus>()
-            .add_systems(First, (configure_windows, check_actually_maximized).chain())
-            .add_systems(
-                PreUpdate,
-                override_pointer_drag_location
-                    .after(PickingSystems::ProcessInput)
-                    .before(PickingSystems::Backend),
-            )
-            .add_systems(Update, (maximize_windows, auto_focus));
+        app.add_plugins(WindowPlugin {
+            primary_window: Some(Window {
+                title: "Bevy".into(),
+                decorations: false,
+                transparent: true,
+                ..default()
+            }),
+            exit_condition: ExitCondition::OnPrimaryClosed,
+            ..default()
+        })
+        .insert_resource(ClearColor(Color::NONE))
+        .init_resource::<EditorWindowAutoFocus>()
+        .add_systems(First, (configure_windows, check_actually_maximized).chain())
+        .add_systems(
+            PreUpdate,
+            override_pointer_drag_location
+                .after(PickingSystems::ProcessInput)
+                .before(PickingSystems::Backend),
+        )
+        .add_systems(Update, (maximize_windows, auto_focus));
     }
 }

@@ -16,10 +16,7 @@ use bevy::{
         system::{Commands, In, Query, Res, ResMut},
     },
     image::{BevyDefault, Image},
-    input::{
-        ButtonInput,
-        keyboard::KeyCode,
-    },
+    input::{ButtonInput, keyboard::KeyCode},
     math::{EulerRot, Quat},
     picking::{
         events::{Drag, DragEnd, DragStart, Pointer},
@@ -28,21 +25,19 @@ use bevy::{
     render::render_resource::{TextureDimension, TextureFormat, TextureUsages},
     time::Time,
     transform::components::{GlobalTransform, Transform},
-    ui::{Node, percent, widget::ViewportNode},
+    ui::{Node, PositionType, UiRect, percent, px, widget::ViewportNode},
     utils::default,
 };
 
 use crate::{
-    pane::{
-        PaneStructure, RegisterPane,
-        panes::viewport::grid::{InfiniteGrid, InfiniteGridPlugin, InfiniteGridSettings},
-    },
+    pane::{Pane, PaneApp},
+    panes::viewport::grid::{InfiniteGrid, InfiniteGridPlugin, InfiniteGridSettings},
     theme::palette,
 };
 
-pub struct ViewportPanePlugin;
+pub struct ViewportPlugin;
 
-impl Plugin for ViewportPanePlugin {
+impl Plugin for ViewportPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(InfiniteGridPlugin)
             .add_systems(Startup, setup_grid)
@@ -79,7 +74,7 @@ struct ViewportCamera {
 }
 
 fn setup(
-    In(pane_structure): In<PaneStructure>,
+    In(pane_structure): In<Pane>,
     mut images: ResMut<Assets<Image>>,
     mut commands: Commands,
 ) {
