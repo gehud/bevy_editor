@@ -18,6 +18,11 @@ pub mod fonts {
 pub mod size {
     use bevy::ui::Val;
 
+    pub const GAP: Val = Val::Px(6.0);
+
+    pub const BORDER_RADIUS: f32 = 5.0;
+    pub const BORDER_THICKNESS: Val = Val::Px(1.0);
+
     /// Common row size for buttons, sliders, spinners, etc.
     pub const ROW_HEIGHT: Val = Val::Px(24.0);
 

@@ -247,7 +247,6 @@ pub(super) fn spawn_pane<'a>(
             Node {
                 width: percent(100),
                 height: percent(100),
-                padding: UiRect::all(px(6)),
                 overflow: Overflow::hidden(),
                 ..default()
             },
