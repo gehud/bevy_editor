@@ -42,7 +42,7 @@ use bevy::{
 
 use crate::{
     asset::{DatabaseRefresed, database::AssetDatabase},
-    pane::{PaneStructure, PaneApp},
+    pane::{PaneApp, PaneStructure},
     theme::{
         RoundedCorners, ThemeBackgroundColor, ThemeTextColor, ThemeTextFont, ThemeTextFontSize,
         tokens::{BUTTON_BG, PANE_BG, TEXT_MAIN, WINDOW_BG},
@@ -67,92 +67,89 @@ struct AssetBrowser {
 }
 
 fn setup(In(pane): In<PaneStructure>, mut commands: Commands) {
-    commands
-        .entity(pane.content())
-        .with_children(|commands| {
-            commands
-                .spawn((
-                    Pickable::IGNORE,
-                    Node {
+    commands.entity(pane.content()).with_children(|commands| {
+        commands
+            .spawn((
+                Pickable::IGNORE,
+                Node {
+                    width: percent(100),
+                    height: percent(100),
+                    flex_direction: FlexDirection::Column,
+                    ..default()
+                },
+            ))
+            .with_children(|commands| {
+                let root = commands.target_entity();
+
+                let path_container = commands
+                    .spawn((
+                        Pickable::IGNORE,
+                        Node {
+                            width: percent(100),
+                            height: px(34),
+                            padding: UiRect::horizontal(px(5)).with_top(px(4)).with_bottom(px(4)),
+                            align_items: AlignItems::Center,
+                            ..default()
+                        },
+                    ))
+                    .id();
+
+                let path = commands
+                    .commands_mut()
+                    .spawn((
+                        Pickable::IGNORE,
+                        ChildOf(path_container),
+                        Node {
+                            flex_direction: FlexDirection::RowReverse,
+                            ..default()
+                        },
+                    ))
+                    .id();
+
+                let area = commands
+                    .spawn(Node {
                         width: percent(100),
                         height: percent(100),
-                        flex_direction: FlexDirection::Column,
+                        margin: UiRect::horizontal(px(12))
+                            .with_top(px(8))
+                            .with_bottom(px(8)),
                         ..default()
-                    },
-                ))
-                .with_children(|commands| {
-                    let root = commands.target_entity();
+                    })
+                    .id();
 
-                    let path_container = commands
-                        .spawn((
-                            Pickable::IGNORE,
-                            Node {
-                                width: percent(100),
-                                height: px(34),
-                                padding: UiRect::horizontal(px(5))
-                                    .with_top(px(4))
-                                    .with_bottom(px(4)),
-                                align_items: AlignItems::Center,
-                                ..default()
-                            },
-                        ))
-                        .id();
-
-                    let path = commands
-                        .commands_mut()
-                        .spawn((
-                            Pickable::IGNORE,
-                            ChildOf(path_container),
-                            Node {
-                                flex_direction: FlexDirection::RowReverse,
-                                ..default()
-                            },
-                        ))
-                        .id();
-
-                    let area = commands
-                        .spawn(Node {
+                let content = commands
+                    .commands_mut()
+                    .spawn((
+                        Pickable::IGNORE,
+                        ChildOf(area),
+                        Node {
                             width: percent(100),
                             height: percent(100),
-                            padding: UiRect::horizontal(px(12))
-                                .with_top(px(8))
-                                .with_bottom(px(8)),
-                            ..default()
-                        })
-                        .id();
-
-                    let content = commands
-                        .commands_mut()
-                        .spawn((
-                            Pickable::IGNORE,
-                            ChildOf(area),
-                            Node {
-                                width: percent(100),
-                                height: percent(100),
-                                overflow: Overflow {
-                                    y: OverflowAxis::Scroll,
-                                    x: OverflowAxis::Hidden,
-                                },
-                                flex_wrap: FlexWrap::Wrap,
-                                align_content: AlignContent::Start,
-                                ..default()
+                            position_type: PositionType::Absolute,
+                            overflow: Overflow {
+                                y: OverflowAxis::Scroll,
+                                x: OverflowAxis::Hidden,
                             },
-                        ))
-                        .id();
+                            flex_wrap: FlexWrap::Wrap,
+                            align_content: AlignContent::Start,
+                            ..default()
+                        },
+                    ))
+                    .id();
 
-                    commands.commands_mut().entity(area).insert(ScrollArea {
-                        target: content,
-                        vertical: true,
-                        ..default()
-                    });
-
-                    commands.commands_mut().entity(root).insert(AssetBrowser {
-                        path_root: path,
-                        content_root: content,
-                        inspected_path: "./assets".into(),
-                    });
+                commands.commands_mut().entity(area).insert(ScrollArea {
+                    target: content,
+                    vertical: true,
+                    ..default()
                 });
-        });
+
+                commands.commands_mut().entity(root).insert(AssetBrowser {
+                    path_root: path,
+                    content_root: content,
+                    inspected_path: "./assets".into(),
+                });
+            });
+    });
 }
 
 fn update_browser(
@@ -356,9 +353,10 @@ fn spawn_dir_entry(
                                     height: percent(100),
                                     ..default()
                                 },
-                                ImageNode::new(asset_server.load(
-                                    "embedded://bevy_editor//icons/chevron_right.png",
-                                )),
+                                ImageNode::new(
+                                    asset_server
+                                        .load("embedded://bevy_editor//icons/chevron_right.png"),
+                                ),
                             ))
                             .id();
 
@@ -474,9 +472,7 @@ fn on_inspect_labeled_assets_click(
                                         ..default()
                                     },
                                     ImageNode::new(
-                                        asset_server.load(
-                                            "embedded://bevy_editor//icons/file.png",
-                                        ),
+                                        asset_server.load("embedded://bevy_editor//icons/file.png"),
                                     ),
                                 ));
 
