@@ -18,6 +18,7 @@ mod menu;
 mod radio;
 mod scroll;
 mod slider;
+mod text;
 mod toggle_switch;
 mod virtual_keyboard;
 
@@ -33,6 +34,7 @@ pub use menu::*;
 pub use radio::*;
 pub use scroll::*;
 pub use slider::*;
+pub use text::*;
 pub use toggle_switch::*;
 pub use virtual_keyboard::*;
 

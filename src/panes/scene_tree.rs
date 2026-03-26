@@ -46,11 +46,12 @@ use bevy::{
 use crate::{
     pane::{PaneApp, PaneStructure},
     theme::{
-        ThemeBackgroundColor, ThemeBorderColor, ThemeTextColor, ThemeTextFont, ThemeTextFontSize,
+        RoundedCorners, ThemeBackgroundColor, ThemeBorderColor, ThemeTextColor, ThemeTextFont,
+        ThemeTextFontSize,
         constants::size::GAP,
         tokens::{BORDER, BUTTON_BG, PANE_BG, TEXT_MAIN},
     },
-    widget::ScrollArea,
+    widget::{EditorText, ScrollArea},
 };
 
 pub struct SceneTreePlugin;
@@ -219,13 +220,16 @@ fn populate_scene_tree(
             ChildOf(container),
             Node {
                 width: percent(100),
-                height: px(21),
+                height: px(24),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Start,
-                padding: UiRect::all(px(3)),
+                padding: UiRect::horizontal(px(6)).with_top(px(4)).with_bottom(px(4)),
                 column_gap: px(4),
+                border_radius: RoundedCorners::All.to_border_radius(4.0),
+                border: UiRect::all(px(1)),
                 ..default()
             },
+            ThemeBorderColor::all(PANE_BG),
             ThemeBackgroundColor(PANE_BG),
         ))
         .observe(|trigger: On<Pointer<Over>>, mut commands: Commands| {
@@ -316,11 +320,8 @@ fn populate_scene_tree(
                 .with_children(|commands| {
                     commands.spawn((
                         Pickable::IGNORE,
-                        Text::new(name),
                         TextLayout::new_with_no_wrap(),
-                        ThemeTextFont(TEXT_MAIN),
-                        ThemeTextColor(TEXT_MAIN),
-                        ThemeTextFontSize(TEXT_MAIN),
+                        EditorText::new(name),
                     ));
                 });
         })
@@ -341,9 +342,11 @@ fn populate_scene_tree(
             ChildOf(content_origin),
             Node {
                 width: percent(100),
-                margin: UiRect::left(px(8)),
+                margin: UiRect::left(px(13)),
+                padding: UiRect::left(px(8)),
                 flex_direction: FlexDirection::Column,
                 border: UiRect::left(px(3)),
+                row_gap: px(2),
                 ..default()
             },
             ThemeBorderColor::all(BORDER),

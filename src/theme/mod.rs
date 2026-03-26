@@ -34,6 +34,12 @@ use bevy::{
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Reflect)]
 pub struct ThemeToken(&'static str);
 
+impl Into<ThemeToken> for &'static str {
+    fn into(self) -> ThemeToken {
+        ThemeToken::new(self)
+    }
+}
+
 impl ThemeToken {
     pub const fn new(token: &'static str) -> Self {
         Self(token)
@@ -90,21 +96,14 @@ impl Theme {
     }
 }
 
-/// Component which causes the background color of an entity to be set based on a theme color.
-#[derive(Component, Clone)]
+#[derive(Clone, Component, Debug, Eq, PartialEq, Reflect)]
+#[reflect(Clone, Component, Debug, PartialEq)]
 #[require(BackgroundColor)]
-#[component(immutable)]
-#[derive(Reflect)]
-#[reflect(Component, Clone)]
 pub struct ThemeBackgroundColor(pub ThemeToken);
 
-/// Component which causes the border color of an entity to be set based on a theme color.
-/// Only supports setting all borders to the same color.
-#[derive(Component, Clone, PartialEq, Eq)]
+#[derive(Clone, Component, Debug, Eq, PartialEq, Reflect)]
+#[reflect(Clone, Component, Debug, PartialEq)]
 #[require(BorderColor)]
-#[component(immutable)]
-#[derive(Reflect)]
-#[reflect(Component, Clone)]
 pub struct ThemeBorderColor {
     pub top: ThemeToken,
     pub right: ThemeToken,
@@ -130,30 +129,22 @@ impl ThemeBorderColor {
     }
 }
 
-/// Component which causes the inherited text color of an entity to be set based on a theme color.
-#[derive(Component, Clone)]
-#[component(immutable)]
-#[derive(Reflect)]
-#[reflect(Component, Clone)]
+#[derive(Clone, Component, Debug, Eq, PartialEq, Reflect)]
+#[reflect(Clone, Component, Debug, PartialEq)]
 pub struct ThemeTextColor(pub ThemeToken);
 
-#[derive(Component, Clone, Reflect)]
-#[component(immutable)]
-#[reflect(Component, Clone)]
+#[derive(Clone, Component, Debug, Eq, PartialEq, Reflect)]
+#[reflect(Clone, Component, Debug, PartialEq)]
 #[require(ImageNode)]
 pub struct ThemeImageColor(pub ThemeToken);
 
-#[derive(Component, Clone)]
-#[component(immutable)]
-#[derive(Reflect)]
-#[reflect(Component, Clone)]
+#[derive(Clone, Component, Debug, Eq, PartialEq, Reflect)]
+#[reflect(Clone, Component, Debug, PartialEq)]
 #[require(TextFont)]
 pub struct ThemeTextFont(pub ThemeToken);
 
-#[derive(Component, Clone)]
-#[component(immutable)]
-#[derive(Reflect)]
-#[reflect(Component, Clone)]
+#[derive(Clone, Component, Debug, Eq, PartialEq, Reflect)]
+#[reflect(Clone, Component, Debug, PartialEq)]
 #[require(TextFont)]
 pub struct ThemeTextFontSize(pub ThemeToken);
 
