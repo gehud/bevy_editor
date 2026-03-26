@@ -223,11 +223,9 @@ fn populate_scene_tree(
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Start,
                 padding: UiRect::all(px(3)),
-                border: UiRect::left(px(3)),
                 column_gap: px(4),
                 ..default()
             },
-            ThemeBorderColor::all(BORDER),
             ThemeBackgroundColor(PANE_BG),
         ))
         .observe(|trigger: On<Pointer<Over>>, mut commands: Commands| {
@@ -328,15 +326,27 @@ fn populate_scene_tree(
         })
         .id();
 
-    let content = commands
+    let content_origin = commands
         .spawn((
             ChildOf(container),
             Node {
                 width: percent(100),
-                padding: UiRect::left(px(8)),
-                flex_direction: FlexDirection::Column,
                 ..default()
             },
+        ))
+        .id();
+
+    let content = commands
+        .spawn((
+            ChildOf(content_origin),
+            Node {
+                width: percent(100),
+                margin: UiRect::left(px(8)),
+                flex_direction: FlexDirection::Column,
+                border: UiRect::left(px(3)),
+                ..default()
+            },
+            ThemeBorderColor::all(BORDER),
         ))
         .id();
 
