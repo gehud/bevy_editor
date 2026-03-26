@@ -9,10 +9,13 @@ use bevy::{
         change_detection::DetectChanges,
         component::Component,
         entity::Entity,
+        entity_disabling::Disabled,
         error::Result,
+        event::EntityEvent,
         hierarchy::{ChildOf, Children},
         message::{Message, MessageReader, MessageWriter},
         name::Name,
+        observer::On,
         query::With,
         system::{Commands, In, Query, Res, ResMut, Single},
         world::{Ref, World},
@@ -24,7 +27,10 @@ use bevy::{
     },
     mesh::{Mesh, Mesh3d},
     pbr::{MeshMaterial3d, StandardMaterial},
-    picking::Pickable,
+    picking::{
+        Pickable,
+        events::{Click, Out, Over, Pointer},
+    },
     scene::{InstanceId, Scene, SceneInstance, SceneLoader, SceneRoot, SceneSpawner},
     text::TextLayout,
     transform::components::Transform,
@@ -39,9 +45,9 @@ use bevy::{
 use crate::{
     pane::{PaneApp, PaneStructure},
     theme::{
-        ThemeBorderColor, ThemeTextColor, ThemeTextFont, ThemeTextFontSize,
+        ThemeBackgroundColor, ThemeBorderColor, ThemeTextColor, ThemeTextFont, ThemeTextFontSize,
         constants::size::GAP,
-        tokens::{BORDER, TEXT_MAIN},
+        tokens::{BORDER, BUTTON_BG, PANE_BG, TEXT_MAIN},
     },
     widget::ScrollArea,
 };
@@ -150,6 +156,9 @@ fn redraw_scene_tree(
     mut inspected_scene: Single<(Entity, &mut InspectedScene)>,
     roots: Query<(Entity, Ref<SceneTreeRoot>)>,
     scene_spawner: Res<SceneSpawner>,
+    asset_server: Res<AssetServer>,
+    children: Query<&Children>,
+    names: Query<&Name>,
     mut commands: Commands,
 ) -> Result {
     let (origin, inspected_scene) = inspected_scene.deref_mut();
@@ -164,7 +173,15 @@ fn redraw_scene_tree(
         }
 
         commands.entity(root).despawn_children();
-        commands.run_system_cached_with(populate_scene_tree, (root, *origin, 0));
+        populate_scene_tree(
+            &mut commands,
+            &asset_server,
+            &children,
+            &names,
+            root,
+            *origin,
+            0,
+        )?;
     }
 
     inspected_scene.outdated = false;
@@ -172,14 +189,22 @@ fn redraw_scene_tree(
     Ok(())
 }
 
+#[derive(Component)]
+struct EntityView {
+    drop: bool,
+    child_views: Vec<Entity>,
+}
+
 fn populate_scene_tree(
-    In((root, entity, indent)): In<(Entity, Entity, usize)>,
-    children: Query<&Children>,
-    names: Query<&Name>,
-    asset_server: Res<AssetServer>,
-    mut commands: Commands,
-) -> Result {
-    commands
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    children: &Query<&Children>,
+    names: &Query<&Name>,
+    root: Entity,
+    entity: Entity,
+    indent: usize,
+) -> Result<Entity> {
+    let view = commands
         .spawn((
             ChildOf(root),
             Node {
@@ -194,18 +219,67 @@ fn populate_scene_tree(
                 ..default()
             },
             ThemeBorderColor::all(BORDER),
+            ThemeBackgroundColor(PANE_BG),
         ))
+        .observe(|trigger: On<Pointer<Over>>, mut commands: Commands| {
+            commands
+                .entity(trigger.event_target())
+                .insert(ThemeBackgroundColor(BUTTON_BG));
+        })
+        .observe(|trigger: On<Pointer<Out>>, mut commands: Commands| {
+            commands
+                .entity(trigger.event_target())
+                .insert(ThemeBackgroundColor(PANE_BG));
+        })
         .with_children(|commands| {
-            commands.spawn((
-                Node {
-                    width: px(15),
-                    height: px(15),
-                    ..default()
-                },
-                ImageNode::new(asset_server.load("embedded://bevy_editor/icons/chevron_down.png")),
-            ));
+            let view = commands.target_entity();
+
+            commands
+                .spawn((
+                    Pickable {
+                        should_block_lower: false,
+                        ..default()
+                    },
+                    Node {
+                        width: px(15),
+                        height: px(15),
+                        ..default()
+                    },
+                    ImageNode::new(
+                        asset_server.load("embedded://bevy_editor/icons/chevron_down.png"),
+                    ),
+                ))
+                .observe(
+                    move |trigger: On<Pointer<Click>>,
+                          mut views: Query<&mut EntityView>,
+                          asset_server: Res<AssetServer>,
+                          mut commands: Commands|
+                          -> Result {
+                        let mut view = views.get_mut(view)?;
+                        view.drop = !view.drop;
+
+                        commands
+                            .entity(trigger.event_target())
+                            .insert(ImageNode::new(asset_server.load(if view.drop {
+                                "embedded://bevy_editor/icons/chevron_down.png"
+                            } else {
+                                "embedded://bevy_editor/icons/chevron_right.png"
+                            })));
+
+                        for child_view in &view.child_views {
+                            if view.drop {
+                                commands.entity(*child_view).insert(Visibility::Inherited);
+                            } else {
+                                commands.entity(*child_view).insert(Visibility::Hidden);
+                            }
+                        }
+
+                        Ok(())
+                    },
+                );
 
             commands.spawn((
+                Pickable::IGNORE,
                 Node {
                     width: px(15),
                     height: px(15),
@@ -220,12 +294,16 @@ fn populate_scene_tree(
                 .unwrap_or_else(|_| "Entity");
 
             commands
-                .spawn(Node {
-                    overflow: Overflow::hidden(),
-                    ..default()
-                })
+                .spawn((
+                    Pickable::IGNORE,
+                    Node {
+                        overflow: Overflow::hidden(),
+                        ..default()
+                    },
+                ))
                 .with_children(|commands| {
                     commands.spawn((
+                        Pickable::IGNORE,
                         Text::new(name),
                         TextLayout::new_with_no_wrap(),
                         ThemeTextFont(TEXT_MAIN),
@@ -233,13 +311,31 @@ fn populate_scene_tree(
                         ThemeTextFontSize(TEXT_MAIN),
                     ));
                 });
-        });
+        })
+        .id();
 
-    if let Ok(children) = children.get(entity) {
-        for child in children {
-            commands.run_system_cached_with(populate_scene_tree, (root, *child, indent + 1));
+    let mut child_views = Vec::new();
+
+    if let Ok(nested) = children.get(entity) {
+        for child in nested {
+            let child_view = populate_scene_tree(
+                commands,
+                asset_server,
+                children,
+                names,
+                root,
+                *child,
+                indent + 1,
+            )?;
+
+            child_views.push(child_view);
         }
     }
 
-    Ok(())
+    commands.entity(view).insert(EntityView {
+        drop: true,
+        child_views,
+    });
+
+    Ok(view)
 }
