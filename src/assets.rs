@@ -14,9 +14,12 @@ impl Plugin for EditorAssetsPlugin {
         embedded_asset!(app, "fonts/FiraSans-Regular.ttf");
 
         embedded_asset!(app, "icons/bevy.png");
+        embedded_asset!(app, "icons/box.png");
         embedded_asset!(app, "icons/check.png");
+        embedded_asset!(app, "icons/chevron_down.png");
         embedded_asset!(app, "icons/chevron_left.png");
         embedded_asset!(app, "icons/chevron_right.png");
+        embedded_asset!(app, "icons/chevron_up.png");
         embedded_asset!(app, "icons/close.png");
         embedded_asset!(app, "icons/file.png");
         embedded_asset!(app, "icons/folder.png");

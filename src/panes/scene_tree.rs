@@ -1,17 +1,21 @@
+use std::ops::DerefMut;
+
 use bevy::{
     app::{App, Plugin, Startup, Update},
-    asset::Assets,
+    asset::{AssetServer, Assets},
+    camera::visibility::Visibility,
     color::Color,
     ecs::{
+        change_detection::DetectChanges,
         component::Component,
         entity::Entity,
         error::Result,
         hierarchy::{ChildOf, Children},
-        message::{Message, MessageReader},
+        message::{Message, MessageReader, MessageWriter},
         name::Name,
         query::With,
-        system::{Commands, In, Query, ResMut, Single},
-        world::World,
+        system::{Commands, In, Query, Res, ResMut, Single},
+        world::{Ref, World},
     },
     light::PointLight,
     math::{
@@ -21,15 +25,24 @@ use bevy::{
     mesh::{Mesh, Mesh3d},
     pbr::{MeshMaterial3d, StandardMaterial},
     picking::Pickable,
-    scene::{Scene, SceneInstance, SceneRoot},
+    scene::{InstanceId, Scene, SceneInstance, SceneLoader, SceneRoot, SceneSpawner},
+    text::TextLayout,
     transform::components::Transform,
-    ui::{Node, Overflow, percent, widget::Text},
+    ui::{
+        AlignItems, FlexDirection, JustifyContent, Node, Overflow, PositionType, UiRect, percent,
+        px,
+        widget::{ImageNode, Text},
+    },
     utils::default,
 };
 
 use crate::{
     pane::{PaneApp, PaneStructure},
-    theme::{ThemeTextColor, ThemeTextFont, ThemeTextFontSize, tokens::TEXT_MAIN},
+    theme::{
+        ThemeBorderColor, ThemeTextColor, ThemeTextFont, ThemeTextFontSize,
+        constants::size::GAP,
+        tokens::{BORDER, TEXT_MAIN},
+    },
     widget::ScrollArea,
 };
 
@@ -37,20 +50,23 @@ pub struct SceneTreePlugin;
 
 impl Plugin for SceneTreePlugin {
     fn build(&self, app: &mut App) {
-        app.add_message::<RedrawScene>()
-            .add_systems(Startup, spawn_scene)
-            .add_systems(Update, redraw_scene)
+        app.add_systems(Startup, spawn_scene)
+            .add_systems(Update, redraw_scene_tree)
             .register_pane("Scene Tree", setup);
     }
 }
 
 #[derive(Component)]
-struct InspectedScene;
+struct InspectedScene {
+    instance: InstanceId,
+    outdated: bool,
+}
 
 fn spawn_scene(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut scenes: ResMut<Assets<Scene>>,
+    mut scene_spawner: ResMut<SceneSpawner>,
     mut commands: Commands,
 ) {
     let mut scene = Scene::new(World::new());
@@ -77,10 +93,17 @@ fn spawn_scene(
 
     let scene_handle = scenes.add(scene);
 
-    commands.spawn((
-        InspectedScene,
-        Name::new("Unnamed"),
-        SceneRoot(scene_handle),
+    let root = commands.spawn(Name::new("Unnamed")).id();
+
+    let instance = scene_spawner.spawn_as_child(scene_handle, root);
+
+    commands.entity(root).insert((
+        Visibility::Visible,
+        Transform::IDENTITY,
+        InspectedScene {
+            instance,
+            outdated: true,
+        },
     ));
 }
 
@@ -93,6 +116,7 @@ fn setup(In(pane): In<PaneStructure>, mut commands: Commands) {
             .spawn((Node {
                 width: percent(100),
                 height: percent(100),
+                margin: UiRect::all(px(6)),
                 ..default()
             },))
             .id();
@@ -106,7 +130,9 @@ fn setup(In(pane): In<PaneStructure>, mut commands: Commands) {
                 Node {
                     width: percent(100),
                     height: percent(100),
+                    position_type: PositionType::Absolute,
                     overflow: Overflow::scroll_y(),
+                    flex_direction: FlexDirection::Column,
                     ..default()
                 },
             ))
@@ -117,31 +143,103 @@ fn setup(In(pane): In<PaneStructure>, mut commands: Commands) {
             vertical: true,
             ..default()
         });
-
-        commands.commands_mut().write_message(RedrawScene);
     });
 }
 
-#[derive(Message)]
-struct RedrawScene;
-
-fn redraw_scene(
-    mut requests: MessageReader<RedrawScene>,
-    inspected_scene: Single<Entity, With<InspectedScene>>,
-    roots: Query<Entity, With<SceneTreeRoot>>,
+fn redraw_scene_tree(
+    mut inspected_scene: Single<(Entity, &mut InspectedScene)>,
+    roots: Query<(Entity, Ref<SceneTreeRoot>)>,
+    scene_spawner: Res<SceneSpawner>,
     mut commands: Commands,
 ) -> Result {
-    if requests.is_empty() {
+    let (origin, inspected_scene) = inspected_scene.deref_mut();
+
+    if !scene_spawner.instance_is_ready(inspected_scene.instance) {
         return Ok(());
     }
 
-    requests.clear();
+    for (root, scene_root) in roots {
+        if !(scene_root.is_added() || inspected_scene.outdated) {
+            continue;
+        }
 
-    for root in roots {
-        commands.run_system_cached_with(populate_scene, (root, *inspected_scene));
+        commands.entity(root).despawn_children();
+        commands.run_system_cached_with(populate_scene_tree, (root, *origin, 0));
     }
+
+    inspected_scene.outdated = false;
 
     Ok(())
 }
 
-fn populate_scene(In((root, entity)): In<(Entity, Entity)>) {}
+fn populate_scene_tree(
+    In((root, entity, indent)): In<(Entity, Entity, usize)>,
+    children: Query<&Children>,
+    names: Query<&Name>,
+    asset_server: Res<AssetServer>,
+    mut commands: Commands,
+) -> Result {
+    commands
+        .spawn((
+            ChildOf(root),
+            Node {
+                width: percent(100),
+                height: px(21),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Start,
+                padding: UiRect::all(px(3)),
+                border: UiRect::left(px(if indent == 0 { 0.0 } else { 3.0 })),
+                margin: UiRect::left(px(indent as f32 * 8.0)),
+                column_gap: px(4),
+                ..default()
+            },
+            ThemeBorderColor::all(BORDER),
+        ))
+        .with_children(|commands| {
+            commands.spawn((
+                Node {
+                    width: px(15),
+                    height: px(15),
+                    ..default()
+                },
+                ImageNode::new(asset_server.load("embedded://bevy_editor/icons/chevron_down.png")),
+            ));
+
+            commands.spawn((
+                Node {
+                    width: px(15),
+                    height: px(15),
+                    ..default()
+                },
+                ImageNode::new(asset_server.load("embedded://bevy_editor/icons/box.png")),
+            ));
+
+            let name = names
+                .get(entity)
+                .map(|name| name.as_str())
+                .unwrap_or_else(|_| "Entity");
+
+            commands
+                .spawn(Node {
+                    overflow: Overflow::hidden(),
+                    ..default()
+                })
+                .with_children(|commands| {
+                    commands.spawn((
+                        Text::new(name),
+                        TextLayout::new_with_no_wrap(),
+                        ThemeTextFont(TEXT_MAIN),
+                        ThemeTextColor(TEXT_MAIN),
+                        ThemeTextFontSize(TEXT_MAIN),
+                    ));
+                });
+        });
+
+    if let Ok(children) = children.get(entity) {
+        for child in children {
+            commands.run_system_cached_with(populate_scene_tree, (root, *child, indent + 1));
+        }
+    }
+
+    Ok(())
+}
