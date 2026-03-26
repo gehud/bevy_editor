@@ -21,6 +21,7 @@ use bevy::{
         world::{Ref, World},
     },
     light::PointLight,
+    log::info,
     math::{
         Quat,
         primitives::{Circle, Cuboid},
@@ -35,8 +36,8 @@ use bevy::{
     text::TextLayout,
     transform::components::Transform,
     ui::{
-        AlignItems, FlexDirection, JustifyContent, Node, Overflow, PositionType, UiRect, percent,
-        px,
+        AlignItems, FlexDirection, JustifyContent, Node, Overflow, PositionType, UiRect, auto,
+        percent, px,
         widget::{ImageNode, Text},
     },
     utils::default,
@@ -119,12 +120,12 @@ struct SceneTreeRoot;
 fn setup(In(pane): In<PaneStructure>, mut commands: Commands) {
     commands.entity(pane.content()).with_children(|commands| {
         let area = commands
-            .spawn((Node {
+            .spawn(Node {
                 width: percent(100),
                 height: percent(100),
                 margin: UiRect::all(px(6)),
                 ..default()
-            },))
+            })
             .id();
 
         let target = commands
@@ -180,7 +181,6 @@ fn redraw_scene_tree(
             &names,
             root,
             *origin,
-            0,
         )?;
     }
 
@@ -190,9 +190,9 @@ fn redraw_scene_tree(
 }
 
 #[derive(Component)]
-struct EntityView {
+struct EntityViewHeader {
     drop: bool,
-    child_views: Vec<Entity>,
+    content: Entity,
 }
 
 fn populate_scene_tree(
@@ -202,19 +202,28 @@ fn populate_scene_tree(
     names: &Query<&Name>,
     root: Entity,
     entity: Entity,
-    indent: usize,
 ) -> Result<Entity> {
-    let view = commands
+    let container = commands
         .spawn((
             ChildOf(root),
+            Node {
+                width: percent(100),
+                flex_direction: FlexDirection::Column,
+                ..default()
+            },
+        ))
+        .id();
+
+    let header = commands
+        .spawn((
+            ChildOf(container),
             Node {
                 width: percent(100),
                 height: px(21),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Start,
                 padding: UiRect::all(px(3)),
-                border: UiRect::left(px(if indent == 0 { 0.0 } else { 3.0 })),
-                margin: UiRect::left(px(indent as f32 * 8.0)),
+                border: UiRect::left(px(3)),
                 column_gap: px(4),
                 ..default()
             },
@@ -232,8 +241,6 @@ fn populate_scene_tree(
                 .insert(ThemeBackgroundColor(PANE_BG));
         })
         .with_children(|commands| {
-            let view = commands.target_entity();
-
             commands
                 .spawn((
                     Pickable {
@@ -250,28 +257,35 @@ fn populate_scene_tree(
                     ),
                 ))
                 .observe(
-                    move |trigger: On<Pointer<Click>>,
-                          mut views: Query<&mut EntityView>,
-                          asset_server: Res<AssetServer>,
-                          mut commands: Commands|
-                          -> Result {
-                        let mut view = views.get_mut(view)?;
-                        view.drop = !view.drop;
+                    |trigger: On<Pointer<Click>>,
+                     mut headers: Query<&mut EntityViewHeader>,
+                     asset_server: Res<AssetServer>,
+                     parents: Query<&ChildOf>,
+                     mut nodes: Query<&mut Node>,
+                     mut commands: Commands|
+                     -> Result {
+                        let mut header =
+                            headers.get_mut(parents.get(trigger.event_target())?.parent())?;
+                        header.drop = !header.drop;
 
                         commands
                             .entity(trigger.event_target())
-                            .insert(ImageNode::new(asset_server.load(if view.drop {
+                            .insert(ImageNode::new(asset_server.load(if header.drop {
                                 "embedded://bevy_editor/icons/chevron_down.png"
                             } else {
                                 "embedded://bevy_editor/icons/chevron_right.png"
                             })));
 
-                        for child_view in &view.child_views {
-                            if view.drop {
-                                commands.entity(*child_view).insert(Visibility::Inherited);
-                            } else {
-                                commands.entity(*child_view).insert(Visibility::Hidden);
-                            }
+                        let mut content_node = nodes.get_mut(header.content)?;
+
+                        if header.drop {
+                            content_node.height = auto();
+                            commands
+                                .entity(header.content)
+                                .insert(Visibility::Inherited);
+                        } else {
+                            content_node.height = px(0);
+                            commands.entity(header.content).insert(Visibility::Hidden);
                         }
 
                         Ok(())
@@ -314,28 +328,28 @@ fn populate_scene_tree(
         })
         .id();
 
-    let mut child_views = Vec::new();
+    let content = commands
+        .spawn((
+            ChildOf(container),
+            Node {
+                width: percent(100),
+                padding: UiRect::left(px(8)),
+                flex_direction: FlexDirection::Column,
+                ..default()
+            },
+        ))
+        .id();
+
+    commands.entity(header).insert(EntityViewHeader {
+        drop: true,
+        content,
+    });
 
     if let Ok(nested) = children.get(entity) {
         for child in nested {
-            let child_view = populate_scene_tree(
-                commands,
-                asset_server,
-                children,
-                names,
-                root,
-                *child,
-                indent + 1,
-            )?;
-
-            child_views.push(child_view);
+            populate_scene_tree(commands, asset_server, children, names, content, *child)?;
         }
     }
 
-    commands.entity(view).insert(EntityView {
-        drop: true,
-        child_views,
-    });
-
-    Ok(view)
+    Ok(header)
 }
