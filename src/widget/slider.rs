@@ -27,7 +27,7 @@ use bevy::ui_widgets::{Slider, SliderPrecision, SliderRange, SliderValue, TrackC
 
 use crate::{
     theme::{
-        RoundedCorners, Theme, ThemeTextColor, ThemeTextFont, ThemeTextFontSize, constants::size,
+        RoundedCorners, EditorTheme, ThemedTextColor, ThemedTextFont, ThemedTextFontSize, constants::size,
         tokens,
     },
     widget::EntityCursor,
@@ -117,14 +117,14 @@ pub fn slider<B: Bundle>(props: SliderProps, overrides: B) -> impl Bundle {
                 justify_content: JustifyContent::Center,
                 ..Default::default()
             },
-            ThemeTextColor(tokens::SLIDER_TEXT),
-            ThemeTextFont(tokens::SLIDER_TEXT),
-            ThemeTextFontSize(tokens::SLIDER_TEXT),
+            ThemedTextColor::new(tokens::SLIDER_TEXT),
+            ThemedTextFont::new(tokens::SLIDER_TEXT),
+            ThemedTextFontSize::new(tokens::SLIDER_TEXT),
             children![(
                 Text::new("10.0"),
-                ThemeTextColor(tokens::SLIDER_TEXT),
-                ThemeTextFont(tokens::SLIDER_TEXT),
-                ThemeTextFontSize(tokens::SLIDER_TEXT),
+                ThemedTextColor::new(tokens::SLIDER_TEXT),
+                ThemedTextFont::new(tokens::SLIDER_TEXT),
+                ThemedTextFontSize::new(tokens::SLIDER_TEXT),
                 SliderValueText,
             )],
         )],
@@ -136,7 +136,7 @@ fn update_slider_styles(
         (Entity, Has<InteractionDisabled>, &mut BackgroundGradient),
         (With<SliderStyle>, Or<(Spawned, Added<InteractionDisabled>)>),
     >,
-    theme: Res<Theme>,
+    theme: Res<EditorTheme>,
     mut commands: Commands,
 ) -> Result {
     for (slider_ent, disabled, mut gradient) in q_sliders.iter_mut() {
@@ -155,7 +155,7 @@ fn update_slider_styles(
 fn update_slider_styles_remove(
     mut q_sliders: Query<(Entity, Has<InteractionDisabled>, &mut BackgroundGradient)>,
     mut removed_disabled: RemovedComponents<InteractionDisabled>,
-    theme: Res<Theme>,
+    theme: Res<EditorTheme>,
     mut commands: Commands,
 ) -> Result {
     for ent in removed_disabled.read() {
@@ -175,7 +175,7 @@ fn update_slider_styles_remove(
 
 fn set_slider_styles(
     slider_ent: Entity,
-    theme: &Res<'_, Theme>,
+    theme: &Res<'_, EditorTheme>,
     disabled: bool,
     gradient: &mut BackgroundGradient,
     commands: &mut Commands,

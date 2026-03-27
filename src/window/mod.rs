@@ -42,7 +42,7 @@ use bevy::{
 
 use crate::{
     theme::{
-        RoundedCorners, ThemeBackgroundColor, ThemeBorderColor, palette,
+        RoundedCorners, ThemedBackgroundColor, ThemedBorderColor, palette,
         tokens::{BORDER, WINDOW_BG},
     },
     widget::EntityCursor,
@@ -135,8 +135,8 @@ fn configure_windows(
                     flex_direction: FlexDirection::Column,
                     ..default()
                 },
-                ThemeBorderColor::all(BORDER),
-                ThemeBackgroundColor(WINDOW_BG),
+                ThemedBorderColor::all(BORDER),
+                ThemedBackgroundColor::new(WINDOW_BG),
             ))
             .id();
 

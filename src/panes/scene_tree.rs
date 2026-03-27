@@ -46,8 +46,8 @@ use bevy::{
 use crate::{
     pane::{PaneApp, PaneStructure},
     theme::{
-        RoundedCorners, ThemeBackgroundColor, ThemeBorderColor, ThemeTextColor, ThemeTextFont,
-        ThemeTextFontSize,
+        RoundedCorners, ThemedBackgroundColor, ThemedBorderColor, ThemedTextColor, ThemedTextFont,
+        ThemedTextFontSize,
         constants::size::GAP,
         tokens::{BORDER, BUTTON_BG, PANE_BG, TEXT_MAIN},
     },
@@ -229,18 +229,18 @@ fn populate_scene_tree(
                 border: UiRect::all(px(1)),
                 ..default()
             },
-            ThemeBorderColor::all(PANE_BG),
-            ThemeBackgroundColor(PANE_BG),
+            ThemedBorderColor::all(PANE_BG),
+            ThemedBackgroundColor::new(PANE_BG),
         ))
         .observe(|trigger: On<Pointer<Over>>, mut commands: Commands| {
             commands
                 .entity(trigger.event_target())
-                .insert(ThemeBackgroundColor(BUTTON_BG));
+                .insert(ThemedBackgroundColor::new(BUTTON_BG));
         })
         .observe(|trigger: On<Pointer<Out>>, mut commands: Commands| {
             commands
                 .entity(trigger.event_target())
-                .insert(ThemeBackgroundColor(PANE_BG));
+                .insert(ThemedBackgroundColor::new(PANE_BG));
         })
         .with_children(|commands| {
             commands
@@ -349,7 +349,7 @@ fn populate_scene_tree(
                 row_gap: px(2),
                 ..default()
             },
-            ThemeBorderColor::all(BORDER),
+            ThemedBorderColor::all(BORDER),
         ))
         .id();
 

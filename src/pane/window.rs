@@ -31,7 +31,7 @@ use crate::{
         tab_context_menu,
     },
     theme::{
-        RoundedCorners, ThemeBackgroundColor, ThemeBorderColor,
+        RoundedCorners, ThemedBackgroundColor, ThemedBorderColor,
         tokens::{BUTTON_BG, PANE_BG, PANE_TAB_ACTIVE, WINDOW_BG},
     },
     widget::{EntityContextMenu, ScrollArea, ScrollAxis, Scrollbar, ScrollbarThumb},
@@ -75,7 +75,7 @@ pub(super) fn spawn_pane<'a>(
                 border_radius: RoundedCorners::All.to_border_radius(PANE_BORDER_RADIUS),
                 ..default()
             },
-            ThemeBackgroundColor(PANE_BG),
+            ThemedBackgroundColor::new(PANE_BG),
         ))
         .with_children(|commands| {
             // Header
@@ -90,8 +90,8 @@ pub(super) fn spawn_pane<'a>(
                         border_radius: RoundedCorners::Top.to_border_radius(PANE_BORDER_RADIUS),
                         ..default()
                     },
-                    ThemeBackgroundColor(WINDOW_BG),
-                    ThemeBorderColor::all(PANE_BG),
+                    ThemedBackgroundColor::new(WINDOW_BG),
+                    ThemedBorderColor::all(PANE_BG),
                 ))
                 .with_children(move |commands| {
                     let scrollrect = commands
@@ -178,7 +178,7 @@ pub(super) fn spawn_pane<'a>(
                                 ..default()
                             },
                             Pickable::IGNORE,
-                            ThemeBackgroundColor(PANE_TAB_ACTIVE),
+                            ThemedBackgroundColor::new(PANE_TAB_ACTIVE),
                             Visibility::Hidden,
                         ))
                         .id();
@@ -209,7 +209,7 @@ pub(super) fn spawn_pane<'a>(
                                     position_type: PositionType::Absolute,
                                     ..default()
                                 },
-                                ThemeBackgroundColor(BUTTON_BG),
+                                ThemedBackgroundColor::new(BUTTON_BG),
                             ));
                         });
 

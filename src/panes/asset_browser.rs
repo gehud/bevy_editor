@@ -44,7 +44,7 @@ use crate::{
     asset::{DatabaseRefresed, database::AssetDatabase},
     pane::{PaneApp, PaneStructure},
     theme::{
-        RoundedCorners, ThemeBackgroundColor, ThemeTextColor, ThemeTextFont, ThemeTextFontSize,
+        RoundedCorners, ThemedBackgroundColor, ThemedTextColor, ThemedTextFont, ThemedTextFontSize,
         tokens::{BUTTON_BG, PANE_BG, TEXT_MAIN, WINDOW_BG},
     },
     widget::ScrollArea,
@@ -267,7 +267,7 @@ fn spawn_dir_entry(
                 padding: UiRect::horizontal(px(5)).with_top(px(3)),
                 ..default()
             },
-            ThemeBackgroundColor(PANE_BG),
+            ThemedBackgroundColor::new(PANE_BG),
         ))
         .id();
 
@@ -276,12 +276,12 @@ fn spawn_dir_entry(
         .observe(|trigger: On<Pointer<Over>>, mut commands: Commands| {
             commands
                 .entity(trigger.entity)
-                .insert(ThemeBackgroundColor(BUTTON_BG));
+                .insert(ThemedBackgroundColor::new(BUTTON_BG));
         })
         .observe(|trigger: On<Pointer<Out>>, mut commands: Commands| {
             commands
                 .entity(trigger.entity)
-                .insert(ThemeBackgroundColor(PANE_BG));
+                .insert(ThemedBackgroundColor::new(PANE_BG));
         })
         .observe(
             move |trigger: On<Pointer<Click>>,
@@ -338,7 +338,7 @@ fn spawn_dir_entry(
                                     justify_content: JustifyContent::Center,
                                     ..default()
                                 },
-                                ThemeBackgroundColor(WINDOW_BG),
+                                ThemedBackgroundColor::new(WINDOW_BG),
                             ))
                             .observe(on_inspect_labeled_assets_click)
                             .id();
@@ -376,9 +376,9 @@ fn spawn_dir_entry(
                 Pickable::IGNORE,
                 Text::new(file_name),
                 TextLayout::new_with_no_wrap(),
-                ThemeTextFont(TEXT_MAIN),
-                ThemeTextFontSize(TEXT_MAIN),
-                ThemeTextColor(TEXT_MAIN),
+                ThemedTextFont::new(TEXT_MAIN),
+                ThemedTextFontSize::new(TEXT_MAIN),
+                ThemedTextColor::new(TEXT_MAIN),
             ));
         });
 
@@ -459,7 +459,7 @@ fn on_inspect_labeled_assets_click(
                                     padding: UiRect::horizontal(px(5)).with_top(px(3)),
                                     ..default()
                                 },
-                                ThemeBackgroundColor(WINDOW_BG),
+                                ThemedBackgroundColor::new(WINDOW_BG),
                             ))
                             .with_children(|commands| {
                                 commands.spawn((
@@ -480,9 +480,9 @@ fn on_inspect_labeled_assets_click(
                                     Pickable::IGNORE,
                                     Text::new(label),
                                     TextLayout::new_with_no_wrap(),
-                                    ThemeTextFont(TEXT_MAIN),
-                                    ThemeTextFontSize(TEXT_MAIN),
-                                    ThemeTextColor(TEXT_MAIN),
+                                    ThemedTextFont::new(TEXT_MAIN),
+                                    ThemedTextFontSize::new(TEXT_MAIN),
+                                    ThemedTextColor::new(TEXT_MAIN),
                                 ));
                             });
                     })
@@ -523,25 +523,25 @@ fn spawn_path_component(
                 justify_content: JustifyContent::Center,
                 ..default()
             },
-            ThemeBackgroundColor(PANE_BG),
+            ThemedBackgroundColor::new(PANE_BG),
         ))
         .with_children(|commands| {
             commands.spawn((
                 Text::new(file_name),
-                ThemeTextFont(TEXT_MAIN),
-                ThemeTextFontSize(TEXT_MAIN),
-                ThemeTextColor(TEXT_MAIN),
+                ThemedTextFont::new(TEXT_MAIN),
+                ThemedTextFontSize::new(TEXT_MAIN),
+                ThemedTextColor::new(TEXT_MAIN),
             ));
         })
         .observe(|trigger: On<Pointer<Over>>, mut commands: Commands| {
             commands
                 .entity(trigger.entity)
-                .insert(ThemeBackgroundColor(BUTTON_BG));
+                .insert(ThemedBackgroundColor::new(BUTTON_BG));
         })
         .observe(|trigger: On<Pointer<Out>>, mut commands: Commands| {
             commands
                 .entity(trigger.entity)
-                .insert(ThemeBackgroundColor(PANE_BG));
+                .insert(ThemedBackgroundColor::new(PANE_BG));
         })
         .observe(
             move |_: On<Pointer<Click>>, mut browsers: Query<&mut AssetBrowser>| -> Result {
@@ -564,15 +564,15 @@ fn spawn_path_separator(commands: &mut Commands, container: Entity) {
                 justify_content: JustifyContent::Center,
                 ..default()
             },
-            ThemeBackgroundColor(PANE_BG),
+            ThemedBackgroundColor::new(PANE_BG),
         ))
         .with_children(|commands| {
             commands.spawn((
                 Pickable::IGNORE,
                 Text::new("/"),
-                ThemeTextFont(TEXT_MAIN),
-                ThemeTextFontSize(TEXT_MAIN),
-                ThemeTextColor(TEXT_MAIN),
+                ThemedTextFont::new(TEXT_MAIN),
+                ThemedTextFontSize::new(TEXT_MAIN),
+                ThemedTextColor::new(TEXT_MAIN),
             ));
         });
 }

@@ -35,7 +35,7 @@ use bevy::{
 use crate::{
     pane::{PaneStructure, PaneRef, PaneRegistry},
     theme::{
-        RoundedCorners, ThemeBackgroundColor, ThemeBorderColor, ThemeTextColor,
+        RoundedCorners, ThemedBackgroundColor, ThemedBorderColor, ThemedTextColor,
         constants::fonts::REGULAR,
         tokens::{PANE_BG, PANE_TAB_ACTIVE, TEXT_MAIN, WINDOW_BG},
     },
@@ -242,8 +242,8 @@ pub(super) fn on_tab_drag_start(
         .insert(ChildOf(editor_window.root()))
         .insert(Pickable::IGNORE)
         .insert((
-            ThemeBackgroundColor(PANE_BG),
-            ThemeBorderColor::all(PANE_TAB_ACTIVE),
+            ThemedBackgroundColor::new(PANE_BG),
+            ThemedBorderColor::all(PANE_TAB_ACTIVE),
         ))
         .entry::<Node>()
         .and_modify(|mut node| {
@@ -370,8 +370,8 @@ pub(super) fn spawn_tab<'a>(
                 ..default()
             },
             EntityCursor::System(SystemCursorIcon::Pointer),
-            ThemeBackgroundColor(WINDOW_BG),
-            ThemeBorderColor::all(WINDOW_BG),
+            ThemedBackgroundColor::new(WINDOW_BG),
+            ThemedBorderColor::all(WINDOW_BG),
         ))
         .id();
 
@@ -384,7 +384,7 @@ pub(super) fn spawn_tab<'a>(
             font_size: 12.0,
             ..default()
         },
-        ThemeTextColor(TEXT_MAIN),
+        ThemedTextColor::new(TEXT_MAIN),
     ));
 
     commands.entity(root)
@@ -419,12 +419,12 @@ fn focus_tabs(
 
                 commands
                     .entity(*tab)
-                    .insert(ThemeBackgroundColor(if is_active {
+                    .insert(ThemedBackgroundColor::new(if is_active {
                         PANE_BG
                     } else {
                         WINDOW_BG
                     }))
-                    .insert(ThemeBorderColor::all(if is_active {
+                    .insert(ThemedBorderColor::all(if is_active {
                         if is_focused { PANE_TAB_ACTIVE } else { PANE_BG }
                     } else {
                         WINDOW_BG

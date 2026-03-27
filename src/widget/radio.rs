@@ -22,9 +22,9 @@ use bevy::ui::{
 };
 use bevy::ui_widgets::RadioButton;
 
-use crate::theme::ThemeTextFontSize;
+use crate::theme::ThemedTextFontSize;
 use crate::theme::{
-    ThemeBackgroundColor, ThemeBorderColor, ThemeTextColor, ThemeTextFont, constants::size, tokens,
+    ThemedBackgroundColor, ThemedBorderColor, ThemedTextColor, ThemedTextFont, constants::size, tokens,
 };
 use crate::widget::EntityCursor;
 
@@ -67,9 +67,9 @@ pub fn radio<C: SpawnableList<ChildOf> + Send + Sync + 'static, B: Bundle>(
         Hovered::default(),
         EntityCursor::System(bevy::window::SystemCursorIcon::Pointer),
         TabIndex(0),
-        ThemeTextColor(tokens::RADIO_TEXT),
-        ThemeTextFont(tokens::RADIO_TEXT),
-        ThemeTextFontSize(tokens::RADIO_TEXT),
+        ThemedTextColor::new(tokens::RADIO_TEXT),
+        ThemedTextFont::new(tokens::RADIO_TEXT),
+        ThemedTextFontSize::new(tokens::RADIO_TEXT),
         overrides,
         Children::spawn((
             Spawn((
@@ -84,7 +84,7 @@ pub fn radio<C: SpawnableList<ChildOf> + Send + Sync + 'static, B: Bundle>(
                     ..Default::default()
                 },
                 RadioOutline,
-                ThemeBorderColor::all(tokens::RADIO_BORDER),
+                ThemedBorderColor::all(tokens::RADIO_BORDER),
                 children![(
                     // Cheesy checkmark: rotated node with L-shaped border.
                     Node {
@@ -94,7 +94,7 @@ pub fn radio<C: SpawnableList<ChildOf> + Send + Sync + 'static, B: Bundle>(
                         ..Default::default()
                     },
                     RadioMark,
-                    ThemeBackgroundColor(tokens::RADIO_MARK),
+                    ThemedBackgroundColor::new(tokens::RADIO_MARK),
                 )],
             )),
             label,
@@ -109,7 +109,7 @@ fn update_radio_styles(
             Has<InteractionDisabled>,
             Has<Checked>,
             &Hovered,
-            &ThemeTextColor,
+            &ThemedTextColor,
         ),
         (
             With<RadioButton>,
@@ -117,8 +117,8 @@ fn update_radio_styles(
         ),
     >,
     q_children: Query<&Children>,
-    mut q_outline: Query<&ThemeBorderColor, With<RadioOutline>>,
-    mut q_mark: Query<&ThemeBackgroundColor, With<RadioMark>>,
+    mut q_outline: Query<&ThemedBorderColor, With<RadioOutline>>,
+    mut q_mark: Query<&ThemedBackgroundColor, With<RadioMark>>,
     mut commands: Commands,
 ) {
     for (radio_ent, disabled, checked, hovered, font_color) in q_radioes.iter() {
@@ -158,13 +158,13 @@ fn update_radio_styles_remove(
             Has<InteractionDisabled>,
             Has<Checked>,
             &Hovered,
-            &ThemeTextColor,
+            &ThemedTextColor,
         ),
         With<RadioButton>,
     >,
     q_children: Query<&Children>,
-    mut q_outline: Query<&ThemeBorderColor, With<RadioOutline>>,
-    mut q_mark: Query<&ThemeBackgroundColor, With<RadioMark>>,
+    mut q_outline: Query<&ThemedBorderColor, With<RadioOutline>>,
+    mut q_mark: Query<&ThemedBackgroundColor, With<RadioMark>>,
     mut removed_disabled: RemovedComponents<InteractionDisabled>,
     mut removed_checked: RemovedComponents<Checked>,
     mut commands: Commands,
@@ -211,12 +211,12 @@ fn set_radio_styles(
     disabled: bool,
     checked: bool,
     hovered: bool,
-    outline_border: &ThemeBorderColor,
-    mark_color: &ThemeBackgroundColor,
-    font_color: &ThemeTextColor,
+    outline_border: &ThemedBorderColor,
+    mark_color: &ThemedBackgroundColor,
+    font_color: &ThemedTextColor,
     commands: &mut Commands,
 ) {
-    let outline_border_token = ThemeBorderColor::all(match (disabled, hovered) {
+    let outline_border_token = ThemedBorderColor::all(match (disabled, hovered) {
         (true, _) => tokens::RADIO_BORDER_DISABLED,
         (false, true) => tokens::RADIO_BORDER_HOVER,
         _ => tokens::RADIO_BORDER,
@@ -246,7 +246,7 @@ fn set_radio_styles(
     if mark_color.0 != mark_token {
         commands
             .entity(mark_ent)
-            .insert(ThemeBackgroundColor(mark_token));
+            .insert(ThemedBackgroundColor::new(mark_token));
     }
 
     // Change mark visibility
@@ -259,7 +259,7 @@ fn set_radio_styles(
     if font_color.0 != font_color_token {
         commands
             .entity(radio_ent)
-            .insert(ThemeTextColor(font_color_token));
+            .insert(ThemedTextColor::new(font_color_token));
     }
 
     // Change cursor shape

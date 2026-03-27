@@ -21,7 +21,7 @@ use bevy::ui::{BorderRadius, Checked, InteractionDisabled, Node, PositionType, U
 use bevy::ui_widgets::Checkbox;
 
 use crate::{
-    theme::{ThemeBackgroundColor, ThemeBorderColor, constants::size, tokens},
+    theme::{ThemedBackgroundColor, ThemedBorderColor, constants::size, tokens},
     widget::EntityCursor,
 };
 
@@ -56,8 +56,8 @@ pub fn toggle_switch<B: Bundle>(overrides: B) -> impl Bundle {
         },
         Checkbox,
         ToggleSwitchOutline,
-        ThemeBackgroundColor(tokens::SWITCH_BG),
-        ThemeBorderColor::all(tokens::SWITCH_BORDER),
+        ThemedBackgroundColor::new(tokens::SWITCH_BG),
+        ThemedBorderColor::all(tokens::SWITCH_BORDER),
         AccessibilityNode(accesskit::Node::new(Role::Switch)),
         Hovered::default(),
         EntityCursor::System(bevy::window::SystemCursorIcon::Pointer),
@@ -74,7 +74,7 @@ pub fn toggle_switch<B: Bundle>(overrides: B) -> impl Bundle {
                 ..Default::default()
             },
             ToggleSwitchSlide,
-            ThemeBackgroundColor(tokens::SWITCH_SLIDE),
+            ThemedBackgroundColor::new(tokens::SWITCH_SLIDE),
         )],
     )
 }
@@ -86,8 +86,8 @@ fn update_switch_styles(
             Has<InteractionDisabled>,
             Has<Checked>,
             &Hovered,
-            &ThemeBackgroundColor,
-            &ThemeBorderColor,
+            &ThemedBackgroundColor,
+            &ThemedBorderColor,
         ),
         (
             With<ToggleSwitchOutline>,
@@ -95,7 +95,7 @@ fn update_switch_styles(
         ),
     >,
     q_children: Query<&Children>,
-    mut q_slide: Query<(&mut Node, &ThemeBackgroundColor), With<ToggleSwitchSlide>>,
+    mut q_slide: Query<(&mut Node, &ThemedBackgroundColor), With<ToggleSwitchSlide>>,
     mut commands: Commands,
 ) {
     for (switch_ent, disabled, checked, hovered, outline_bg, outline_border) in q_switches.iter() {
@@ -129,13 +129,13 @@ fn update_switch_styles_remove(
             Has<InteractionDisabled>,
             Has<Checked>,
             &Hovered,
-            &ThemeBackgroundColor,
-            &ThemeBorderColor,
+            &ThemedBackgroundColor,
+            &ThemedBorderColor,
         ),
         With<ToggleSwitchOutline>,
     >,
     q_children: Query<&Children>,
-    mut q_slide: Query<(&mut Node, &ThemeBackgroundColor), With<ToggleSwitchSlide>>,
+    mut q_slide: Query<(&mut Node, &ThemedBackgroundColor), With<ToggleSwitchSlide>>,
     mut removed_disabled: RemovedComponents<InteractionDisabled>,
     mut removed_checked: RemovedComponents<Checked>,
     mut commands: Commands,
@@ -177,13 +177,13 @@ fn set_switch_styles(
     disabled: bool,
     checked: bool,
     hovered: bool,
-    outline_bg: &ThemeBackgroundColor,
-    outline_border: &ThemeBorderColor,
+    outline_bg: &ThemedBackgroundColor,
+    outline_border: &ThemedBorderColor,
     slide_style: &mut Mut<Node>,
-    slide_color: &ThemeBackgroundColor,
+    slide_color: &ThemedBackgroundColor,
     commands: &mut Commands,
 ) {
-    let outline_border_token = ThemeBorderColor::all(match (disabled, hovered) {
+    let outline_border_token = ThemedBorderColor::all(match (disabled, hovered) {
         (true, _) => tokens::SWITCH_BORDER_DISABLED,
         (false, true) => tokens::SWITCH_BORDER_HOVER,
         _ => tokens::SWITCH_BORDER,
@@ -215,7 +215,7 @@ fn set_switch_styles(
     if outline_bg.0 != outline_bg_token {
         commands
             .entity(switch_ent)
-            .insert(ThemeBackgroundColor(outline_bg_token));
+            .insert(ThemedBackgroundColor::new(outline_bg_token));
     }
 
     // Change outline border
@@ -227,7 +227,7 @@ fn set_switch_styles(
     if slide_color.0 != slide_token {
         commands
             .entity(slide_ent)
-            .insert(ThemeBackgroundColor(slide_token));
+            .insert(ThemedBackgroundColor::new(slide_token));
     }
 
     // Change slide position

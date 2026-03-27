@@ -32,8 +32,8 @@ use crate::{
     PLAY_MODE_VAR,
     pane::{OpenPane, PaneRegistry},
     theme::{
-        RoundedCorners, ThemeBackgroundColor, ThemeBorderColor, ThemeTextColor, ThemeTextFont,
-        ThemeTextFontSize,
+        RoundedCorners, ThemedBackgroundColor, ThemedBorderColor, ThemedTextColor, ThemedTextFont,
+        ThemedTextFontSize,
         tokens::{BORDER, BUTTON_BG, PANE_BG, TEXT_HEADING, TEXT_MAIN, WINDOW_BG},
     },
     widget::{ContextMenu, ContextMenuMark, MenuBar, MenuButton},
@@ -84,9 +84,9 @@ fn setup(trigger: On<Add, EditorMenuRoot>, assets: Res<AssetServer>, mut command
 
                         commands.spawn((
                             Text::new("Bevy"),
-                            ThemeTextColor(TEXT_HEADING),
-                            ThemeTextFont(TEXT_HEADING),
-                            ThemeTextFontSize(TEXT_HEADING),
+                            ThemedTextColor::new(TEXT_HEADING),
+                            ThemedTextFont::new(TEXT_HEADING),
+                            ThemedTextFontSize::new(TEXT_HEADING),
                         ));
                     });
 
@@ -125,8 +125,8 @@ fn setup(trigger: On<Add, EditorMenuRoot>, assets: Res<AssetServer>, mut command
                             padding: UiRect::horizontal(px(6)),
                             ..default()
                         },
-                        ThemeBorderColor::all(BORDER),
-                        ThemeBackgroundColor(BUTTON_BG),
+                        ThemedBorderColor::all(BORDER),
+                        ThemedBackgroundColor::new(BUTTON_BG),
                     ))
                     .with_children(|commands| {
                         commands.spawn((
@@ -197,24 +197,24 @@ fn spawn_menu_button<'a>(
                 justify_content: JustifyContent::Center,
                 ..default()
             },
-            ThemeBackgroundColor(WINDOW_BG),
+            ThemedBackgroundColor::new(WINDOW_BG),
         ))
         .observe(|trigger: On<Pointer<Over>>, mut commands: Commands| {
             commands
                 .entity(trigger.entity)
-                .insert(ThemeBackgroundColor(PANE_BG));
+                .insert(ThemedBackgroundColor::new(PANE_BG));
         })
         .observe(|trigger: On<Pointer<Out>>, mut commands: Commands| {
             commands
                 .entity(trigger.entity)
-                .insert(ThemeBackgroundColor(WINDOW_BG));
+                .insert(ThemedBackgroundColor::new(WINDOW_BG));
         })
         .with_children(|commands| {
             commands.spawn((
                 Text::new(label.into()),
-                ThemeTextColor(TEXT_HEADING),
-                ThemeTextFont(TEXT_MAIN),
-                ThemeTextFontSize(TEXT_HEADING),
+                ThemedTextColor::new(TEXT_HEADING),
+                ThemedTextFont::new(TEXT_MAIN),
+                ThemedTextFontSize::new(TEXT_HEADING),
             ));
         })
         .id();

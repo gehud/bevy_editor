@@ -23,10 +23,10 @@ use bevy::ui::{
 };
 use bevy::ui_widgets::Checkbox;
 
-use crate::theme::ThemeTextFontSize;
+use crate::theme::ThemedTextFontSize;
 use crate::{
     theme::{
-        ThemeBackgroundColor, ThemeBorderColor, ThemeTextColor, ThemeTextFont, constants::size,
+        ThemedBackgroundColor, ThemedBorderColor, ThemedTextColor, ThemedTextFont, constants::size,
         tokens,
     },
     widget::EntityCursor,
@@ -76,9 +76,9 @@ pub fn checkbox<C: SpawnableList<ChildOf> + Send + Sync + 'static, B: Bundle>(
         Hovered::default(),
         EntityCursor::System(bevy::window::SystemCursorIcon::Pointer),
         TabIndex(0),
-        ThemeTextColor(tokens::CHECKBOX_TEXT),
-        ThemeTextFont(tokens::CHECKBOX_TEXT),
-        ThemeTextFontSize(tokens::CHECKBOX_TEXT),
+        ThemedTextColor::new(tokens::CHECKBOX_TEXT),
+        ThemedTextFont::new(tokens::CHECKBOX_TEXT),
+        ThemedTextFontSize::new(tokens::CHECKBOX_TEXT),
         overrides,
         Children::spawn((
             Spawn((
@@ -90,8 +90,8 @@ pub fn checkbox<C: SpawnableList<ChildOf> + Send + Sync + 'static, B: Bundle>(
                     ..Default::default()
                 },
                 CheckboxOutline,
-                ThemeBackgroundColor(tokens::CHECKBOX_BG),
-                ThemeBorderColor::all(tokens::CHECKBOX_BORDER),
+                ThemedBackgroundColor::new(tokens::CHECKBOX_BG),
+                ThemedBorderColor::all(tokens::CHECKBOX_BORDER),
                 children![(
                     // Cheesy checkmark: rotated node with L-shaped border.
                     Node {
@@ -109,7 +109,7 @@ pub fn checkbox<C: SpawnableList<ChildOf> + Send + Sync + 'static, B: Bundle>(
                     },
                     UiTransform::from_rotation(Rot2::FRAC_PI_4),
                     CheckboxMark,
-                    ThemeBorderColor::all(tokens::CHECKBOX_MARK),
+                    ThemedBorderColor::all(tokens::CHECKBOX_MARK),
                 )],
             )),
             label,
@@ -124,7 +124,7 @@ fn update_checkbox_styles(
             Has<InteractionDisabled>,
             Has<Checked>,
             &Hovered,
-            &ThemeTextColor,
+            &ThemedTextColor,
         ),
         (
             With<CheckboxFrame>,
@@ -132,8 +132,8 @@ fn update_checkbox_styles(
         ),
     >,
     q_children: Query<&Children>,
-    mut q_outline: Query<(&ThemeBackgroundColor, &ThemeBorderColor), With<CheckboxOutline>>,
-    mut q_mark: Query<&ThemeBorderColor, With<CheckboxMark>>,
+    mut q_outline: Query<(&ThemedBackgroundColor, &ThemedBorderColor), With<CheckboxOutline>>,
+    mut q_mark: Query<&ThemedBorderColor, With<CheckboxMark>>,
     mut commands: Commands,
 ) {
     for (checkbox_ent, disabled, checked, hovered, font_color) in q_checkboxes.iter() {
@@ -174,13 +174,13 @@ fn update_checkbox_styles_remove(
             Has<InteractionDisabled>,
             Has<Checked>,
             &Hovered,
-            &ThemeTextColor,
+            &ThemedTextColor,
         ),
         With<CheckboxFrame>,
     >,
     q_children: Query<&Children>,
-    mut q_outline: Query<(&ThemeBackgroundColor, &ThemeBorderColor), With<CheckboxOutline>>,
-    mut q_mark: Query<&ThemeBorderColor, With<CheckboxMark>>,
+    mut q_outline: Query<(&ThemedBackgroundColor, &ThemedBorderColor), With<CheckboxOutline>>,
+    mut q_mark: Query<&ThemedBorderColor, With<CheckboxMark>>,
     mut removed_disabled: RemovedComponents<InteractionDisabled>,
     mut removed_checked: RemovedComponents<Checked>,
     mut commands: Commands,
@@ -230,13 +230,13 @@ fn set_checkbox_styles(
     disabled: bool,
     checked: bool,
     hovered: bool,
-    outline_bg: &ThemeBackgroundColor,
-    outline_border: &ThemeBorderColor,
-    mark_color: &ThemeBorderColor,
-    font_color: &ThemeTextColor,
+    outline_bg: &ThemedBackgroundColor,
+    outline_border: &ThemedBorderColor,
+    mark_color: &ThemedBorderColor,
+    font_color: &ThemedTextColor,
     commands: &mut Commands,
 ) {
-    let outline_border_token = ThemeBorderColor::all(match (disabled, hovered) {
+    let outline_border_token = ThemedBorderColor::all(match (disabled, hovered) {
         (true, _) => tokens::CHECKBOX_BORDER_DISABLED,
         (false, true) => tokens::CHECKBOX_BORDER_HOVER,
         _ => tokens::CHECKBOX_BORDER,
@@ -249,7 +249,7 @@ fn set_checkbox_styles(
         (false, false) => tokens::CHECKBOX_BG,
     };
 
-    let mark_token = ThemeBorderColor::all(match disabled {
+    let mark_token = ThemedBorderColor::all(match disabled {
         true => tokens::CHECKBOX_MARK_DISABLED,
         false => tokens::CHECKBOX_MARK,
     });
@@ -268,7 +268,7 @@ fn set_checkbox_styles(
     if outline_bg.0 != outline_bg_token {
         commands
             .entity(outline_ent)
-            .insert(ThemeBackgroundColor(outline_bg_token));
+            .insert(ThemedBackgroundColor::new(outline_bg_token));
     }
 
     // Change outline border
@@ -291,7 +291,7 @@ fn set_checkbox_styles(
     if font_color.0 != font_color_token {
         commands
             .entity(checkbox_ent)
-            .insert(ThemeTextColor(font_color_token));
+            .insert(ThemedTextColor::new(font_color_token));
     }
 
     // Change cursor shape

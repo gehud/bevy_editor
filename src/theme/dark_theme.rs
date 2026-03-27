@@ -6,12 +6,12 @@ use bevy::{
 };
 
 use crate::theme::{
-    ThemeProps,
+    EditorTheme,
     constants::fonts::{BOLD, MONO, REGULAR},
     palette, tokens,
 };
 
-impl FromWorld for ThemeProps {
+impl FromWorld for EditorTheme {
     fn from_world(world: &mut World) -> Self {
         let asset_server = world.resource::<AssetServer>();
 

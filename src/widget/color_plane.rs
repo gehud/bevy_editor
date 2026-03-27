@@ -29,7 +29,7 @@ use bevy::ui_widgets::ValueChange;
 
 use crate::theme::palette;
 use crate::{
-    theme::{ThemeBackgroundColor, tokens},
+    theme::{ThemedBackgroundColor, tokens},
     widget::EntityCursor,
 };
 
@@ -144,7 +144,7 @@ pub fn color_plane<B: Bundle>(plane: ColorPlane, overrides: B) -> impl Bundle {
         },
         plane,
         ColorPlaneValue::default(),
-        ThemeBackgroundColor(tokens::COLOR_PLANE_BG),
+        ThemedBackgroundColor::new(tokens::COLOR_PLANE_BG),
         EntityCursor::System(bevy::window::SystemCursorIcon::Crosshair),
         overrides,
         children![(

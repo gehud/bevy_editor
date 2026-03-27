@@ -6,7 +6,7 @@ use bevy::{
     ui::widget::Text,
 };
 
-use crate::theme::{ThemeTextColor, ThemeTextFont, ThemeTextFontSize, ThemeToken};
+use crate::theme::{EditorThemeToken, ThemedTextColor, ThemedTextFont, ThemedTextFontSize};
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Reflect)]
 #[reflect(Clone, Debug, Hash, PartialEq)]
@@ -15,8 +15,8 @@ pub enum TextStyle {
     Heading,
 }
 
-impl Into<ThemeToken> for TextStyle {
-    fn into(self) -> ThemeToken {
+impl Into<EditorThemeToken> for TextStyle {
+    fn into(self) -> EditorThemeToken {
         match self {
             TextStyle::Body => "editor.text.body",
             TextStyle::Heading => "editor.text.heading",
@@ -29,18 +29,18 @@ impl Into<ThemeToken> for TextStyle {
 #[reflect(Clone, Debug, Default)]
 pub struct EditorText {
     text: Text,
-    theme_text_font: ThemeTextFont,
-    theme_text_font_size: ThemeTextFontSize,
-    theme_text_color: ThemeTextColor,
+    theme_text_font: ThemedTextFont,
+    theme_text_font_size: ThemedTextFontSize,
+    theme_text_color: ThemedTextColor,
 }
 
 impl EditorText {
     pub fn new(text: impl Into<String>) -> Self {
         Self {
             text: Text::new(text),
-            theme_text_font: ThemeTextFont(TextStyle::Body.into()),
-            theme_text_font_size: ThemeTextFontSize(TextStyle::Body.into()),
-            theme_text_color: ThemeTextColor(TextStyle::Body.into()),
+            theme_text_font: ThemedTextFont::new(TextStyle::Body),
+            theme_text_font_size: ThemedTextFontSize::new(TextStyle::Body),
+            theme_text_color: ThemedTextColor::new(TextStyle::Body),
         }
     }
 

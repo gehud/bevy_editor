@@ -6,7 +6,7 @@ use bevy::{
 
 use bevy_editor::{
     pane::{PaneStructure, PaneApp},
-    theme::{ThemeTextColor, ThemeTextFont, ThemeTextFontSize, tokens::TEXT_MAIN},
+    theme::{ThemedTextColor, ThemedTextFont, ThemedTextFontSize, tokens::TEXT_MAIN},
 };
 
 pub struct MyEditorPlugin;
@@ -23,9 +23,9 @@ fn setup(In(pane): In<PaneStructure>, mut commands: Commands) {
         .with_children(|commands| {
             commands.spawn((
                 Text::new("Hello, Bevy Editor!"),
-                ThemeTextFont(TEXT_MAIN),
-                ThemeTextFontSize(TEXT_MAIN),
-                ThemeTextColor(TEXT_MAIN),
+                ThemedTextFont::new(TEXT_MAIN),
+                ThemedTextFontSize::new(TEXT_MAIN),
+                ThemedTextColor::new(TEXT_MAIN),
             ));
         });
 }

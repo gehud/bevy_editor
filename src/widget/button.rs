@@ -17,10 +17,10 @@ use bevy::reflect::{Reflect, prelude::ReflectDefault};
 use bevy::ui::{AlignItems, InteractionDisabled, JustifyContent, Node, Pressed, UiRect, Val};
 use bevy::ui_widgets::Button;
 
-use crate::theme::ThemeTextFontSize;
+use crate::theme::ThemedTextFontSize;
 use crate::{
     theme::{
-        RoundedCorners, ThemeBackgroundColor, ThemeTextColor, ThemeTextFont, constants::size,
+        RoundedCorners, ThemedBackgroundColor, ThemedTextColor, ThemedTextFont, constants::size,
         tokens,
     },
     widget::EntityCursor,
@@ -81,10 +81,10 @@ pub fn button<C: SpawnableList<ChildOf> + Send + Sync + 'static, B: Bundle>(
         Hovered::default(),
         EntityCursor::System(bevy::window::SystemCursorIcon::Pointer),
         TabIndex(0),
-        ThemeBackgroundColor(tokens::BUTTON_BG),
-        ThemeTextColor(tokens::BUTTON_TEXT),
-        ThemeTextFont(tokens::BUTTON_TEXT),
-        ThemeTextFontSize(tokens::BUTTON_TEXT),
+        ThemedBackgroundColor::new(tokens::BUTTON_BG),
+        ThemedTextColor::new(tokens::BUTTON_TEXT),
+        ThemedTextFont::new(tokens::BUTTON_TEXT),
+        ThemedTextFontSize::new(tokens::BUTTON_TEXT),
         overrides,
         Children::spawn(children),
     )
@@ -98,8 +98,8 @@ fn update_button_styles(
             Has<InteractionDisabled>,
             Has<Pressed>,
             &Hovered,
-            &ThemeBackgroundColor,
-            &ThemeTextColor,
+            &ThemedBackgroundColor,
+            &ThemedTextColor,
         ),
         Or<(
             Changed<Hovered>,
@@ -132,8 +132,8 @@ fn update_button_styles_remove(
         Has<InteractionDisabled>,
         Has<Pressed>,
         &Hovered,
-        &ThemeBackgroundColor,
-        &ThemeTextColor,
+        &ThemedBackgroundColor,
+        &ThemedTextColor,
     )>,
     mut removed_disabled: RemovedComponents<InteractionDisabled>,
     mut removed_pressed: RemovedComponents<Pressed>,
@@ -166,8 +166,8 @@ fn set_button_styles(
     disabled: bool,
     pressed: bool,
     hovered: bool,
-    bg_color: &ThemeBackgroundColor,
-    font_color: &ThemeTextColor,
+    bg_color: &ThemedBackgroundColor,
+    font_color: &ThemedTextColor,
     commands: &mut Commands,
 ) {
     let bg_token = match (variant, disabled, pressed, hovered) {
@@ -197,14 +197,14 @@ fn set_button_styles(
     if bg_color.0 != bg_token {
         commands
             .entity(button_ent)
-            .insert(ThemeBackgroundColor(bg_token));
+            .insert(ThemedBackgroundColor::new(bg_token));
     }
 
     // Change font color
     if font_color.0 != font_color_token {
         commands
             .entity(button_ent)
-            .insert(ThemeTextColor(font_color_token));
+            .insert(ThemedTextColor::new(font_color_token));
     }
 
     // Change cursor shape

@@ -34,7 +34,7 @@ use bevy::{
 
 use crate::{
     theme::{
-        RoundedCorners, ThemeBackgroundColor, ThemeBorderColor, ThemeImageColor, ThemeTextColor,
+        RoundedCorners, ThemedBackgroundColor, ThemedBorderColor, ThemedImageColor, ThemedTextColor,
         constants::fonts::REGULAR,
         tokens::{BORDER, BUTTON_TEXT, PANE_TAB_ACTIVE, TEXT_DIM, TEXT_MAIN, WINDOW_BG},
     },
@@ -268,8 +268,8 @@ fn spawn_menu<'a>(
                 border_radius: RoundedCorners::All.to_border_radius(6.0),
                 ..default()
             },
-            ThemeBorderColor::all(BORDER),
-            ThemeBackgroundColor(WINDOW_BG),
+            ThemedBorderColor::all(BORDER),
+            ThemedBackgroundColor::new(WINDOW_BG),
             BoxShadow::from(ShadowStyle {
                 blur_radius: px(3),
                 x_offset: px(0),
@@ -326,12 +326,12 @@ fn spawn_menu_item(
             .observe(|trigger: On<Pointer<Over>>, mut commands: Commands| {
                 commands
                     .entity(trigger.entity)
-                    .insert(ThemeBackgroundColor(PANE_TAB_ACTIVE));
+                    .insert(ThemedBackgroundColor::new(PANE_TAB_ACTIVE));
             })
             .observe(|trigger: On<Pointer<Out>>, mut commands: Commands| {
                 commands
                     .entity(trigger.entity)
-                    .insert(ThemeBackgroundColor(WINDOW_BG));
+                    .insert(ThemedBackgroundColor::new(WINDOW_BG));
             });
     }
 
@@ -392,7 +392,7 @@ fn spawn_option<'a>(
                                 asset_server
                                     .load("embedded://bevy_editor//icons/check.png"),
                             ),
-                            ThemeImageColor(text_color.clone()),
+                            ThemedImageColor::new(text_color.clone()),
                         ));
                     }
                 });
@@ -416,7 +416,7 @@ fn spawn_option<'a>(
                             font_size: 12.0,
                             ..default()
                         },
-                        ThemeTextColor(text_color),
+                        ThemedTextColor::new(text_color),
                     ));
                 });
 
@@ -521,7 +521,7 @@ fn spawn_submenu<'a>(
                             font_size: 12.0,
                             ..default()
                         },
-                        ThemeTextColor(TEXT_MAIN),
+                        ThemedTextColor::new(TEXT_MAIN),
                     ));
                 });
 
@@ -545,7 +545,7 @@ fn spawn_submenu<'a>(
                                 "embedded://bevy_editor//icons/chevron_right.png",
                             ),
                         ),
-                        ThemeImageColor(BUTTON_TEXT),
+                        ThemedImageColor::new(BUTTON_TEXT),
                     ));
                 });
         })
@@ -595,7 +595,7 @@ fn spawn_separator<'a>(
                 height: px(1),
                 ..default()
             },
-            ThemeBackgroundColor(BORDER),
+            ThemedBackgroundColor::new(BORDER),
         ))
         .id();
 

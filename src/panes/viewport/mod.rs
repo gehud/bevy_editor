@@ -32,7 +32,7 @@ use bevy::{
 use crate::{
     pane::{PaneApp, PaneStructure},
     panes::viewport::grid::{InfiniteGrid, InfiniteGridPlugin, InfiniteGridSettings},
-    theme::{ThemeBorderColor, palette, tokens::PANE_BG},
+    theme::{ThemedBorderColor, palette, tokens::PANE_BG},
 };
 
 pub struct ViewportPlugin;
@@ -123,7 +123,7 @@ fn setup(In(pane): In<PaneStructure>, mut images: ResMut<Assets<Image>>, mut com
                     border: UiRect::top(px(1)),
                     ..default()
                 },
-                ThemeBorderColor::all(PANE_BG),
+                ThemedBorderColor::all(PANE_BG),
                 ViewportNode::new(camera),
             ))
             .observe(on_viewport_drag_start)
