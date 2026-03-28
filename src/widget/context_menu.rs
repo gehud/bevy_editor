@@ -23,21 +23,19 @@ use bevy::{
         events::{Click, Out, Over, Pointer, Press},
         pointer::PointerButton,
     },
-    text::TextFont,
     ui::{
         AlignItems, AlignSelf, BoxShadow, ComputedNode, FlexDirection, JustifyContent, Node,
-        PositionType, ShadowStyle, UiGlobalTransform, UiRect, percent, px,
-        widget::{ImageNode, Text},
+        PositionType, ShadowStyle, UiGlobalTransform, UiRect, percent, px, widget::ImageNode,
     },
     utils::default,
 };
 
 use crate::{
     theme::{
-        RoundedCorners, ThemedBackgroundColor, ThemedBorderColor, ThemedImageColor, ThemedTextColor,
-        constants::fonts::REGULAR,
-        tokens::{BORDER, BUTTON_TEXT, PANE_TAB_ACTIVE, TEXT_DIM, TEXT_MAIN, WINDOW_BG},
+        RoundedCorners, ThemedBackgroundColor, ThemedBorderColor, ThemedImageColor,
+        tokens::{BORDER, BUTTON_TEXT, PANE_TAB_ACTIVE, WINDOW_BG},
     },
+    widget::{EditorText, EditorTextColor},
     window::{EditorWindow, EditorWindowStructure},
 };
 
@@ -348,7 +346,11 @@ fn spawn_option<'a>(
     label: String,
     callback: Arc<dyn Fn(&mut DeferredWorld) -> Result + Send + Sync>,
 ) -> Result<EntityCommands<'a>> {
-    let text_color = if enabled { TEXT_MAIN } else { TEXT_DIM };
+    let text_color = if enabled {
+        EditorTextColor::Bright
+    } else {
+        EditorTextColor::Weak
+    };
 
     let item = commands
         .spawn((
@@ -389,8 +391,7 @@ fn spawn_option<'a>(
                     if matches!(mark, ContextMenuMark::Checked) {
                         commands.commands_mut().entity(mark_node).insert((
                             ImageNode::new(
-                                asset_server
-                                    .load("embedded://bevy_editor//icons/check.png"),
+                                asset_server.load("embedded://bevy_editor//icons/check.png"),
                             ),
                             ThemedImageColor::new(text_color.clone()),
                         ));
@@ -410,13 +411,7 @@ fn spawn_option<'a>(
                 .with_children(|commands| {
                     commands.spawn((
                         Pickable::IGNORE,
-                        Text::new(label),
-                        TextFont {
-                            font: asset_server.load(REGULAR),
-                            font_size: 12.0,
-                            ..default()
-                        },
-                        ThemedTextColor::new(text_color),
+                        EditorText::new(label).with_color(text_color),
                     ));
                 });
 
@@ -513,16 +508,7 @@ fn spawn_submenu<'a>(
                     Pickable::IGNORE,
                 ))
                 .with_children(|commands| {
-                    commands.spawn((
-                        Pickable::IGNORE,
-                        Text::new(label),
-                        TextFont {
-                            font: asset_server.load(REGULAR),
-                            font_size: 12.0,
-                            ..default()
-                        },
-                        ThemedTextColor::new(TEXT_MAIN),
-                    ));
+                    commands.spawn((Pickable::IGNORE, EditorText::new(label)));
                 });
 
             commands
@@ -541,9 +527,7 @@ fn spawn_submenu<'a>(
                     commands.spawn((
                         Pickable::IGNORE,
                         ImageNode::new(
-                            asset_server.load(
-                                "embedded://bevy_editor//icons/chevron_right.png",
-                            ),
+                            asset_server.load("embedded://bevy_editor//icons/chevron_right.png"),
                         ),
                         ThemedImageColor::new(BUTTON_TEXT),
                     ));

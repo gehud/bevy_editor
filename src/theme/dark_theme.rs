@@ -5,10 +5,9 @@ use bevy::{
     platform::collections::HashMap,
 };
 
-use crate::theme::{
-    EditorTheme,
-    constants::fonts::{BOLD, MONO, REGULAR},
-    palette, tokens,
+use crate::{
+    theme::{EditorTheme, palette, tokens},
+    widget::{EditorTextColor, EditorTextFont, EditorTextSize},
 };
 
 impl FromWorld for EditorTheme {
@@ -17,15 +16,15 @@ impl FromWorld for EditorTheme {
 
         Self {
             color: HashMap::from([
+                // Text
+                (EditorTextColor::Weak.into(), palette::LIGHT_GRAY_2),
+                (EditorTextColor::Dimmed.into(), palette::LIGHT_GRAY_1),
+                (EditorTextColor::Bright.into(), palette::WHITE),
                 (tokens::WINDOW_BG, palette::GRAY_0),
                 (tokens::BORDER, palette::WARM_GRAY_1),
                 // Pane
                 (tokens::PANE_BG, palette::GRAY_1),
                 (tokens::PANE_TAB_ACTIVE, palette::ACCENT),
-                // Text
-                (tokens::TEXT_MAIN, palette::WHITE),
-                (tokens::TEXT_HEADING, palette::WHITE),
-                (tokens::TEXT_DIM, palette::WHITE.with_alpha(0.5)),
                 // Button
                 (tokens::BUTTON_BG, palette::GRAY_2),
                 (tokens::BUTTON_BG_HOVER, palette::GRAY_2.lighter(0.05)),
@@ -114,19 +113,23 @@ impl FromWorld for EditorTheme {
                 (tokens::COLOR_PLANE_BG, palette::GRAY_1),
             ]),
             fonts: HashMap::from([
-                (tokens::TEXT_MAIN, asset_server.load(REGULAR)),
-                (tokens::TEXT_HEADING, asset_server.load(BOLD)),
-                (tokens::TEXT_MAIN, asset_server.load(REGULAR)),
-                (tokens::TEXT_DIM, asset_server.load(REGULAR)),
-                (tokens::BUTTON_TEXT, asset_server.load(REGULAR)),
-                (tokens::BUTTON_TEXT, asset_server.load(REGULAR)),
-                (tokens::SLIDER_TEXT, asset_server.load(MONO)),
+                (
+                    EditorTextFont::Regular.into(),
+                    asset_server.load("embedded://bevy_editor/fonts/FiraSans-Regular.ttf"),
+                ),
+                (
+                    EditorTextFont::Bold.into(),
+                    asset_server.load("embedded://bevy_editor/fonts/FiraSans-Bold.ttf"),
+                ),
+                (
+                    EditorTextFont::Mono.into(),
+                    asset_server.load("embedded://bevy_editor/fonts/FiraMono-Medium.ttf"),
+                ),
             ]),
             font_sizes: HashMap::from([
-                (tokens::TEXT_MAIN, 12.0),
-                (tokens::TEXT_HEADING, 13.0),
-                (tokens::TEXT_DISABLED, 12.0),
-                (tokens::TEXT_DIM, 10.0),
+                (EditorTextSize::Lower.into(), 10.0),
+                (EditorTextSize::Normal.into(), 12.0),
+                (EditorTextSize::Raised.into(), 13.0),
                 (tokens::BUTTON_TEXT, 12.0),
                 (tokens::RADIO_TEXT, 12.0),
                 (tokens::SLIDER_TEXT, 12.0),

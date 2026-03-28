@@ -1,41 +1,33 @@
 use std::{
-    env::{consts::EXE_EXTENSION, current_dir},
-    fs::{DirEntry, read_dir},
     path::PathBuf,
-    time::{Duration, Instant},
+    time::Instant,
 };
 
 use bevy::{
     app::{App, Plugin, Update},
-    asset::{
-        AssetLoader, AssetPath, AssetServer, LoadContext,
-        io::{AssetReader, AssetSource, AssetSourceId, file::FileAssetReader},
-    },
+    asset::
+        AssetServer
+    ,
     ecs::{
         change_detection::DetectChanges,
         component::Component,
         entity::Entity,
         error::Result,
-        event::EntityEvent,
         hierarchy::{ChildOf, Children},
-        lifecycle::Add,
         message::MessageReader,
         observer::On,
-        query::Changed,
         system::{Commands, In, Query, Res},
         world::Ref,
     },
-    log::info,
     picking::{
         Pickable,
         events::{Click, Out, Over, Pointer},
     },
-    tasks::block_on,
     text::TextLayout,
     ui::{
         AlignContent, AlignItems, FlexDirection, FlexWrap, JustifyContent, Node, Overflow,
         OverflowAxis, PositionType, UiRect, percent, px,
-        widget::{ImageNode, Text},
+        widget::ImageNode,
     },
     utils::default,
 };
@@ -44,10 +36,9 @@ use crate::{
     asset::{DatabaseRefresed, database::AssetDatabase},
     pane::{PaneApp, PaneStructure},
     theme::{
-        RoundedCorners, ThemedBackgroundColor, ThemedTextColor, ThemedTextFont, ThemedTextFontSize,
-        tokens::{BUTTON_BG, PANE_BG, TEXT_MAIN, WINDOW_BG},
+        RoundedCorners, ThemedBackgroundColor, tokens::{BUTTON_BG, PANE_BG, WINDOW_BG},
     },
-    widget::ScrollArea,
+    widget::{EditorText, ScrollArea},
 };
 
 pub struct AssetBrowserPlugin;
@@ -374,11 +365,8 @@ fn spawn_dir_entry(
 
             commands.spawn((
                 Pickable::IGNORE,
-                Text::new(file_name),
                 TextLayout::new_with_no_wrap(),
-                ThemedTextFont::new(TEXT_MAIN),
-                ThemedTextFontSize::new(TEXT_MAIN),
-                ThemedTextColor::new(TEXT_MAIN),
+                EditorText::new(file_name),
             ));
         });
 
@@ -478,11 +466,8 @@ fn on_inspect_labeled_assets_click(
 
                                 commands.spawn((
                                     Pickable::IGNORE,
-                                    Text::new(label),
                                     TextLayout::new_with_no_wrap(),
-                                    ThemedTextFont::new(TEXT_MAIN),
-                                    ThemedTextFontSize::new(TEXT_MAIN),
-                                    ThemedTextColor::new(TEXT_MAIN),
+                                    EditorText::new(label),
                                 ));
                             });
                     })
@@ -526,12 +511,7 @@ fn spawn_path_component(
             ThemedBackgroundColor::new(PANE_BG),
         ))
         .with_children(|commands| {
-            commands.spawn((
-                Text::new(file_name),
-                ThemedTextFont::new(TEXT_MAIN),
-                ThemedTextFontSize::new(TEXT_MAIN),
-                ThemedTextColor::new(TEXT_MAIN),
-            ));
+            commands.spawn(EditorText::new(file_name));
         })
         .observe(|trigger: On<Pointer<Over>>, mut commands: Commands| {
             commands
@@ -567,12 +547,6 @@ fn spawn_path_separator(commands: &mut Commands, container: Entity) {
             ThemedBackgroundColor::new(PANE_BG),
         ))
         .with_children(|commands| {
-            commands.spawn((
-                Pickable::IGNORE,
-                Text::new("/"),
-                ThemedTextFont::new(TEXT_MAIN),
-                ThemedTextFontSize::new(TEXT_MAIN),
-                ThemedTextColor::new(TEXT_MAIN),
-            ));
+            commands.spawn((Pickable::IGNORE, EditorText::new("/")));
         });
 }

@@ -37,10 +37,10 @@ fn update_theme(
     themed_text_colors: Query<(&mut TextColor, Ref<ThemedTextColor>)>,
     text_fonts: Query<
         (Entity, &mut TextFont),
-        Or<(With<ThemedTextFont>, With<ThemedTextFontSize>)>,
+        Or<(With<ThemedTextFont>, With<ThemedTextSize>)>,
     >,
     themed_text_fonts: Query<Ref<ThemedTextFont>>,
-    themed_text_font_sizes: Query<Ref<ThemedTextFontSize>>,
+    themed_text_sizes: Query<Ref<ThemedTextSize>>,
     themed_image_colors: Query<(&mut ImageNode, Ref<ThemedImageColor>)>,
 ) -> Result {
     for (mut background_color, themed) in themed_background_colors {
@@ -77,7 +77,7 @@ fn update_theme(
             }
         }
 
-        if let Ok(themed) = themed_text_font_sizes.get(entity) {
+        if let Ok(themed) = themed_text_sizes.get(entity) {
             if theme.is_changed() || themed.is_changed() {
                 text_font.font_size = theme.font_size(&themed.0)?;
             }

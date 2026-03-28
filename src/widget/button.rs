@@ -17,7 +17,7 @@ use bevy::reflect::{Reflect, prelude::ReflectDefault};
 use bevy::ui::{AlignItems, InteractionDisabled, JustifyContent, Node, Pressed, UiRect, Val};
 use bevy::ui_widgets::Button;
 
-use crate::theme::ThemedTextFontSize;
+use crate::theme::ThemedTextSize;
 use crate::{
     theme::{
         RoundedCorners, ThemedBackgroundColor, ThemedTextColor, ThemedTextFont, constants::size,
@@ -84,7 +84,7 @@ pub fn button<C: SpawnableList<ChildOf> + Send + Sync + 'static, B: Bundle>(
         ThemedBackgroundColor::new(tokens::BUTTON_BG),
         ThemedTextColor::new(tokens::BUTTON_TEXT),
         ThemedTextFont::new(tokens::BUTTON_TEXT),
-        ThemedTextFontSize::new(tokens::BUTTON_TEXT),
+        ThemedTextSize::new(tokens::BUTTON_TEXT),
         overrides,
         Children::spawn(children),
     )

@@ -27,7 +27,7 @@ use bevy::ui_widgets::{Slider, SliderPrecision, SliderRange, SliderValue, TrackC
 
 use crate::{
     theme::{
-        RoundedCorners, EditorTheme, ThemedTextColor, ThemedTextFont, ThemedTextFontSize, constants::size,
+        RoundedCorners, EditorTheme, ThemedTextColor, ThemedTextFont, ThemedTextSize, constants::size,
         tokens,
     },
     widget::EntityCursor,
@@ -119,12 +119,12 @@ pub fn slider<B: Bundle>(props: SliderProps, overrides: B) -> impl Bundle {
             },
             ThemedTextColor::new(tokens::SLIDER_TEXT),
             ThemedTextFont::new(tokens::SLIDER_TEXT),
-            ThemedTextFontSize::new(tokens::SLIDER_TEXT),
+            ThemedTextSize::new(tokens::SLIDER_TEXT),
             children![(
                 Text::new("10.0"),
                 ThemedTextColor::new(tokens::SLIDER_TEXT),
                 ThemedTextFont::new(tokens::SLIDER_TEXT),
-                ThemedTextFontSize::new(tokens::SLIDER_TEXT),
+                ThemedTextSize::new(tokens::SLIDER_TEXT),
                 SliderValueText,
             )],
         )],

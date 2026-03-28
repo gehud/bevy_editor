@@ -9,19 +9,15 @@ use bevy::{
         change_detection::DetectChanges,
         component::Component,
         entity::Entity,
-        entity_disabling::Disabled,
         error::Result,
         event::EntityEvent,
         hierarchy::{ChildOf, Children},
-        message::{Message, MessageReader, MessageWriter},
         name::Name,
         observer::On,
-        query::With,
         system::{Commands, In, Query, Res, ResMut, Single},
         world::{Ref, World},
     },
     light::PointLight,
-    log::info,
     math::{
         Quat,
         primitives::{Circle, Cuboid},
@@ -32,13 +28,13 @@ use bevy::{
         Pickable,
         events::{Click, Out, Over, Pointer},
     },
-    scene::{InstanceId, Scene, SceneInstance, SceneLoader, SceneRoot, SceneSpawner},
+    scene::{InstanceId, Scene, SceneSpawner},
     text::TextLayout,
     transform::components::Transform,
     ui::{
         AlignItems, FlexDirection, JustifyContent, Node, Overflow, PositionType, UiRect, auto,
         percent, px,
-        widget::{ImageNode, Text},
+        widget::ImageNode,
     },
     utils::default,
 };
@@ -46,10 +42,7 @@ use bevy::{
 use crate::{
     pane::{PaneApp, PaneStructure},
     theme::{
-        RoundedCorners, ThemedBackgroundColor, ThemedBorderColor, ThemedTextColor, ThemedTextFont,
-        ThemedTextFontSize,
-        constants::size::GAP,
-        tokens::{BORDER, BUTTON_BG, PANE_BG, TEXT_MAIN},
+        RoundedCorners, ThemedBackgroundColor, ThemedBorderColor, tokens::{BORDER, BUTTON_BG, PANE_BG},
     },
     widget::{EditorText, ScrollArea},
 };

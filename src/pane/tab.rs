@@ -23,23 +23,20 @@ use bevy::{
         },
         pointer::{PointerButton, PointerLocation, PointerMap},
     },
-    text::TextFont,
     ui::{
         AlignItems, ComputedNode, Node, PositionType, ScrollPosition, UiRect, UiScale, percent, px,
-        widget::Text,
     },
     utils::default,
     window::SystemCursorIcon,
 };
 
 use crate::{
-    pane::{PaneStructure, PaneRef, PaneRegistry},
+    pane::{PaneRef, PaneRegistry, PaneStructure},
     theme::{
-        RoundedCorners, ThemedBackgroundColor, ThemedBorderColor, ThemedTextColor,
-        constants::fonts::REGULAR,
-        tokens::{PANE_BG, PANE_TAB_ACTIVE, TEXT_MAIN, WINDOW_BG},
+        RoundedCorners, ThemedBackgroundColor, ThemedBorderColor,
+        tokens::{PANE_BG, PANE_TAB_ACTIVE, WINDOW_BG},
     },
-    widget::{ContextMenu, ContextMenuMark, EntityCursor, OverrideCursor},
+    widget::{ContextMenu, ContextMenuMark, EditorText, EntityCursor, OverrideCursor},
     window::{EditorWindowAutoFocus, EditorWindowStructure},
 };
 
@@ -375,17 +372,7 @@ pub(super) fn spawn_tab<'a>(
         ))
         .id();
 
-    commands.spawn((
-        Pickable::IGNORE,
-        ChildOf(root),
-        Text::new(tab),
-        TextFont {
-            font: asset_server.load(REGULAR),
-            font_size: 12.0,
-            ..default()
-        },
-        ThemedTextColor::new(TEXT_MAIN),
-    ));
+    commands.spawn((Pickable::IGNORE, ChildOf(root), EditorText::new(tab)));
 
     commands.entity(root)
 }

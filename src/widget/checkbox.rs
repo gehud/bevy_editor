@@ -23,7 +23,7 @@ use bevy::ui::{
 };
 use bevy::ui_widgets::Checkbox;
 
-use crate::theme::ThemedTextFontSize;
+use crate::theme::ThemedTextSize;
 use crate::{
     theme::{
         ThemedBackgroundColor, ThemedBorderColor, ThemedTextColor, ThemedTextFont, constants::size,
@@ -78,7 +78,7 @@ pub fn checkbox<C: SpawnableList<ChildOf> + Send + Sync + 'static, B: Bundle>(
         TabIndex(0),
         ThemedTextColor::new(tokens::CHECKBOX_TEXT),
         ThemedTextFont::new(tokens::CHECKBOX_TEXT),
-        ThemedTextFontSize::new(tokens::CHECKBOX_TEXT),
+        ThemedTextSize::new(tokens::CHECKBOX_TEXT),
         overrides,
         Children::spawn((
             Spawn((

@@ -22,7 +22,7 @@ use bevy::ui::{
 };
 use bevy::ui_widgets::RadioButton;
 
-use crate::theme::ThemedTextFontSize;
+use crate::theme::ThemedTextSize;
 use crate::theme::{
     ThemedBackgroundColor, ThemedBorderColor, ThemedTextColor, ThemedTextFont, constants::size, tokens,
 };
@@ -69,7 +69,7 @@ pub fn radio<C: SpawnableList<ChildOf> + Send + Sync + 'static, B: Bundle>(
         TabIndex(0),
         ThemedTextColor::new(tokens::RADIO_TEXT),
         ThemedTextFont::new(tokens::RADIO_TEXT),
-        ThemedTextFontSize::new(tokens::RADIO_TEXT),
+        ThemedTextSize::new(tokens::RADIO_TEXT),
         overrides,
         Children::spawn((
             Spawn((

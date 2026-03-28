@@ -18,11 +18,6 @@ pub const PANE_TAB_ACTIVE: EditorThemeToken = EditorThemeToken::new("pane.tab.ac
 /// Focus ring
 pub const FOCUS_RING: EditorThemeToken = EditorThemeToken::new("editor.focus");
 
-pub const TEXT_MAIN: EditorThemeToken = EditorThemeToken::new("editor.text.body");
-pub const TEXT_HEADING: EditorThemeToken = EditorThemeToken::new("editor.text.heading");
-pub const TEXT_DISABLED: EditorThemeToken = EditorThemeToken::new("editor.text.disabled");
-pub const TEXT_DIM: EditorThemeToken = EditorThemeToken::new("editor.text.dim");
-
 // Normal buttons
 
 /// Regular button background

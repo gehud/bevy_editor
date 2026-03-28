@@ -76,9 +76,9 @@ impl ThemedTextFont {
 #[derive(Clone, Component, Debug, Eq, PartialEq, Reflect)]
 #[reflect(Clone, Component, Debug, PartialEq)]
 #[require(TextFont)]
-pub struct ThemedTextFontSize(pub EditorThemeToken);
+pub struct ThemedTextSize(pub EditorThemeToken);
 
-impl ThemedTextFontSize {
+impl ThemedTextSize {
     pub fn new(token: impl Into<EditorThemeToken>) -> Self {
         Self(token.into())
     }

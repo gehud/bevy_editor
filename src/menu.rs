@@ -32,11 +32,10 @@ use crate::{
     PLAY_MODE_VAR,
     pane::{OpenPane, PaneRegistry},
     theme::{
-        RoundedCorners, ThemedBackgroundColor, ThemedBorderColor, ThemedTextColor, ThemedTextFont,
-        ThemedTextFontSize,
-        tokens::{BORDER, BUTTON_BG, PANE_BG, TEXT_HEADING, TEXT_MAIN, WINDOW_BG},
+        RoundedCorners, ThemedBackgroundColor, ThemedBorderColor,
+        tokens::{BORDER, BUTTON_BG, PANE_BG, WINDOW_BG},
     },
-    widget::{ContextMenu, ContextMenuMark, MenuBar, MenuButton},
+    widget::{ContextMenu, ContextMenuMark, EditorText, EditorTextFont, MenuBar, MenuButton},
 };
 
 #[derive(Component)]
@@ -77,17 +76,10 @@ fn setup(trigger: On<Add, EditorMenuRoot>, assets: Res<AssetServer>, mut command
                                 height: px(20),
                                 ..default()
                             },
-                            ImageNode::new(
-                                assets.load("embedded://bevy_editor/icons/bevy.png"),
-                            ),
+                            ImageNode::new(assets.load("embedded://bevy_editor/icons/bevy.png")),
                         ));
 
-                        commands.spawn((
-                            Text::new("Bevy"),
-                            ThemedTextColor::new(TEXT_HEADING),
-                            ThemedTextFont::new(TEXT_HEADING),
-                            ThemedTextFontSize::new(TEXT_HEADING),
-                        ));
+                        commands.spawn(EditorText::new("Bevy").heading());
                     });
 
                 // Menu
@@ -136,9 +128,7 @@ fn setup(trigger: On<Add, EditorMenuRoot>, assets: Res<AssetServer>, mut command
                                 height: px(13),
                                 ..default()
                             },
-                            ImageNode::new(
-                                assets.load("embedded://bevy_editor/icons/play.png"),
-                            ),
+                            ImageNode::new(assets.load("embedded://bevy_editor/icons/play.png")),
                         ));
                     })
                     .observe(|_: On<Pointer<Click>>| -> Result {
@@ -210,12 +200,11 @@ fn spawn_menu_button<'a>(
                 .insert(ThemedBackgroundColor::new(WINDOW_BG));
         })
         .with_children(|commands| {
-            commands.spawn((
-                Text::new(label.into()),
-                ThemedTextColor::new(TEXT_HEADING),
-                ThemedTextFont::new(TEXT_MAIN),
-                ThemedTextFontSize::new(TEXT_HEADING),
-            ));
+            commands.spawn(
+                EditorText::new(label)
+                    .heading()
+                    .with_font(EditorTextFont::Regular),
+            );
         })
         .id();
 
