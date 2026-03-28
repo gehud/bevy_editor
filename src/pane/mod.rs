@@ -10,19 +10,17 @@ pub use window::*;
 
 use bevy::{
     app::{App, Plugin},
-    asset::AssetServer,
     ecs::{
         hierarchy::ChildOf,
         lifecycle::Add,
         observer::On,
-        system::{Commands, Res, ResMut},
+        system::{Commands, ResMut},
     },
     input_focus::InputFocus,
 };
 
 fn setup_default_layout(
     trigger: On<Add, PaneLayoutRoot>,
-    asset_server: Res<AssetServer>,
     mut focus: ResMut<InputFocus>,
     mut commands: Commands,
 ) {
@@ -39,7 +37,6 @@ fn setup_default_layout(
     spawn_pane(
         &mut commands,
         &mut focus,
-        &asset_server,
         0.4,
         vec!["Scene Tree".into()],
         false,
@@ -49,7 +46,6 @@ fn setup_default_layout(
     spawn_pane(
         &mut commands,
         &mut focus,
-        &asset_server,
         0.6,
         vec!["Properties".into()],
         false,
@@ -65,7 +61,6 @@ fn setup_default_layout(
     spawn_pane(
         &mut commands,
         &mut focus,
-        &asset_server,
         0.70,
         vec!["Viewport".into()],
         false,
@@ -75,7 +70,6 @@ fn setup_default_layout(
     spawn_pane(
         &mut commands,
         &mut focus,
-        &asset_server,
         0.30,
         vec!["Asset Browser".into()],
         false,

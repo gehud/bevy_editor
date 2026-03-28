@@ -1,6 +1,6 @@
 use bevy::{
     app::{App, First, Plugin, PreUpdate, Update},
-    asset::{AssetServer, Handle, embedded_asset},
+    asset::{AssetServer, Handle},
     camera::{Camera2d, ClearColor, NormalizedRenderTarget, RenderTarget},
     color::Color,
     ecs::{

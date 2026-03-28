@@ -1,6 +1,5 @@
 use bevy::{
     app::{App, Plugin, PostUpdate, Update},
-    asset::AssetServer,
     camera::{NormalizedRenderTarget, visibility::Visibility},
     ecs::{
         change_detection::DetectChanges,
@@ -217,7 +216,6 @@ pub(super) fn on_tab_drag_start(
     trigger: On<Pointer<DragStart>>,
     editor_windows: Query<&EditorWindowStructure>,
     mut commands: Commands,
-    asset_server: Res<AssetServer>,
     tabs: Query<(&PaneTab, &PaneRef)>,
     mut auto_focus: ResMut<EditorWindowAutoFocus>,
     mut override_cursor: ResMut<OverrideCursor>,
@@ -235,7 +233,7 @@ pub(super) fn on_tab_drag_start(
     };
 
     let (tab, pane) = tabs.get(trigger.entity)?;
-    let indicator = spawn_tab(&mut commands, &asset_server, pane.entity, tab.name.clone())
+    let indicator = spawn_tab(&mut commands, pane.entity, tab.name.clone())
         .insert(ChildOf(editor_window.root()))
         .insert(Pickable::IGNORE)
         .insert((
@@ -345,7 +343,6 @@ pub(super) fn on_tab_drag_cancel(
 
 pub(super) fn spawn_tab<'a>(
     commands: &'a mut Commands,
-    asset_server: &AssetServer,
     pane: Entity,
     tab: String,
 ) -> EntityCommands<'a> {

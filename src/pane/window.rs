@@ -1,6 +1,5 @@
 use bevy::{
     app::{App, Plugin, Update},
-    asset::AssetServer,
     camera::visibility::Visibility,
     ecs::{
         component::Component,
@@ -11,7 +10,7 @@ use bevy::{
         message::{Message, MessageReader},
         observer::On,
         schedule::IntoScheduleConfigs,
-        system::{Commands, EntityCommands, Query, Res, ResMut},
+        system::{Commands, EntityCommands, Query, ResMut},
     },
     input_focus::InputFocus,
     picking::{
@@ -56,7 +55,6 @@ pub(super) struct PaneRef {
 pub(super) fn spawn_pane<'a>(
     commands: &'a mut Commands,
     focus: &mut InputFocus,
-    assets: &AssetServer,
     size: f32,
     tabs: Vec<String>,
     focus_first: bool,
@@ -144,7 +142,7 @@ pub(super) fn spawn_pane<'a>(
 
                     let mut is_first_tab = true;
                     for tab in tabs {
-                        let id = spawn_tab(commands.commands_mut(), assets, root, tab)
+                        let id = spawn_tab(commands.commands_mut(), root, tab)
                             .insert(ChildOf(tabgroup))
                             .observe(on_tab_press)
                             .observe(on_tab_drag_start)
@@ -271,16 +269,13 @@ pub(super) fn spawn_pane<'a>(
         )
         .id();
 
-    commands
-        .entity(root)
-        .insert(PaneStructure { root, content });
+    commands.entity(root).insert(PaneStructure { content });
 
     commands.entity(root)
 }
 
 #[derive(Component, Clone, Copy)]
 pub struct PaneStructure {
-    root: Entity,
     content: Entity,
 }
 
@@ -297,12 +292,19 @@ struct SpawnedPaneWindow {
 
 fn open_panes(
     mut requests: MessageReader<OpenPane>,
-    pane_tabs: Query<&PaneTab>,
+    pane_tabs: Query<(Entity, &PaneTab)>,
     mut commands: Commands,
+    mut focus: ResMut<InputFocus>,
 ) {
     for request in requests.read() {
-        if pane_tabs.iter().any(|tab| tab.name == request.name) {
-            // TODO: Focus tab
+        if let Some(pane_tab) = pane_tabs.iter().find_map(|(entity, pane_tab)| {
+            if pane_tab.name == request.name {
+                Some(entity)
+            } else {
+                None
+            }
+        }) {
+            focus.set(pane_tab);
             continue;
         }
 
@@ -324,7 +326,6 @@ fn setup_pane_window(
     trigger: On<EditorWindowConfigured>,
     spawned_pane_windows: Query<&SpawnedPaneWindow>,
     editor_windows: Query<&EditorWindowStructure>,
-    assets: Res<AssetServer>,
     mut focus: ResMut<InputFocus>,
     mut commands: Commands,
 ) -> Result {
@@ -351,7 +352,6 @@ fn setup_pane_window(
                     spawn_pane(
                         commands.commands_mut(),
                         &mut focus,
-                        &assets,
                         1.0,
                         vec![spawned_pane_window.name.clone()],
                         true,

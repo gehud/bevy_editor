@@ -9,6 +9,7 @@
             "cwd": "${workspaceFolder}/samples/simple",
             "env": {
                 "RUST_BACKTRACE": "1",
+                "BEVY_BACKTRACE": "full",
                 "BEVY_ASSET_ROOT": "${workspaceFolder}/samples/simple"
             },
             "preLaunchTask": "rust: cargo build"

@@ -25,7 +25,7 @@ use bevy::{
     render::render_resource::{TextureDimension, TextureFormat, TextureUsages},
     time::Time,
     transform::components::{GlobalTransform, Transform},
-    ui::{Node, PositionType, UiRect, percent, px, widget::ViewportNode},
+    ui::{Node, UiRect, percent, px, widget::ViewportNode},
     utils::default,
 };
 

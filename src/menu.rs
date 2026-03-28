@@ -21,10 +21,7 @@ use bevy::{
         Pickable,
         events::{Click, Out, Over, Pointer},
     },
-    ui::{
-        AlignItems, JustifyContent, Node, UiRect, px,
-        widget::{ImageNode, Text},
-    },
+    ui::{AlignItems, JustifyContent, Node, UiRect, px, widget::ImageNode},
     utils::default,
 };
 

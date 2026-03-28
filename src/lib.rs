@@ -13,23 +13,23 @@ use std::env;
 use bevy::{
     DefaultPlugins,
     app::{App, Plugin, PluginGroup},
-    asset::{AssetPlugin, embedded_asset},
+    asset::AssetPlugin,
     ecs::{
         error::Result,
         observer::On,
-        system::{Commands, Query, ResMut},
+        system::{Commands, Query},
     },
     picking::Pickable,
-    ui::{FlexDirection, JustifyContent, Node, UiRect, UiScale, percent, px},
+    ui::{FlexDirection, JustifyContent, Node, UiRect, percent, px},
     utils::default,
-    window::{ExitCondition, Window, WindowPlugin},
+    window::WindowPlugin,
 };
 
 use crate::{
     asset::EditorAssetPlugin,
     assets::EditorAssetsPlugin,
     menu::{EditorMenuPlugin, EditorMenuRoot},
-    pane::{EditorPanePlugin, PaneLayoutRoot},
+    pane::PaneLayoutRoot,
     panes::EditorPanePlugins,
     theme::EditorThemePlugin,
     widget::EditorWidgetPlugins,
@@ -62,7 +62,7 @@ fn setup(
     trigger: On<PrimaryEditorWindowConfigured>,
     mut editor_windows: Query<&EditorWindowStructure>,
     mut commands: Commands,
-    mut ui_scale: ResMut<UiScale>,
+    // mut ui_scale: bevy::ecs::system::ResMut<bevy::ui::UiScale>,
 ) -> Result {
     // ui_scale.0 = 1.5;
 
