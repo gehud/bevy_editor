@@ -18,6 +18,10 @@ use bevy::{
         system::{Commands, In, Query, Res, ResMut, Single},
         world::{Ref, World},
     },
+    input::{
+        ButtonInput,
+        keyboard::{KeyCode, KeyboardInput},
+    },
     light::PointLight,
     math::{
         Quat,
@@ -246,21 +250,7 @@ fn populate_scene_tree(
                 .entity(trigger.event_target())
                 .insert(ThemedBackgroundColor::new(PANE_BG));
         })
-        .observe(
-            move |trigger: On<Pointer<Click>>,
-                  selected: Query<&Selected>,
-                  mut commands: Commands| {
-                if trigger.button != PointerButton::Primary {
-                    return;
-                }
-
-                if selected.contains(entity) {
-                    commands.entity(entity).remove::<Selected>();
-                } else {
-                    commands.entity(entity).insert(Selected);
-                }
-            },
-        )
+        .observe(on_entity_view_click)
         .with_children(|commands| {
             commands
                 .spawn((
@@ -365,7 +355,6 @@ fn populate_scene_tree(
                 padding: UiRect::left(px(8)),
                 flex_direction: FlexDirection::Column,
                 border: UiRect::left(px(3)),
-                row_gap: px(2),
                 ..default()
             },
             ThemedBorderColor::all(BORDER),
@@ -387,6 +376,38 @@ fn populate_scene_tree(
     }
 
     Ok(header)
+}
+
+fn on_entity_view_click(
+    trigger: On<Pointer<Click>>,
+    selections: Query<(Entity, &Selection)>,
+    views: Query<&EntityViewHeader>,
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    mut commands: Commands,
+) -> Result {
+    if trigger.button != PointerButton::Primary {
+        return Ok(());
+    }
+
+    let view = views.get(trigger.event_target())?;
+
+    if !keyboard_input.pressed(KeyCode::ControlLeft) {
+        for (entity, selection) in selections {
+            if matches!(selection, Selection::Entity) {
+                commands.entity(entity).remove::<Selected>();
+            }
+        }
+
+        commands.entity(view.entity).insert(Selected);
+    } else {
+        if selections.contains(view.entity) {
+            commands.entity(view.entity).remove::<Selected>();
+        } else {
+            commands.entity(view.entity).insert(Selected);
+        }
+    }
+
+    Ok(())
 }
 
 fn add_selection(
