@@ -12,6 +12,7 @@ use bevy::{
         error::Result,
         event::EntityEvent,
         hierarchy::{ChildOf, Children},
+        lifecycle::{Add, Remove},
         name::Name,
         observer::On,
         system::{Commands, In, Query, Res, ResMut, Single},
@@ -27,22 +28,24 @@ use bevy::{
     picking::{
         Pickable,
         events::{Click, Out, Over, Pointer},
+        pointer::PointerButton,
     },
     scene::{InstanceId, Scene, SceneSpawner},
     text::TextLayout,
     transform::components::Transform,
     ui::{
         AlignItems, FlexDirection, JustifyContent, Node, Overflow, PositionType, UiRect, auto,
-        percent, px,
-        widget::ImageNode,
+        percent, px, widget::ImageNode,
     },
     utils::default,
 };
 
 use crate::{
     pane::{PaneApp, PaneStructure},
+    selection::{Selected, Selection, SelectionMap},
     theme::{
-        RoundedCorners, ThemedBackgroundColor, ThemedBorderColor, tokens::{BORDER, BUTTON_BG, PANE_BG},
+        RoundedCorners, ThemedBackgroundColor, ThemedBorderColor,
+        tokens::{BORDER, BUTTON_BG, PANE_BG, PANE_TAB_ACTIVE},
     },
     widget::{EditorText, ScrollArea},
 };
@@ -53,6 +56,8 @@ impl Plugin for SceneTreePlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, spawn_scene)
             .add_systems(Update, redraw_scene_tree)
+            .add_observer(add_selection)
+            .add_observer(remove_selection)
             .register_pane("Scene Tree", setup);
     }
 }
@@ -185,8 +190,14 @@ fn redraw_scene_tree(
 
 #[derive(Component)]
 struct EntityViewHeader {
+    entity: Entity,
     drop: bool,
     content: Entity,
+}
+
+#[derive(Component)]
+struct ViewHeaderEntity {
+    header: Entity,
 }
 
 fn populate_scene_tree(
@@ -235,6 +246,21 @@ fn populate_scene_tree(
                 .entity(trigger.event_target())
                 .insert(ThemedBackgroundColor::new(PANE_BG));
         })
+        .observe(
+            move |trigger: On<Pointer<Click>>,
+                  selected: Query<&Selected>,
+                  mut commands: Commands| {
+                if trigger.button != PointerButton::Primary {
+                    return;
+                }
+
+                if selected.contains(entity) {
+                    commands.entity(entity).remove::<Selected>();
+                } else {
+                    commands.entity(entity).insert(Selected);
+                }
+            },
+        )
         .with_children(|commands| {
             commands
                 .spawn((
@@ -347,9 +373,12 @@ fn populate_scene_tree(
         .id();
 
     commands.entity(header).insert(EntityViewHeader {
+        entity,
         drop: true,
         content,
     });
+
+    commands.entity(entity).insert(ViewHeaderEntity { header });
 
     if let Ok(nested) = children.get(entity) {
         for child in nested {
@@ -358,4 +387,50 @@ fn populate_scene_tree(
     }
 
     Ok(header)
+}
+
+fn add_selection(
+    trigger: On<Add, Selection>,
+    selections: Query<&Selection>,
+    related_views: Query<&ViewHeaderEntity>,
+    mut commands: Commands,
+) -> Result {
+    let selection = selections.get(trigger.event_target())?;
+
+    if !matches!(selection, Selection::Entity) {
+        return Ok(());
+    }
+
+    let Ok(view) = related_views.get(trigger.event_target()) else {
+        return Ok(());
+    };
+
+    commands
+        .entity(view.header)
+        .insert(ThemedBorderColor::all(PANE_TAB_ACTIVE));
+
+    Ok(())
+}
+
+fn remove_selection(
+    trigger: On<Remove, Selection>,
+    selections: Query<&Selection>,
+    related_views: Query<&ViewHeaderEntity>,
+    mut commands: Commands,
+) -> Result {
+    let selection = selections.get(trigger.event_target())?;
+
+    if !matches!(selection, Selection::Entity) {
+        return Ok(());
+    }
+
+    let Ok(view) = related_views.get(trigger.event_target()) else {
+        return Ok(());
+    };
+
+    commands
+        .entity(view.header)
+        .insert(ThemedBorderColor::all(PANE_BG));
+
+    Ok(())
 }

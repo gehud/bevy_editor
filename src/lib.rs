@@ -1,5 +1,6 @@
 pub mod asset;
 pub mod pane;
+pub mod selection;
 pub mod theme;
 pub mod widget;
 pub mod window;
@@ -31,6 +32,7 @@ use crate::{
     menu::{EditorMenuPlugin, EditorMenuRoot},
     pane::PaneLayoutRoot,
     panes::EditorPanePlugins,
+    selection::EditorSelectionPlugin,
     theme::EditorThemePlugin,
     widget::EditorWidgetPlugins,
     window::{EditorWindowPlugin, EditorWindowStructure, PrimaryEditorWindowConfigured},
@@ -50,6 +52,7 @@ impl Plugin for EditorPlugin {
                     .disable::<AssetPlugin>(),
             )
             .add_plugins(EditorAssetsPlugin)
+            .add_plugins(EditorSelectionPlugin)
             .add_plugins(EditorThemePlugin)
             .add_plugins(EditorWidgetPlugins)
             .add_plugins(EditorPanePlugins)
