@@ -3,48 +3,32 @@ mod grid;
 use std::f32::consts::PI;
 
 use bevy::{
-    app::{App, Plugin, Startup, Update},
-    asset::{Assets, RenderAssetUsages},
-    camera::{Camera, Camera3d, ClearColorConfig, RenderTarget, visibility::InheritedVisibility},
-    ecs::{
+    app::{App, Plugin, Startup, Update}, asset::{Assets, RenderAssetUsages}, camera::{Camera, Camera3d, ClearColorConfig, RenderTarget, visibility::InheritedVisibility}, color::Color, ecs::{
         component::Component,
         entity::Entity,
         error::Result,
+        event::EntityEvent,
         hierarchy::ChildOf,
-        lifecycle::Despawn,
+        lifecycle::{Add, Despawn, Remove},
+        message::MessageWriter,
         observer::On,
+        query::{Or, With},
         system::{Commands, In, Query, Res, ResMut},
-    },
-    image::{BevyDefault, Image},
-    input::{ButtonInput, keyboard::KeyCode},
-    math::{EulerRot, Quat},
-    picking::{
-        events::{Drag, DragEnd, DragStart, Pointer},
+        world::Ref,
+    }, image::{BevyDefault, Image}, input::{ButtonInput, keyboard::KeyCode}, math::{EulerRot, Quat}, mesh::{Mesh2d, Mesh3d}, picking::{
+        events::{Click, Drag, DragEnd, DragStart, Pointer},
+        mesh_picking::MeshPickingCamera,
         pointer::PointerButton,
-    },
-    render::render_resource::{TextureDimension, TextureFormat, TextureUsages},
-    time::Time,
-    transform::components::{GlobalTransform, Transform},
-    ui::{Node, UiRect, percent, px, widget::ViewportNode},
-    utils::default,
+    }, render::render_resource::{TextureDimension, TextureFormat, TextureUsages}, time::Time, transform::components::{GlobalTransform, Transform}, ui::{ComputedNode, Node, UiRect, percent, px, widget::ViewportNode}, utils::default
 };
+use bevy_mod_outline::{OutlineMode, OutlineVolume};
 
 use crate::{
     pane::{PaneApp, PaneStructure},
     panes::viewport::grid::{InfiniteGrid, InfiniteGridPlugin, InfiniteGridSettings},
+    selection::{Selected, Selection},
     theme::{ThemedBorderColor, palette, tokens::PANE_BG},
 };
-
-pub struct ViewportPlugin;
-
-impl Plugin for ViewportPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_plugins(InfiniteGridPlugin)
-            .add_systems(Startup, setup_grid)
-            .add_systems(Update, move_camera)
-            .register_pane("Viewport", setup);
-    }
-}
 
 fn setup_grid(mut commands: Commands) {
     commands.spawn((
@@ -96,6 +80,7 @@ fn setup(In(pane): In<PaneStructure>, mut images: ResMut<Assets<Image>>, mut com
     let camera = commands
         .spawn((
             ChildOf(camera_origin),
+            MeshPickingCamera,
             ViewportCamera {
                 movement: None,
                 origin: camera_origin,
@@ -142,7 +127,8 @@ fn on_viewport_drag_start(
     nodes: Query<&ViewportNode>,
     mut cameras: Query<&mut ViewportCamera>,
 ) -> Result {
-    let mut camera = cameras.get_mut(nodes.get(trigger.entity)?.camera)?;
+    let viewport = nodes.get(trigger.entity)?;
+    let mut camera = cameras.get_mut(viewport.camera)?;
 
     match trigger.button {
         PointerButton::Secondary => {
@@ -165,7 +151,8 @@ fn on_viewport_drag(
     time: Res<Time>,
     cameras: Query<&ViewportCamera>,
 ) -> Result {
-    let camera_entity = nodes.get(trigger.entity)?.camera;
+    let viewport = nodes.get(trigger.entity)?;
+    let camera_entity = viewport.camera;
     let camera = cameras.get(camera_entity)?;
 
     let Some(movement) = &camera.movement else {
@@ -255,4 +242,96 @@ fn move_camera(
     }
 
     Ok(())
+}
+
+fn on_pick_mesh(
+    trigger: On<Pointer<Click>>,
+    meshes: Query<Entity, Or<(With<Mesh2d>, With<Mesh3d>)>>,
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    selections: Query<(Entity, &Selection)>,
+    mut commands: Commands,
+) -> Result {
+    if trigger.button != PointerButton::Primary {
+        return Ok(());
+    }
+
+    if !meshes.contains(trigger.event_target()) {
+        return Ok(());
+    }
+
+    let target = trigger.event_target();
+
+    if !keyboard_input.pressed(KeyCode::ControlLeft) {
+        for (entity, selection) in selections {
+            if matches!(selection, Selection::Entity) {
+                commands.entity(entity).remove::<Selected>();
+            }
+        }
+
+        commands.entity(target).insert(Selected);
+    } else {
+        if selections.contains(target) {
+            commands.entity(target).remove::<Selected>();
+        } else {
+            commands.entity(target).insert(Selected);
+        }
+    }
+
+    Ok(())
+}
+
+fn on_entity_selected(
+    trigger: On<Add, Selection>,
+    selections: Query<&Selection>,
+    mut commands: Commands,
+) -> Result {
+    let selection = selections.get(trigger.event_target())?;
+
+    if !matches!(selection, Selection::Entity) {
+        return Ok(());
+    }
+
+    commands
+        .entity(trigger.event_target())
+        .insert(OutlineMode::FloodFlat)
+        .insert(OutlineVolume {
+            visible: true,
+            width: 2.0,
+            colour: palette::ACCENT,
+            ..default()
+        });
+
+    Ok(())
+}
+
+fn on_entity_deselected(
+    trigger: On<Remove, Selection>,
+    selections: Query<&Selection>,
+    mut commands: Commands,
+) -> Result {
+    let selection = selections.get(trigger.event_target())?;
+
+    if !matches!(selection, Selection::Entity) {
+        return Ok(());
+    }
+
+    commands
+        .entity(trigger.event_target())
+        .remove::<OutlineVolume>();
+
+    Ok(())
+}
+
+pub struct ViewportPlugin;
+
+impl Plugin for ViewportPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_plugins(InfiniteGridPlugin)
+            .add_systems(Startup, setup_grid)
+            .add_systems(Update, move_camera)
+            .register_pane("Viewport", setup)
+            .add_observer(on_pick_mesh)
+            .add_observer(on_entity_selected)
+            .add_observer(on_entity_deselected);
+    }
 }

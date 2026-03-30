@@ -20,11 +20,12 @@ use bevy::{
         observer::On,
         system::{Commands, Query},
     },
-    picking::Pickable,
+    picking::{Pickable, mesh_picking::MeshPickingPlugin},
     ui::{FlexDirection, JustifyContent, Node, UiRect, percent, px},
     utils::default,
     window::WindowPlugin,
 };
+use bevy_mod_outline::OutlinePlugin;
 
 use crate::{
     asset::EditorAssetPlugin,
@@ -51,6 +52,8 @@ impl Plugin for EditorPlugin {
                     .disable::<WindowPlugin>()
                     .disable::<AssetPlugin>(),
             )
+            .add_plugins(MeshPickingPlugin)
+            .add_plugins(OutlinePlugin)
             .add_plugins(EditorAssetsPlugin)
             .add_plugins(EditorSelectionPlugin)
             .add_plugins(EditorThemePlugin)

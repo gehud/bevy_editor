@@ -17,9 +17,13 @@ bevy = { git = "https://github.com/gehud/bevy.git", branch = "editor", features 
     "track_location",
     "experimental_bevy_ui_widgets",
 ] }
+bevy_mod_outline = "0.12.0"
 accesskit = { version = "0.21" }
 rusqlite = { version = "0.39.0", features = ["bundled", "chrono"] }
 chrono = "0.4.44"
+
+[patch.crates-io]
+bevy = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
 
 [patch.'https://github.com/gehud/bevy_editor']
 bevy_editor = { path = "./" }

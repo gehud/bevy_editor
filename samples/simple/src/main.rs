@@ -5,6 +5,7 @@ use bevy::{
     DefaultPlugins,
     app::{App, Plugin, Startup},
     log::info,
+    prelude::bevy_main,
 };
 
 use bevy_editor::{EditorPlugin, is_play_mode};
@@ -22,6 +23,7 @@ fn greet() {
     info!("Hello, Bevy!");
 }
 
+#[bevy_main]
 fn main() {
     let mut app = App::new();
 

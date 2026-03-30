@@ -1,7 +1,9 @@
+use std::isize;
+
 use bevy::{
     app::{App, First, Plugin, PreUpdate, Update},
     asset::{AssetServer, Handle},
-    camera::{Camera2d, ClearColor, NormalizedRenderTarget, RenderTarget},
+    camera::{Camera, Camera2d, ClearColor, NormalizedRenderTarget, RenderTarget},
     color::Color,
     ecs::{
         change_detection::DetectChangesMut,
@@ -117,7 +119,14 @@ fn configure_windows(
             });
 
         let camera = commands
-            .spawn((Camera2d, RenderTarget::Window(WindowRef::Entity(window))))
+            .spawn((
+                Camera2d,
+                Camera {
+                    order: isize::MAX,
+                    ..default()
+                },
+                RenderTarget::Window(WindowRef::Entity(window)),
+            ))
             .id();
 
         let mut titlebar = Entity::PLACEHOLDER;

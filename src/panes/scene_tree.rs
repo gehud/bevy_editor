@@ -18,10 +18,7 @@ use bevy::{
         system::{Commands, In, Query, Res, ResMut, Single},
         world::{Ref, World},
     },
-    input::{
-        ButtonInput,
-        keyboard::{KeyCode, KeyboardInput},
-    },
+    input::{ButtonInput, keyboard::KeyCode},
     light::PointLight,
     math::{
         Quat,
@@ -46,7 +43,7 @@ use bevy::{
 
 use crate::{
     pane::{PaneApp, PaneStructure},
-    selection::{Selected, Selection, SelectionMap},
+    selection::{Selected, Selection},
     theme::{
         RoundedCorners, ThemedBackgroundColor, ThemedBorderColor,
         tokens::{BORDER, BUTTON_BG, PANE_BG, PANE_TAB_ACTIVE},
