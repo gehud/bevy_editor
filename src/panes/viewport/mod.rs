@@ -3,7 +3,11 @@ mod grid;
 use std::f32::consts::PI;
 
 use bevy::{
-    app::{App, Plugin, Startup, Update}, asset::{Assets, RenderAssetUsages}, camera::{Camera, Camera3d, ClearColorConfig, RenderTarget, visibility::InheritedVisibility}, color::Color, ecs::{
+    app::{App, Plugin, Startup, Update},
+    asset::{Assets, RenderAssetUsages},
+    camera::{Camera, Camera3d, ClearColorConfig, RenderTarget, visibility::InheritedVisibility},
+    color::Color,
+    ecs::{
         component::Component,
         entity::Entity,
         error::Result,
@@ -12,21 +16,32 @@ use bevy::{
         lifecycle::{Add, Despawn, Remove},
         message::MessageWriter,
         observer::On,
-        query::{Or, With},
+        query::{Or, With, Without},
         system::{Commands, In, Query, Res, ResMut},
         world::Ref,
-    }, image::{BevyDefault, Image}, input::{ButtonInput, keyboard::KeyCode}, math::{EulerRot, Quat}, mesh::{Mesh2d, Mesh3d}, picking::{
+    },
+    image::{BevyDefault, Image},
+    input::{ButtonInput, keyboard::KeyCode},
+    math::{EulerRot, Quat},
+    mesh::{Mesh2d, Mesh3d},
+    picking::{
         events::{Click, Drag, DragEnd, DragStart, Pointer},
         mesh_picking::MeshPickingCamera,
         pointer::PointerButton,
-    }, render::render_resource::{TextureDimension, TextureFormat, TextureUsages}, time::Time, transform::components::{GlobalTransform, Transform}, ui::{ComputedNode, Node, UiRect, percent, px, widget::ViewportNode}, utils::default
+    },
+    render::render_resource::{TextureDimension, TextureFormat, TextureUsages},
+    time::Time,
+    transform::components::{GlobalTransform, Transform},
+    ui::{ComputedNode, Node, UiRect, percent, px, widget::ViewportNode},
+    utils::default,
 };
 use bevy_mod_outline::{OutlineMode, OutlineVolume};
 
 use crate::{
+    gizmo::GizmoCamera,
     pane::{PaneApp, PaneStructure},
     panes::viewport::grid::{InfiniteGrid, InfiniteGridPlugin, InfiniteGridSettings},
-    selection::{Selected, Selection},
+    selection::{NoSelect, Selected, Selection},
     theme::{ThemedBorderColor, palette, tokens::PANE_BG},
 };
 
@@ -81,6 +96,7 @@ fn setup(In(pane): In<PaneStructure>, mut images: ResMut<Assets<Image>>, mut com
         .spawn((
             ChildOf(camera_origin),
             MeshPickingCamera,
+            GizmoCamera,
             ViewportCamera {
                 movement: None,
                 origin: camera_origin,
@@ -116,7 +132,7 @@ fn setup(In(pane): In<PaneStructure>, mut images: ResMut<Assets<Image>>, mut com
             .observe(on_viewport_drag_end)
             .observe(
                 move |_: On<Despawn, ViewportNode>, mut commands: Commands| {
-                    commands.entity(camera).despawn();
+                    commands.entity(camera_origin).despawn();
                 },
             );
     });
@@ -246,7 +262,7 @@ fn move_camera(
 
 fn on_pick_mesh(
     trigger: On<Pointer<Click>>,
-    meshes: Query<Entity, Or<(With<Mesh2d>, With<Mesh3d>)>>,
+    meshes: Query<Entity, (Or<(With<Mesh2d>, With<Mesh3d>)>, Without<NoSelect>)>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
     selections: Query<(Entity, &Selection)>,
     mut commands: Commands,

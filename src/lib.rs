@@ -1,4 +1,5 @@
 pub mod asset;
+pub mod gizmo;
 pub mod pane;
 pub mod selection;
 pub mod theme;
@@ -28,15 +29,7 @@ use bevy::{
 use bevy_mod_outline::OutlinePlugin;
 
 use crate::{
-    asset::EditorAssetPlugin,
-    assets::EditorAssetsPlugin,
-    menu::{EditorMenuPlugin, EditorMenuRoot},
-    pane::PaneLayoutRoot,
-    panes::EditorPanePlugins,
-    selection::EditorSelectionPlugin,
-    theme::EditorThemePlugin,
-    widget::EditorWidgetPlugins,
-    window::{EditorWindowPlugin, EditorWindowStructure, PrimaryEditorWindowConfigured},
+    asset::EditorAssetPlugin, assets::EditorAssetsPlugin, gizmo::EditorGizmoPlugin, menu::{EditorMenuPlugin, EditorMenuRoot}, pane::PaneLayoutRoot, panes::EditorPanePlugins, selection::EditorSelectionPlugin, theme::EditorThemePlugin, widget::EditorWidgetPlugins, window::{EditorWindowPlugin, EditorWindowStructure, PrimaryEditorWindowConfigured}
 };
 
 #[derive(Default)]
@@ -54,6 +47,7 @@ impl Plugin for EditorPlugin {
             )
             .add_plugins(MeshPickingPlugin)
             .add_plugins(OutlinePlugin)
+            .add_plugins(EditorGizmoPlugin)
             .add_plugins(EditorAssetsPlugin)
             .add_plugins(EditorSelectionPlugin)
             .add_plugins(EditorThemePlugin)

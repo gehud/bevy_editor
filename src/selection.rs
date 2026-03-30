@@ -17,6 +17,9 @@ use bevy::{
     platform::collections::{HashMap, HashSet},
 };
 
+#[derive(Component)]
+pub struct NoSelect;
+
 #[derive(Clone, Component, Debug, Default, Eq, Hash, PartialEq)]
 pub(crate) enum Selection {
     #[default]
