@@ -58,18 +58,18 @@ fn setup_grid(mut commands: Commands) {
     ));
 }
 
-enum ViewportCameraMovement {
+pub(crate) enum ViewportCameraMovement {
     Fly,
     Pan,
 }
 
 #[derive(Component)]
-struct ViewportCamera {
-    movement: Option<ViewportCameraMovement>,
-    origin: Entity,
-    rotation_sensitivity: f32,
-    pane_sensitivity: f32,
-    fly_speed: f32,
+pub(crate) struct ViewportCamera {
+    pub movement: Option<ViewportCameraMovement>,
+    pub origin: Entity,
+    pub rotation_sensitivity: f32,
+    pub pane_sensitivity: f32,
+    pub fly_speed: f32,
 }
 
 fn setup(In(pane): In<PaneStructure>, mut images: ResMut<Assets<Image>>, mut commands: Commands) {

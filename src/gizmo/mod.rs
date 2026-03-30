@@ -14,10 +14,12 @@
 use bevy::camera::{Projection, RenderTarget};
 use bevy::picking::{backend::ray::RayMap, pointer::PointerId};
 use bevy::{prelude::*, transform::TransformSystems};
+use bitflags::bitflags;
 use mesh::{RotationGizmo, ViewTranslateGizmo};
 
 use normalization::*;
 
+use crate::panes::ViewportCamera;
 use crate::selection::{Selection, SelectionSettings};
 
 mod mesh;
@@ -68,16 +70,17 @@ pub struct ScaleGizmo;
 #[derive(Component, Default, Clone, Debug)]
 pub struct InternalGizmoCamera;
 
-/// Available gizmo modes.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-pub enum GizmoMode {
-    /// Translation mode (W key).
-    #[default]
-    Translate,
-    /// Rotation mode (E key).
-    Rotate,
-    /// Scale mode (R key).
-    Scale,
+bitflags! {
+    /// Available gizmo modes.
+    #[derive(Clone, Copy, Debug)]
+    pub struct GizmoModes: u8 {
+        /// Translation mode (W key).
+        const TRANSLATE = 1 << 0;
+        /// Rotation mode (E key).
+        const ROTATE = 1 << 1;
+        /// Scale mode (R key).
+        const SCALE = 1 << 2;
+    }
 }
 
 /// Settings for the [`TransformGizmoPlugin`].
@@ -88,8 +91,6 @@ pub struct TransformGizmoSettings {
     /// Rotation to apply to the gizmo when it is placed. Used to align the gizmo to a different
     /// coordinate system.
     pub alignment_rotation: Quat,
-    /// Control whether the gizmo allows rotation.
-    pub enable_rotation: bool,
     /// Grid snap distance for translation (0.0 = no snapping).
     pub grid_snap: f32,
     /// Angle snap in degrees for rotation (0.0 = no snapping).
@@ -99,7 +100,7 @@ pub struct TransformGizmoSettings {
     /// Whether snapping is currently enabled (can be toggled with Ctrl key).
     pub snap_enabled: bool,
     /// Current gizmo mode.
-    pub mode: GizmoMode,
+    pub modes: GizmoModes,
 }
 
 impl Default for TransformGizmoSettings {
@@ -107,68 +108,12 @@ impl Default for TransformGizmoSettings {
         Self {
             enabled: true,
             alignment_rotation: default(),
-            enable_rotation: true,
             grid_snap: 0.5,     // 0.5 unit grid snapping
             angle_snap: 15.0,   // 15 degree angle snapping
             scale_snap: 0.1,    // 0.1 scale increment snapping
             snap_enabled: true, // Enable snapping by default
-            mode: GizmoMode::default(),
+            modes: GizmoModes::all(),
         }
-    }
-}
-
-/// The transform gizmo plugin.
-#[derive(Default, Debug, Clone)]
-pub struct EditorGizmoPlugin;
-
-impl Plugin for EditorGizmoPlugin {
-    fn build(&self, app: &mut App) {
-        if !app.is_plugin_added::<MeshPickingPlugin>() {
-            app.add_plugins(MeshPickingPlugin);
-        }
-        app.init_resource::<TransformGizmoSettings>()
-            .add_plugins(Ui3dNormalizationPlugin)
-            .add_message::<TransformGizmoEvent>()
-            .add_observer(on_transform_gizmo_pointer_press)
-            .add_observer(on_transform_gizmo_pointer_release);
-
-        // Settings Set
-        app.add_systems(
-            PreUpdate,
-            (update_gizmo_settings, update_gizmo_visibility)
-                .in_set(TransformGizmoSystems::UpdateSettings)
-                .run_if(|settings: Res<TransformGizmoSettings>| settings.enabled),
-        );
-
-        // Input Set
-        app.add_systems(
-            PreUpdate,
-            handle_gizmo_hotkeys
-                .in_set(TransformGizmoSystems::Input)
-                .run_if(|settings: Res<TransformGizmoSettings>| settings.enabled),
-        );
-
-        // Main Set
-        app.add_systems(
-            PostUpdate,
-            (
-                (
-                    drag_gizmo.before(TransformSystems::Propagate),
-                    place_gizmo.after(TransformSystems::Propagate),
-                )
-                    .in_set(TransformGizmoSystems::Place),
-                propagate_gizmo_elements,
-                (adjust_view_translate_gizmo, gizmo_cam_copy_settings)
-                    .chain()
-                    .in_set(TransformGizmoSystems::Drag),
-            )
-                .chain()
-                .in_set(TransformGizmoSystems::Main)
-                .run_if(|settings: Res<TransformGizmoSettings>| settings.enabled),
-        );
-
-        app.add_systems(Startup, mesh::build_gizmo)
-            .add_systems(PostStartup, place_gizmo);
     }
 }
 
@@ -252,7 +197,7 @@ struct InitialTransform {
 pub struct GizmoCamera;
 
 fn on_transform_gizmo_pointer_press(
-    mut trigger: On<Pointer<Press>>,
+    trigger: On<Pointer<Press>>,
     target_query: Query<(&InteractionKind, &ChildOf)>,
     mut query: Query<(&mut TransformGizmo, &GlobalTransform)>,
     selection: Query<&Selection>,
@@ -296,7 +241,7 @@ fn on_transform_gizmo_pointer_press(
 }
 
 fn on_transform_gizmo_pointer_release(
-    mut trigger: On<Pointer<Release>>,
+    trigger: On<Pointer<Release>>,
     mut query: Query<(&mut TransformGizmo, &GlobalTransform)>,
     mut gizmo_events: MessageWriter<TransformGizmoEvent>,
     mut commands: Commands,
@@ -690,11 +635,11 @@ fn propagate_gizmo_elements(
 fn update_gizmo_settings(
     plugin_settings: Res<TransformGizmoSettings>,
     mut interactions: Query<&mut InteractionKind, Without<ViewTranslateGizmo>>,
-    mut rotations: Query<&mut Visibility, With<RotationGizmo>>,
 ) {
     if !plugin_settings.is_changed() {
         return;
     }
+
     let rotation = plugin_settings.alignment_rotation;
     for mut interaction in interactions.iter_mut() {
         if let Some(rotated_interaction) = match *interaction {
@@ -726,14 +671,6 @@ fn update_gizmo_settings(
             }
         } {
             *interaction = rotated_interaction;
-        }
-    }
-
-    for mut visibility in rotations.iter_mut() {
-        if plugin_settings.enable_rotation {
-            *visibility = Visibility::Inherited;
-        } else {
-            *visibility = Visibility::Hidden;
         }
     }
 }
@@ -808,19 +745,41 @@ fn gizmo_cam_copy_settings(
 fn handle_gizmo_hotkeys(
     mut settings: ResMut<TransformGizmoSettings>,
     keyboard: Res<ButtonInput<KeyCode>>,
+    viewport_cameras: Query<&ViewportCamera>,
 ) {
+    if viewport_cameras
+        .single()
+        .is_ok_and(|viewport_camera| viewport_camera.movement.is_some())
+    {
+        return;
+    }
+
+    let ctrl = keyboard.pressed(KeyCode::ControlLeft) || keyboard.pressed(KeyCode::ControlRight);
+
     if keyboard.just_pressed(KeyCode::KeyW) {
-        settings.mode = GizmoMode::Translate;
+        if ctrl {
+            settings.modes.insert(GizmoModes::TRANSLATE);
+        } else {
+            settings.modes = GizmoModes::TRANSLATE;
+        }
     } else if keyboard.just_pressed(KeyCode::KeyE) {
-        settings.mode = GizmoMode::Rotate;
+        if ctrl {
+            settings.modes.insert(GizmoModes::ROTATE);
+        } else {
+            settings.modes = GizmoModes::ROTATE;
+        }
     } else if keyboard.just_pressed(KeyCode::KeyR) {
-        settings.mode = GizmoMode::Scale;
+        if ctrl {
+            settings.modes.insert(GizmoModes::SCALE);
+        } else {
+            settings.modes = GizmoModes::SCALE;
+        }
+    } else if keyboard.just_pressed(KeyCode::KeyT) {
+        settings.modes = GizmoModes::all();
     }
 
     // Toggle snapping with Ctrl
-    if keyboard.just_pressed(KeyCode::ControlLeft) || keyboard.just_pressed(KeyCode::ControlRight) {
-        settings.snap_enabled = !settings.snap_enabled;
-    }
+    settings.snap_enabled = ctrl;
 }
 
 fn update_gizmo_visibility(
@@ -854,44 +813,87 @@ fn update_gizmo_visibility(
         return;
     }
 
+    for mut vis in translation_gizmos.iter_mut() {
+        *vis = Visibility::Hidden;
+    }
+    for mut vis in rotation_gizmos.iter_mut() {
+        *vis = Visibility::Hidden;
+    }
+    for mut vis in scale_gizmos.iter_mut() {
+        *vis = Visibility::Hidden;
+    }
+
     // Show/hide gizmo elements based on current mode
-    match settings.mode {
-        GizmoMode::Translate => {
-            for mut vis in translation_gizmos.iter_mut() {
-                *vis = Visibility::Inherited;
-            }
-            for mut vis in rotation_gizmos.iter_mut() {
-                *vis = Visibility::Hidden;
-            }
-            for mut vis in scale_gizmos.iter_mut() {
-                *vis = Visibility::Hidden;
-            }
+    if settings.modes.contains(GizmoModes::TRANSLATE) {
+        for mut vis in translation_gizmos.iter_mut() {
+            *vis = Visibility::Inherited;
         }
-        GizmoMode::Rotate => {
-            for mut vis in translation_gizmos.iter_mut() {
-                *vis = Visibility::Hidden;
-            }
-            for mut vis in rotation_gizmos.iter_mut() {
-                *vis = if settings.enable_rotation {
-                    Visibility::Inherited
-                } else {
-                    Visibility::Hidden
-                };
-            }
-            for mut vis in scale_gizmos.iter_mut() {
-                *vis = Visibility::Hidden;
-            }
+    }
+
+    if settings.modes.contains(GizmoModes::ROTATE) {
+        for mut vis in rotation_gizmos.iter_mut() {
+            *vis = Visibility::Inherited;
         }
-        GizmoMode::Scale => {
-            for mut vis in translation_gizmos.iter_mut() {
-                *vis = Visibility::Hidden;
-            }
-            for mut vis in rotation_gizmos.iter_mut() {
-                *vis = Visibility::Hidden;
-            }
-            for mut vis in scale_gizmos.iter_mut() {
-                *vis = Visibility::Inherited;
-            }
+    }
+
+    if settings.modes.contains(GizmoModes::SCALE) {
+        for mut vis in scale_gizmos.iter_mut() {
+            *vis = Visibility::Inherited;
         }
+    }
+}
+
+/// The transform gizmo plugin.
+#[derive(Default, Debug, Clone)]
+pub struct EditorGizmoPlugin;
+
+impl Plugin for EditorGizmoPlugin {
+    fn build(&self, app: &mut App) {
+        if !app.is_plugin_added::<MeshPickingPlugin>() {
+            app.add_plugins(MeshPickingPlugin);
+        }
+        app.init_resource::<TransformGizmoSettings>()
+            .add_plugins(Ui3dNormalizationPlugin)
+            .add_message::<TransformGizmoEvent>()
+            .add_observer(on_transform_gizmo_pointer_press)
+            .add_observer(on_transform_gizmo_pointer_release);
+
+        // Settings Set
+        app.add_systems(
+            PreUpdate,
+            (update_gizmo_settings, update_gizmo_visibility)
+                .in_set(TransformGizmoSystems::UpdateSettings)
+                .run_if(|settings: Res<TransformGizmoSettings>| settings.enabled),
+        );
+
+        // Input Set
+        app.add_systems(
+            PreUpdate,
+            handle_gizmo_hotkeys
+                .in_set(TransformGizmoSystems::Input)
+                .run_if(|settings: Res<TransformGizmoSettings>| settings.enabled),
+        );
+
+        // Main Set
+        app.add_systems(
+            PostUpdate,
+            (
+                (
+                    drag_gizmo.before(TransformSystems::Propagate),
+                    place_gizmo.after(TransformSystems::Propagate),
+                )
+                    .in_set(TransformGizmoSystems::Place),
+                propagate_gizmo_elements,
+                (adjust_view_translate_gizmo, gizmo_cam_copy_settings)
+                    .chain()
+                    .in_set(TransformGizmoSystems::Drag),
+            )
+                .chain()
+                .in_set(TransformGizmoSystems::Main)
+                .run_if(|settings: Res<TransformGizmoSettings>| settings.enabled),
+        );
+
+        app.add_systems(Startup, mesh::build_gizmo)
+            .add_systems(PostStartup, place_gizmo);
     }
 }

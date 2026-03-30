@@ -698,6 +698,7 @@ dependencies = [
  "accesskit",
  "bevy",
  "bevy_mod_outline",
+ "bitflags 2.11.0",
  "chrono",
  "rusqlite",
 ]
