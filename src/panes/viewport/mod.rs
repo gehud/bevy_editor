@@ -88,7 +88,7 @@ fn setup(In(pane): In<PaneStructure>, mut images: ResMut<Assets<Image>>, mut com
     let camera_origin = commands
         .spawn((
             InheritedVisibility::VISIBLE,
-            Transform::from_xyz(0.0, 4.0, 6.0),
+            Transform::from_xyz(6.0, 6.0, 6.0).with_rotation(Quat::from_rotation_y(PI / 4.0)),
         ))
         .id();
 
@@ -127,6 +127,7 @@ fn setup(In(pane): In<PaneStructure>, mut images: ResMut<Assets<Image>>, mut com
                 ThemedBorderColor::all(PANE_BG),
                 ViewportNode::new(camera),
             ))
+            .observe(on_viewport_click)
             .observe(on_viewport_drag_start)
             .observe(on_viewport_drag)
             .observe(on_viewport_drag_end)
@@ -138,13 +139,31 @@ fn setup(In(pane): In<PaneStructure>, mut images: ResMut<Assets<Image>>, mut com
     });
 }
 
+fn on_viewport_click(
+    mut trigger: On<Pointer<Click>>,
+    nodes: Query<&ViewportNode>,
+    cameras: Query<&ViewportCamera>,
+) -> Result {
+    let viewport = nodes.get(trigger.entity)?;
+    let camera_entity = viewport.camera;
+    let camera = cameras.get(camera_entity)?;
+
+    if camera.movement.is_some() {
+        trigger.propagate(false);
+    }
+
+    Ok(())
+}
+
 fn on_viewport_drag_start(
-    trigger: On<Pointer<DragStart>>,
+    mut trigger: On<Pointer<DragStart>>,
     nodes: Query<&ViewportNode>,
     mut cameras: Query<&mut ViewportCamera>,
 ) -> Result {
     let viewport = nodes.get(trigger.entity)?;
     let mut camera = cameras.get_mut(viewport.camera)?;
+
+    trigger.propagate(false);
 
     match trigger.button {
         PointerButton::Secondary => {
@@ -160,7 +179,7 @@ fn on_viewport_drag_start(
 }
 
 fn on_viewport_drag(
-    trigger: On<Pointer<Drag>>,
+    mut trigger: On<Pointer<Drag>>,
     nodes: Query<&ViewportNode>,
     mut transforms: Query<&mut Transform>,
     global_transforms: Query<&GlobalTransform>,
@@ -174,6 +193,8 @@ fn on_viewport_drag(
     let Some(movement) = &camera.movement else {
         return Ok(());
     };
+
+    trigger.propagate(false);
 
     let camera_global_transform = global_transforms.get(camera_entity)?;
 
@@ -206,12 +227,13 @@ fn on_viewport_drag(
 }
 
 fn on_viewport_drag_end(
-    trigger: On<Pointer<DragEnd>>,
+    mut trigger: On<Pointer<DragEnd>>,
     nodes: Query<&ViewportNode>,
     mut cameras: Query<&mut ViewportCamera>,
 ) -> Result {
     let mut camera = cameras.get_mut(nodes.get(trigger.entity)?.camera)?;
     camera.movement = None;
+    trigger.propagate(false);
     Ok(())
 }
 
@@ -261,7 +283,7 @@ fn move_camera(
 }
 
 fn on_pick_mesh(
-    trigger: On<Pointer<Click>>,
+    mut trigger: On<Pointer<Click>>,
     meshes: Query<Entity, (Or<(With<Mesh2d>, With<Mesh3d>)>, Without<NoSelect>)>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
     selections: Query<(Entity, &Selection)>,
@@ -274,6 +296,8 @@ fn on_pick_mesh(
     if !meshes.contains(trigger.event_target()) {
         return Ok(());
     }
+
+    trigger.propagate(false);
 
     let target = trigger.event_target();
 

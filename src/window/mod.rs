@@ -43,6 +43,7 @@ use bevy::{
 };
 
 use crate::{
+    selection::DeselectionLayer,
     theme::{
         RoundedCorners, ThemedBackgroundColor, ThemedBorderColor, palette,
         tokens::{BORDER, WINDOW_BG},
@@ -136,6 +137,7 @@ fn configure_windows(
         let root = commands
             .spawn((
                 UiTargetCamera(camera),
+                DeselectionLayer,
                 Node {
                     width: percent(100),
                     height: percent(100),

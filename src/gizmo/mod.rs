@@ -18,7 +18,7 @@ use mesh::{RotationGizmo, ViewTranslateGizmo};
 
 use normalization::*;
 
-use crate::selection::Selection;
+use crate::selection::{Selection, SelectionSettings};
 
 mod mesh;
 pub mod normalization;
@@ -252,11 +252,12 @@ struct InitialTransform {
 pub struct GizmoCamera;
 
 fn on_transform_gizmo_pointer_press(
-    trigger: On<Pointer<Press>>,
+    mut trigger: On<Pointer<Press>>,
     target_query: Query<(&InteractionKind, &ChildOf)>,
     mut query: Query<(&mut TransformGizmo, &GlobalTransform)>,
     selection: Query<&Selection>,
     items_query: Query<(&GlobalTransform, Entity, Option<&TransformGizmoOffset>)>,
+    mut selection_settings: ResMut<SelectionSettings>,
     mut commands: Commands,
 ) {
     if trigger.button != PointerButton::Primary {
@@ -268,6 +269,8 @@ fn on_transform_gizmo_pointer_press(
     let Ok((mut gizmo, transform)) = query.get_mut(child_of.parent()) else {
         return;
     };
+
+    selection_settings.disable_deselection = true;
 
     // Activate the interaction.
     gizmo.interaction = Some(TransformGizmoInteraction {
@@ -293,10 +296,11 @@ fn on_transform_gizmo_pointer_press(
 }
 
 fn on_transform_gizmo_pointer_release(
-    trigger: On<Pointer<Release>>,
+    mut trigger: On<Pointer<Release>>,
     mut query: Query<(&mut TransformGizmo, &GlobalTransform)>,
     mut gizmo_events: MessageWriter<TransformGizmoEvent>,
     mut commands: Commands,
+    mut selection_settings: ResMut<SelectionSettings>,
     initial_transform_query: Query<Entity, With<InitialTransform>>,
 ) {
     if trigger.button != PointerButton::Primary {
@@ -316,6 +320,7 @@ fn on_transform_gizmo_pointer_release(
         *gizmo = TransformGizmo::default();
     }
 
+    selection_settings.disable_deselection = false;
     *gizmo = default();
 
     for entity in &initial_transform_query {

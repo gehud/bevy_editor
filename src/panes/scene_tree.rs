@@ -380,7 +380,7 @@ fn populate_scene_tree(
 }
 
 fn on_entity_view_click(
-    trigger: On<Pointer<Click>>,
+    mut trigger: On<Pointer<Click>>,
     selections: Query<(Entity, &Selection)>,
     views: Query<&EntityViewHeader>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
@@ -391,6 +391,8 @@ fn on_entity_view_click(
     }
 
     let view = views.get(trigger.event_target())?;
+
+    trigger.propagate(false);
 
     if !keyboard_input.pressed(KeyCode::ControlLeft) {
         for (entity, selection) in selections {

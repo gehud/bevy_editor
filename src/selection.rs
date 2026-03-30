@@ -6,16 +6,21 @@ use bevy::{
     ecs::{
         component::Component,
         entity::Entity,
-        event::EntityEvent,
+        event::{EntityEvent, Event},
         lifecycle::{Add, HookContext, Remove},
         message::{Message, MessageReader},
         observer::On,
+        query::With,
         resource::Resource,
-        system::{Commands, Query, ResMut},
+        system::{Commands, Query, Res, ResMut},
         world::DeferredWorld,
     },
+    input::{ButtonInput, keyboard::KeyCode},
+    picking::events::{Click, Pointer},
     platform::collections::{HashMap, HashSet},
 };
+
+use crate::gizmo::TransformGizmo;
 
 #[derive(Component)]
 pub struct NoSelect;
@@ -87,14 +92,52 @@ fn update_selection_map(
     }
 }
 
+#[derive(Component)]
+pub struct DeselectionLayer;
+
+fn delesect_all(
+    trigger: On<Pointer<Click>>,
+    deselection_layers: Query<&DeselectionLayer>,
+    selections: Query<Entity, With<Selected>>,
+    button_input: Res<ButtonInput<KeyCode>>,
+    settings: Res<SelectionSettings>,
+    mut commands: Commands,
+) {
+    if settings.disable_deselection {
+        return;
+    }
+
+    let target = trigger.event_target();
+
+    if !deselection_layers.contains(target) {
+        return;
+    }
+
+    if button_input.any_pressed([KeyCode::ControlLeft, KeyCode::ShiftLeft]) {
+        return;
+    }
+
+    for selection in selections {
+        commands.entity(selection).remove::<Selected>();
+    }
+}
+
+// TODO: Make better. I think it's bad
+#[derive(Default, Resource)]
+pub struct SelectionSettings {
+    pub disable_deselection: bool,
+}
+
 pub struct EditorSelectionPlugin;
 
 impl Plugin for EditorSelectionPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<SelectionChanged>()
             .init_resource::<SelectionMap>()
+            .init_resource::<SelectionSettings>()
+            .add_systems(Last, update_selection_map)
             .add_observer(on_add_selection)
             .add_observer(on_remove_selection)
-            .add_systems(Last, update_selection_map);
+            .add_observer(delesect_all);
     }
 }
