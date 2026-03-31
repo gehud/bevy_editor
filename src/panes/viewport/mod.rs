@@ -21,7 +21,7 @@ use bevy::{
         world::Ref,
     },
     image::{BevyDefault, Image},
-    input::{ButtonInput, keyboard::KeyCode},
+    input::{ButtonInput, keyboard::KeyCode, mouse::AccumulatedMouseMotion},
     math::{EulerRot, Quat},
     mesh::{Mesh2d, Mesh3d},
     picking::{
@@ -43,6 +43,7 @@ use crate::{
     panes::viewport::grid::{InfiniteGrid, InfiniteGridPlugin, InfiniteGridSettings},
     selection::{NoSelect, Selected, Selection},
     theme::{ThemedBorderColor, palette, tokens::PANE_BG},
+    window::EditorWindowCursorLock,
 };
 
 fn setup_grid(mut commands: Commands) {
@@ -100,8 +101,8 @@ fn setup(In(pane): In<PaneStructure>, mut images: ResMut<Assets<Image>>, mut com
             ViewportCamera {
                 movement: None,
                 origin: camera_origin,
-                rotation_sensitivity: 0.1,
-                pane_sensitivity: 0.3,
+                rotation_sensitivity: 0.01,
+                pane_sensitivity: 0.03,
                 fly_speed: 5.0,
             },
             Camera3d::default(),
@@ -159,6 +160,7 @@ fn on_viewport_drag_start(
     mut trigger: On<Pointer<DragStart>>,
     nodes: Query<&ViewportNode>,
     mut cameras: Query<&mut ViewportCamera>,
+    mut cursor_lock: ResMut<EditorWindowCursorLock>,
 ) -> Result {
     let viewport = nodes.get(trigger.entity)?;
     let mut camera = cameras.get_mut(viewport.camera)?;
@@ -175,6 +177,10 @@ fn on_viewport_drag_start(
         _ => {}
     }
 
+    if camera.movement.is_some() {
+        cursor_lock.0 = true;
+    }
+
     Ok(())
 }
 
@@ -183,6 +189,7 @@ fn on_viewport_drag(
     nodes: Query<&ViewportNode>,
     mut transforms: Query<&mut Transform>,
     global_transforms: Query<&GlobalTransform>,
+    mouse_motion: Res<AccumulatedMouseMotion>,
     time: Res<Time>,
     cameras: Query<&ViewportCamera>,
 ) -> Result {
@@ -195,6 +202,7 @@ fn on_viewport_drag(
     };
 
     trigger.propagate(false);
+    let delta = mouse_motion.delta;
 
     let camera_global_transform = global_transforms.get(camera_entity)?;
 
@@ -202,13 +210,13 @@ fn on_viewport_drag(
         ViewportCameraMovement::Fly => {
             let mut camera_transform = transforms.get_mut(camera_entity)?;
             let mut pitch = camera_transform.rotation.to_euler(EulerRot::XYZ).0;
-            pitch = (pitch - trigger.delta.y * camera.rotation_sensitivity * time.delta_secs())
+            pitch = (pitch - delta.y * camera.rotation_sensitivity * time.delta_secs())
                 .clamp(-PI / 2.0, PI / 2.0);
             camera_transform.rotation = Quat::from_rotation_x(pitch);
 
             let mut origin_transform = transforms.get_mut(camera.origin)?;
             origin_transform.rotate(Quat::from_rotation_y(
-                -trigger.delta.x * camera.rotation_sensitivity * time.delta_secs(),
+                -delta.x * camera.rotation_sensitivity * time.delta_secs(),
             ));
         }
         ViewportCameraMovement::Pan => {
@@ -217,9 +225,9 @@ fn on_viewport_drag(
 
             let mut origin_transform = transforms.get_mut(camera.origin)?;
             origin_transform.translation +=
-                left * trigger.delta.x * camera.pane_sensitivity * time.delta_secs();
+                left * delta.x * camera.pane_sensitivity * time.delta_secs();
             origin_transform.translation +=
-                up * trigger.delta.y * camera.pane_sensitivity * time.delta_secs();
+                up * delta.y * camera.pane_sensitivity * time.delta_secs();
         }
     }
 
@@ -230,10 +238,12 @@ fn on_viewport_drag_end(
     mut trigger: On<Pointer<DragEnd>>,
     nodes: Query<&ViewportNode>,
     mut cameras: Query<&mut ViewportCamera>,
+    mut cursor_lock: ResMut<EditorWindowCursorLock>,
 ) -> Result {
     let mut camera = cameras.get_mut(nodes.get(trigger.entity)?.camera)?;
     camera.movement = None;
     trigger.propagate(false);
+    cursor_lock.0 = false;
     Ok(())
 }
 

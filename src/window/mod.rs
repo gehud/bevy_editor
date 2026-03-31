@@ -6,7 +6,7 @@ use bevy::{
     camera::{Camera, Camera2d, ClearColor, NormalizedRenderTarget, RenderTarget},
     color::Color,
     ecs::{
-        change_detection::DetectChangesMut,
+        change_detection::{DetectChanges, DetectChangesMut},
         component::Component,
         entity::{ContainsEntity, Entity},
         error::Result,
@@ -16,28 +16,30 @@ use bevy::{
         message::MessageReader,
         observer::On,
         query::{Added, Changed, With},
-        reflect::ReflectComponent,
+        reflect::{ReflectComponent, ReflectResource},
         resource::Resource,
         schedule::IntoScheduleConfigs,
-        system::{Commands, EntityCommands, In, Query, Res, Single, SystemState},
+        system::{Commands, EntityCommands, In, Local, Query, Res, ResMut, Single, SystemState},
         world::World,
     },
     image::Image,
+    input::{InputSystems, mouse::AccumulatedMouseMotion},
     math::{CompassOctant, Vec2},
     picking::{
         Pickable, PickingSystems,
         events::{Click, Out, Over, Pointer, Press},
         pointer::{Location, PointerLocation},
     },
-    reflect::Reflect,
+    prelude::{Deref, DerefMut},
+    reflect::{Reflect, prelude::ReflectDefault},
     ui::{
         AlignItems, BackgroundColor, FlexDirection, JustifyContent, Node, PositionType, UiRect,
         UiTargetCamera, Val, percent, px, widget::ImageNode,
     },
     utils::default,
     window::{
-        ExitCondition, PrimaryWindow, SystemCursorIcon, Window, WindowEvent, WindowPlugin,
-        WindowRef,
+        CursorGrabMode, CursorOptions, ExitCondition, PrimaryWindow, SystemCursorIcon, Window,
+        WindowEvent, WindowPlugin, WindowRef,
     },
     winit::WINIT_WINDOWS,
 };
@@ -637,6 +639,7 @@ fn maximize_windows(
 }
 
 #[derive(Clone, Copy, Debug, Default, Reflect, Resource)]
+#[reflect(Clone, Debug, Default, Resource)]
 pub struct EditorWindowAutoFocus(pub bool);
 
 fn auto_focus(
@@ -721,6 +724,33 @@ fn override_pointer_drag_location(
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, Reflect, Resource)]
+#[reflect(Clone, Debug, Default, Resource)]
+pub struct EditorWindowCursorLock(pub bool);
+
+fn lock_cursor(
+    cursor_lock: ResMut<EditorWindowCursorLock>,
+    editor_windows: Query<(&mut Window, &mut CursorOptions), With<EditorWindow>>,
+    mut lock_position: Local<Vec2>,
+) {
+    for (mut window, mut cursor) in editor_windows {
+        if cursor_lock.is_changed() {
+            if cursor_lock.0 && window.focused {
+                *lock_position = window.cursor_position().unwrap_or_default();
+                cursor.grab_mode = CursorGrabMode::Locked;
+                cursor.visible = false;
+            } else {
+                cursor.grab_mode = CursorGrabMode::None;
+                cursor.visible = true;
+            }
+        }
+
+        if cursor_lock.0 {
+            window.set_cursor_position(Some(*lock_position));
+        }
+    }
+}
+
 pub struct EditorWindowPlugin;
 
 impl Plugin for EditorWindowPlugin {
@@ -737,7 +767,9 @@ impl Plugin for EditorWindowPlugin {
         })
         .insert_resource(ClearColor(Color::NONE))
         .init_resource::<EditorWindowAutoFocus>()
+        .init_resource::<EditorWindowCursorLock>()
         .add_systems(First, (configure_windows, check_actually_maximized).chain())
+        .add_systems(PreUpdate, lock_cursor.after(InputSystems))
         .add_systems(
             PreUpdate,
             override_pointer_drag_location
