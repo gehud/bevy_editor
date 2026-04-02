@@ -21,7 +21,10 @@ use bevy::{
         Pickable,
         events::{Click, Out, Over, Pointer},
     },
-    ui::{AlignItems, JustifyContent, Node, UiRect, px, widget::ImageNode},
+    ui::{
+        AlignItems, JustifyContent, Node, UiRect, px,
+        widget::{ImageNode, Text},
+    },
     utils::default,
 };
 
@@ -76,7 +79,7 @@ fn setup(trigger: On<Add, EditorMenuRoot>, assets: Res<AssetServer>, mut command
                             ImageNode::new(assets.load("embedded://bevy_editor/icons/bevy.png")),
                         ));
 
-                        commands.spawn(EditorText::new("Bevy").heading());
+                        commands.spawn((Text::new("Bevy"), EditorText::heading()));
                     });
 
                 // Menu
@@ -197,11 +200,10 @@ fn spawn_menu_button<'a>(
                 .insert(ThemedBackgroundColor::new(WINDOW_BG));
         })
         .with_children(|commands| {
-            commands.spawn(
-                EditorText::new(label)
-                    .heading()
-                    .with_font(EditorTextFont::Regular),
-            );
+            commands.spawn((
+                Text::new(label),
+                EditorText::heading().with_font(EditorTextFont::Regular),
+            ));
         })
         .id();
 

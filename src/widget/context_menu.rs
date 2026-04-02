@@ -25,7 +25,8 @@ use bevy::{
     },
     ui::{
         AlignItems, AlignSelf, BoxShadow, ComputedNode, FlexDirection, JustifyContent, Node,
-        PositionType, ShadowStyle, UiGlobalTransform, UiRect, percent, px, widget::ImageNode,
+        PositionType, ShadowStyle, UiGlobalTransform, UiRect, percent, px,
+        widget::{ImageNode, Text},
     },
     utils::default,
 };
@@ -411,7 +412,8 @@ fn spawn_option<'a>(
                 .with_children(|commands| {
                     commands.spawn((
                         Pickable::IGNORE,
-                        EditorText::new(label).with_color(text_color),
+                        Text::new(label),
+                        EditorText::body().with_color(text_color),
                     ));
                 });
 
@@ -508,7 +510,7 @@ fn spawn_submenu<'a>(
                     Pickable::IGNORE,
                 ))
                 .with_children(|commands| {
-                    commands.spawn((Pickable::IGNORE, EditorText::new(label)));
+                    commands.spawn((Pickable::IGNORE, Text::new(label), EditorText::body()));
                 });
 
             commands

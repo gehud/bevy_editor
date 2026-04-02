@@ -11,7 +11,9 @@
 //! Then, when these entities are selected via [`bevy_editor_core::selection`] the
 //! transform gizmo will appear and allow you to move and rotate your selection.
 
+use bevy::asset::load_internal_asset;
 use bevy::camera::{Projection, RenderTarget};
+use bevy::pbr::ExtendedMaterial;
 use bevy::picking::{backend::ray::RayMap, pointer::PointerId};
 use bevy::{prelude::*, transform::TransformSystems};
 use bitflags::bitflags;
@@ -112,7 +114,7 @@ impl Default for TransformGizmoSettings {
             angle_snap: 15.0,   // 15 degree angle snapping
             scale_snap: 0.1,    // 0.1 scale increment snapping
             snap_enabled: true, // Enable snapping by default
-            modes: GizmoModes::all(),
+            modes: GizmoModes::TRANSLATE,
         }
     }
 }
@@ -171,6 +173,8 @@ pub enum InteractionKind {
         /// The axis were rotating on.
         axis: Vec3,
     },
+    /// Uniform rotation.
+    RotateUniform,
     /// Scaling along an axis.
     ScaleAxis {
         /// Starting scale.
@@ -403,7 +407,39 @@ fn drag_gizmo(
                     angle = snap_angle(angle, settings.angle_snap);
                 }
 
-                let rotation = Quat::from_axis_angle(axis, angle);
+                let rotation: Quat = Quat::from_axis_angle(axis, angle);
+                selected_iter.for_each(
+                    |(inverse_parent, mut local_transform, initial_transform)| {
+                        let world_space_offset = initial_transform.transform.rotation
+                            * initial_transform.rotation_offset;
+                        let offset_rotated = rotation * world_space_offset;
+                        let offset = world_space_offset - offset_rotated;
+                        let new_transform = Transform {
+                            translation: initial_transform.transform.translation + offset,
+                            rotation: rotation * initial_transform.transform.rotation,
+                            scale: initial_transform.transform.scale,
+                        };
+                        let local = inverse_parent * new_transform.to_matrix();
+                        local_transform.set_if_neq(Transform::from_matrix(local));
+                    },
+                );
+            }
+            InteractionKind::RotateUniform => {
+                let Some(cursor_plane_intersection) = intersect_plane(ray, Vec3::Z, origin) else {
+                    return;
+                };
+
+                let cursor_vector = cursor_plane_intersection - origin;
+
+                let mut angle_x = -cursor_vector.y;
+                let mut angle_y = cursor_vector.x;
+
+                if settings.snap_enabled && settings.angle_snap > 0.0 {
+                    angle_x = snap_angle(angle_x, settings.angle_snap);
+                    angle_y = snap_angle(angle_y, settings.angle_snap);
+                }
+
+                let rotation = Quat::from_euler(EulerRot::XYZ, angle_x, angle_y, 0.0);
                 selected_iter.for_each(
                     |(inverse_parent, mut local_transform, initial_transform)| {
                         let world_space_offset = initial_transform.transform.rotation
@@ -669,6 +705,7 @@ fn update_gizmo_settings(
             InteractionKind::ScaleUniform { original } => {
                 Some(InteractionKind::ScaleUniform { original })
             }
+            _ => None,
         } {
             *interaction = rotated_interaction;
         }
@@ -754,31 +791,16 @@ fn handle_gizmo_hotkeys(
         return;
     }
 
-    let ctrl = keyboard.pressed(KeyCode::ControlLeft) || keyboard.pressed(KeyCode::ControlRight);
-
     if keyboard.just_pressed(KeyCode::KeyW) {
-        if ctrl {
-            settings.modes.insert(GizmoModes::TRANSLATE);
-        } else {
-            settings.modes = GizmoModes::TRANSLATE;
-        }
+        settings.modes = GizmoModes::TRANSLATE;
     } else if keyboard.just_pressed(KeyCode::KeyE) {
-        if ctrl {
-            settings.modes.insert(GizmoModes::ROTATE);
-        } else {
-            settings.modes = GizmoModes::ROTATE;
-        }
+        settings.modes = GizmoModes::ROTATE;
     } else if keyboard.just_pressed(KeyCode::KeyR) {
-        if ctrl {
-            settings.modes.insert(GizmoModes::SCALE);
-        } else {
-            settings.modes = GizmoModes::SCALE;
-        }
-    } else if keyboard.just_pressed(KeyCode::KeyT) {
-        settings.modes = GizmoModes::all();
+        settings.modes = GizmoModes::SCALE;
     }
 
     // Toggle snapping with Ctrl
+    let ctrl = keyboard.pressed(KeyCode::ControlLeft) || keyboard.pressed(KeyCode::ControlRight);
     settings.snap_enabled = ctrl;
 }
 
@@ -852,6 +874,7 @@ impl Plugin for EditorGizmoPlugin {
         if !app.is_plugin_added::<MeshPickingPlugin>() {
             app.add_plugins(MeshPickingPlugin);
         }
+
         app.init_resource::<TransformGizmoSettings>()
             .add_plugins(Ui3dNormalizationPlugin)
             .add_message::<TransformGizmoEvent>()

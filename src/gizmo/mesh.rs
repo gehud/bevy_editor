@@ -1,13 +1,19 @@
 use std::f32::consts::TAU;
 
-use crate::selection::NoSelect;
+use bevy::{
+    anti_alias::fxaa::Fxaa,
+    asset::uuid_handle,
+    camera::{Camera3dDepthLoadOp, visibility::RenderLayers},
+    core_pipeline::prepass::{DeferredPrepass, DepthPrepass},
+    light::NotShadowCaster,
+    pbr::{ExtendedMaterial, MaterialExtension, OpaqueRendererMethod},
+    prelude::*,
+    render::render_resource::AsBindGroup,
+    shader::ShaderRef,
+};
 
 use super::{InteractionKind, InternalGizmoCamera, ScaleGizmo, TransformGizmo, TranslationGizmo};
-use bevy::{
-    camera::{Camera3dDepthLoadOp, visibility::RenderLayers},
-    light::NotShadowCaster,
-    prelude::*,
-};
+use crate::{selection::NoSelect, theme::palette};
 
 #[derive(Component)]
 pub struct RotationGizmo;
@@ -22,7 +28,6 @@ pub fn build_gizmo(
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     let axis_length = 1.5;
-    let arc_radius = TAU / 4.0;
     let plane_size = 0.3;
     let plane_offset = 0.4;
 
@@ -35,6 +40,7 @@ pub fn build_gizmo(
     let cone_mesh = meshes.add(Cone {
         height: 0.2,
         radius: 0.08, // Smaller, more precise arrow heads
+        ..default()
     });
 
     // Plane handles for multi-axis translation
@@ -44,37 +50,44 @@ pub fn build_gizmo(
     let sphere_mesh = meshes.add(Sphere { radius: 0.15 });
 
     // Scale gizmo handles - small cubes at the end of axes
-    let scale_handle_mesh = meshes.add(Cuboid::new(0.12, 0.12, 0.12));
+    let scale_tip_mesh = meshes.add(Cuboid::new(0.12, 0.12, 0.12));
+    let scale_handle_mesh = meshes.add(Cuboid::new(0.06, axis_length, 0.06));
 
     // Rotation rings with better visibility
-    let rotation_mesh = meshes.add(Mesh::from(
-        Torus {
-            major_radius: 1.1,
-            minor_radius: 0.03,
-        }
-        .mesh()
-        .angle_range(0f32..=arc_radius * 0.8), // Partial arcs for cleaner look
-    ));
+    let rotation_mesh = meshes.add(Torus {
+        major_radius: 1.1,
+        minor_radius: 0.03,
+    });
+
+    let uniform_rotation_mesh = meshes.add(Sphere { radius: 1.1 });
 
     /// Helper function to create a material with a specific color
     fn material(color: Color) -> StandardMaterial {
         StandardMaterial {
             base_color: color,
             unlit: true,
-            alpha_mode: AlphaMode::Blend,
+            cull_mode: None,
             ..default()
         }
     }
 
     // Editor color scheme - matching CSS specification
-    let gizmo_matl_x = materials.add(material(Color::srgba(0.8, 0.25, 0.32, 0.9))); // Red X-axis: #CC3F51
-    let gizmo_matl_y = materials.add(material(Color::srgba(0.36, 0.7, 0.05, 0.9))); // Green Y-axis: #5CB20D
-    let gizmo_matl_z = materials.add(material(Color::srgba(0.13, 0.5, 0.8, 0.9))); // Blue Z-axis: #2180CC
+    let gizmo_matl_x = materials.add(material(palette::X_AXIS.lighter(0.05)));
+    let gizmo_matl_y = materials.add(material(palette::Y_AXIS.lighter(0.05)));
+    let gizmo_matl_z = materials.add(material(palette::Z_AXIS.lighter(0.05)));
 
     // Brighter versions for selected/hovered state
-    let gizmo_matl_x_sel = materials.add(material(Color::srgba(1.0, 0.4, 0.45, 1.0))); // Bright red
-    let gizmo_matl_y_sel = materials.add(material(Color::srgba(0.5, 0.9, 0.2, 1.0))); // Bright green
-    let gizmo_matl_z_sel = materials.add(material(Color::srgba(0.25, 0.65, 1.0, 1.0))); // Bright blue
+    let gizmo_matl_x_sel = materials.add(material(palette::X_AXIS.lighter(0.1)));
+    let gizmo_matl_y_sel = materials.add(material(palette::Y_AXIS.lighter(0.1)));
+    let gizmo_matl_z_sel = materials.add(material(palette::Z_AXIS.lighter(0.1)));
+
+    // View gizmo - neutral dark/gray
+    let gizmo_matl_v = materials.add(StandardMaterial {
+        base_color: Color::srgba(0.3, 0.3, 0.3, 0.3),
+        unlit: true,
+        alpha_mode: AlphaMode::Multiply,
+        ..default()
+    });
 
     // View gizmo - neutral white/gray
     let gizmo_matl_v_sel = materials.add(material(Color::srgba(0.9, 0.9, 0.9, 0.8)));
@@ -83,7 +96,7 @@ pub fn build_gizmo(
     commands
         .spawn(TransformGizmo::default())
         .with_children(|parent| {
-            // Translation Axes
+            // Translation arrows
             parent.spawn((
                 NoSelect,
                 Mesh3d(arrow_tail_mesh.clone()),
@@ -133,7 +146,7 @@ pub fn build_gizmo(
                 RenderLayers::layer(12),
             ));
 
-            // Translation Handles
+            // Translation handles
             parent.spawn((
                 NoSelect,
                 Mesh3d(cone_mesh.clone()),
@@ -152,23 +165,6 @@ pub fn build_gizmo(
             ));
             parent.spawn((
                 NoSelect,
-                Mesh3d(plane_mesh.clone()),
-                MeshMaterial3d(gizmo_matl_x_sel.clone()),
-                Transform::from_matrix(Mat4::from_rotation_translation(
-                    Quat::from_rotation_z(std::f32::consts::PI / -2.0),
-                    Vec3::new(0., plane_offset, plane_offset),
-                )),
-                InteractionKind::TranslatePlane {
-                    original: Vec3::X,
-                    normal: Vec3::X,
-                },
-                TranslationGizmo,
-                // NoBackfaceCulling,
-                NotShadowCaster,
-                RenderLayers::layer(12),
-            ));
-            parent.spawn((
-                NoSelect,
                 Mesh3d(cone_mesh.clone()),
                 MeshMaterial3d(gizmo_matl_y_sel.clone()),
                 Transform::from_translation(Vec3::new(0.0, axis_length, 0.0)),
@@ -177,20 +173,6 @@ pub fn build_gizmo(
                     axis: Vec3::Y,
                 },
                 TranslationGizmo,
-                NotShadowCaster,
-                RenderLayers::layer(12),
-            ));
-            parent.spawn((
-                NoSelect,
-                Mesh3d(plane_mesh.clone()),
-                MeshMaterial3d(gizmo_matl_y_sel.clone()),
-                Transform::from_translation(Vec3::new(plane_offset, 0.0, plane_offset)),
-                InteractionKind::TranslatePlane {
-                    original: Vec3::Y,
-                    normal: Vec3::Y,
-                },
-                TranslationGizmo,
-                // NoBackfaceCulling,
                 NotShadowCaster,
                 RenderLayers::layer(12),
             ));
@@ -210,10 +192,43 @@ pub fn build_gizmo(
                 NotShadowCaster,
                 RenderLayers::layer(12),
             ));
+
+            // Translation planes
             parent.spawn((
                 NoSelect,
                 Mesh3d(plane_mesh.clone()),
-                MeshMaterial3d(gizmo_matl_z_sel.clone()),
+                MeshMaterial3d(gizmo_matl_x.clone()),
+                Transform::from_matrix(Mat4::from_rotation_translation(
+                    Quat::from_rotation_z(std::f32::consts::PI / -2.0),
+                    Vec3::new(0., plane_offset, plane_offset),
+                )),
+                InteractionKind::TranslatePlane {
+                    original: Vec3::X,
+                    normal: Vec3::X,
+                },
+                TranslationGizmo,
+                RayCastBackfaces,
+                NotShadowCaster,
+                RenderLayers::layer(12),
+            ));
+            parent.spawn((
+                NoSelect,
+                Mesh3d(plane_mesh.clone()),
+                MeshMaterial3d(gizmo_matl_y.clone()),
+                Transform::from_translation(Vec3::new(plane_offset, 0.0, plane_offset)),
+                InteractionKind::TranslatePlane {
+                    original: Vec3::Y,
+                    normal: Vec3::Y,
+                },
+                TranslationGizmo,
+                RayCastBackfaces,
+                NotShadowCaster,
+                RenderLayers::layer(12),
+            ));
+            parent.spawn((
+                NoSelect,
+                Mesh3d(plane_mesh.clone()),
+                MeshMaterial3d(gizmo_matl_z.clone()),
                 Transform::from_matrix(Mat4::from_rotation_translation(
                     Quat::from_rotation_x(std::f32::consts::PI / 2.0),
                     Vec3::new(plane_offset, plane_offset, 0.0),
@@ -223,11 +238,12 @@ pub fn build_gizmo(
                     normal: Vec3::Z,
                 },
                 TranslationGizmo,
-                // NoBackfaceCulling,
+                RayCastBackfaces,
                 NotShadowCaster,
                 RenderLayers::layer(12),
             ));
 
+            // Free translation
             parent.spawn((
                 NoSelect,
                 Mesh3d(sphere_mesh.clone()),
@@ -285,12 +301,23 @@ pub fn build_gizmo(
                 RenderLayers::layer(12),
             ));
 
-            // Scale Handles - Cubes at end of axes for per-axis scaling
+            // Uniform rotation
             parent.spawn((
                 NoSelect,
-                Mesh3d(scale_handle_mesh.clone()),
+                Mesh3d(uniform_rotation_mesh.clone()),
+                MeshMaterial3d(gizmo_matl_v.clone()),
+                RotationGizmo,
+                InteractionKind::RotateUniform,
+                NotShadowCaster,
+                RenderLayers::layer(12),
+            ));
+
+            // Scale tips
+            parent.spawn((
+                NoSelect,
+                Mesh3d(scale_tip_mesh.clone()),
                 MeshMaterial3d(gizmo_matl_x_sel.clone()),
-                Transform::from_translation(Vec3::new(axis_length + 0.15, 0.0, 0.0)),
+                Transform::from_translation(Vec3::new(axis_length, 0.0, 0.0)),
                 InteractionKind::ScaleAxis {
                     original: Vec3::X,
                     axis: Vec3::X,
@@ -301,9 +328,40 @@ pub fn build_gizmo(
             ));
             parent.spawn((
                 NoSelect,
-                Mesh3d(scale_handle_mesh.clone()),
+                Mesh3d(scale_tip_mesh.clone()),
                 MeshMaterial3d(gizmo_matl_y_sel.clone()),
-                Transform::from_translation(Vec3::new(0.0, axis_length + 0.15, 0.0)),
+                Transform::from_translation(Vec3::new(0.0, axis_length, 0.0)),
+                InteractionKind::ScaleAxis {
+                    original: Vec3::Y,
+                    axis: Vec3::Y,
+                },
+                ScaleGizmo,
+                NotShadowCaster,
+                RenderLayers::layer(12),
+            ));
+            parent.spawn((
+                NoSelect,
+                Mesh3d(scale_tip_mesh.clone()),
+                MeshMaterial3d(gizmo_matl_z_sel.clone()),
+                Transform::from_translation(Vec3::new(0.0, 0.0, axis_length)),
+                InteractionKind::ScaleAxis {
+                    original: Vec3::Z,
+                    axis: Vec3::Z,
+                },
+                ScaleGizmo,
+                NotShadowCaster,
+                RenderLayers::layer(12),
+            ));
+
+            // Scale handles
+            parent.spawn((
+                NoSelect,
+                Mesh3d(scale_handle_mesh.clone()),
+                MeshMaterial3d(gizmo_matl_x.clone()),
+                Transform::from_matrix(Mat4::from_rotation_translation(
+                    Quat::from_rotation_z(std::f32::consts::PI / -2.0),
+                    Vec3::new(axis_length / 2.0, 0.0, 0.0),
+                )),
                 InteractionKind::ScaleAxis {
                     original: Vec3::Y,
                     axis: Vec3::Y,
@@ -315,8 +373,24 @@ pub fn build_gizmo(
             parent.spawn((
                 NoSelect,
                 Mesh3d(scale_handle_mesh.clone()),
-                MeshMaterial3d(gizmo_matl_z_sel.clone()),
-                Transform::from_translation(Vec3::new(0.0, 0.0, axis_length + 0.15)),
+                MeshMaterial3d(gizmo_matl_y.clone()),
+                Transform::from_translation(Vec3::new(0.0, axis_length / 2.0, 0.0)),
+                InteractionKind::ScaleAxis {
+                    original: Vec3::Y,
+                    axis: Vec3::Y,
+                },
+                ScaleGizmo,
+                NotShadowCaster,
+                RenderLayers::layer(12),
+            ));
+            parent.spawn((
+                NoSelect,
+                Mesh3d(scale_handle_mesh.clone()),
+                MeshMaterial3d(gizmo_matl_z.clone()),
+                Transform::from_matrix(Mat4::from_rotation_translation(
+                    Quat::from_rotation_x(std::f32::consts::PI / 2.0),
+                    Vec3::new(0.0, 0.0, axis_length / 2.0),
+                )),
                 InteractionKind::ScaleAxis {
                     original: Vec3::Z,
                     axis: Vec3::Z,
@@ -330,7 +404,7 @@ pub fn build_gizmo(
             parent.spawn((
                 NoSelect,
                 Mesh3d(meshes.add(Cuboid::new(0.2, 0.2, 0.2))),
-                MeshMaterial3d(materials.add(material(Color::srgba(0.9, 0.9, 0.9, 0.7)))),
+                MeshMaterial3d(gizmo_matl_v_sel),
                 Transform::from_translation(Vec3::ZERO),
                 InteractionKind::ScaleUniform {
                     original: Vec3::ONE,
@@ -342,10 +416,7 @@ pub fn build_gizmo(
         });
 
     commands.spawn((
-        Camera3d {
-            depth_load_op: Camera3dDepthLoadOp::Clear(0.),
-            ..default()
-        },
+        Camera3d::default(),
         Camera {
             clear_color: ClearColorConfig::None,
             ..default()

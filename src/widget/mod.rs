@@ -1,9 +1,5 @@
 use bevy::{
-    app::{Plugin, PluginGroup, PluginGroupBuilder},
-    input_focus::{InputDispatchPlugin, directional_navigation::DirectionalNavigationPlugin},
-    ui_render::UiMaterialPlugin,
-    ui_widgets::UiWidgetsPlugins,
-    window::SystemCursorIcon,
+    app::{Plugin, PluginGroup, PluginGroupBuilder}, ecs::{entity::Entity, event::EntityEvent}, input_focus::{InputDispatchPlugin, directional_navigation::DirectionalNavigationPlugin}, ui_render::UiMaterialPlugin, ui_widgets::UiWidgetsPlugins, window::SystemCursorIcon
 };
 
 mod alpha_pattern;
@@ -19,6 +15,7 @@ mod radio;
 mod scroll;
 mod slider;
 mod text;
+mod text_field;
 mod toggle_switch;
 mod virtual_keyboard;
 
@@ -35,8 +32,22 @@ pub use radio::*;
 pub use scroll::*;
 pub use slider::*;
 pub use text::*;
+pub use text_field::*;
 pub use toggle_switch::*;
 pub use virtual_keyboard::*;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, EntityEvent)]
+pub struct Submit {
+    pub entity: Entity,
+}
+
+#[derive(EntityEvent)]
+pub struct ValueChange<T> {
+    #[event_target]
+    pub source: Entity,
+    pub previous: T,
+    pub new: T,
+}
 
 pub struct EditorWidgetPlugin;
 
@@ -55,6 +66,7 @@ impl Plugin for EditorWidgetPlugin {
             CursorIconPlugin,
             ContextMenuPlugin,
             ScrollPlugin,
+            TextFieldPlugin,
             MenuBarPlugin,
             UiMaterialPlugin::<AlphaPatternMaterial>::default(),
         ));

@@ -1,13 +1,8 @@
-use std::{
-    path::PathBuf,
-    time::Instant,
-};
+use std::{path::PathBuf, time::Instant};
 
 use bevy::{
     app::{App, Plugin, Update},
-    asset::
-        AssetServer
-    ,
+    asset::AssetServer,
     ecs::{
         change_detection::DetectChanges,
         component::Component,
@@ -27,7 +22,7 @@ use bevy::{
     ui::{
         AlignContent, AlignItems, FlexDirection, FlexWrap, JustifyContent, Node, Overflow,
         OverflowAxis, PositionType, UiRect, percent, px,
-        widget::ImageNode,
+        widget::{ImageNode, Text},
     },
     utils::default,
 };
@@ -36,7 +31,8 @@ use crate::{
     asset::{DatabaseRefresed, database::AssetDatabase},
     pane::{PaneApp, PaneStructure},
     theme::{
-        RoundedCorners, ThemedBackgroundColor, tokens::{BUTTON_BG, PANE_BG, WINDOW_BG},
+        RoundedCorners, ThemedBackgroundColor,
+        tokens::{BUTTON_BG, PANE_BG, WINDOW_BG},
     },
     widget::{EditorText, ScrollArea},
 };
@@ -366,7 +362,8 @@ fn spawn_dir_entry(
             commands.spawn((
                 Pickable::IGNORE,
                 TextLayout::new_with_no_wrap(),
-                EditorText::new(file_name),
+                Text::new(file_name),
+                EditorText::body(),
             ));
         });
 
@@ -467,7 +464,8 @@ fn on_inspect_labeled_assets_click(
                                 commands.spawn((
                                     Pickable::IGNORE,
                                     TextLayout::new_with_no_wrap(),
-                                    EditorText::new(label),
+                                    Text::new(label),
+                                    EditorText::body(),
                                 ));
                             });
                     })
@@ -511,7 +509,7 @@ fn spawn_path_component(
             ThemedBackgroundColor::new(PANE_BG),
         ))
         .with_children(|commands| {
-            commands.spawn(EditorText::new(file_name));
+            commands.spawn((Text::new(file_name), EditorText::body()));
         })
         .observe(|trigger: On<Pointer<Over>>, mut commands: Commands| {
             commands
@@ -547,6 +545,6 @@ fn spawn_path_separator(commands: &mut Commands, container: Entity) {
             ThemedBackgroundColor::new(PANE_BG),
         ))
         .with_children(|commands| {
-            commands.spawn((Pickable::IGNORE, EditorText::new("/")));
+            commands.spawn((Pickable::IGNORE, Text::new("/"), EditorText::body()));
         });
 }

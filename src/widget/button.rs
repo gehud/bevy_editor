@@ -1,4 +1,4 @@
-use bevy::app::{Plugin, PreUpdate};
+use bevy::app::{App, Plugin, PreUpdate};
 use bevy::ecs::{
     bundle::Bundle,
     component::Component,
@@ -91,7 +91,7 @@ pub fn button<C: SpawnableList<ChildOf> + Send + Sync + 'static, B: Bundle>(
 }
 
 fn update_button_styles(
-    q_buttons: Query<
+    buttons: Query<
         (
             Entity,
             &ButtonVariant,
@@ -110,10 +110,9 @@ fn update_button_styles(
     >,
     mut commands: Commands,
 ) {
-    for (button_ent, variant, disabled, pressed, hovered, bg_color, font_color) in q_buttons.iter()
-    {
+    for (entity, variant, disabled, pressed, hovered, bg_color, font_color) in buttons.iter() {
         set_button_styles(
-            button_ent,
+            entity,
             variant,
             disabled,
             pressed,
@@ -126,7 +125,7 @@ fn update_button_styles(
 }
 
 fn update_button_styles_remove(
-    q_buttons: Query<(
+    buttons: Query<(
         Entity,
         &ButtonVariant,
         Has<InteractionDisabled>,
@@ -142,9 +141,9 @@ fn update_button_styles_remove(
     removed_disabled
         .read()
         .chain(removed_pressed.read())
-        .for_each(|ent| {
+        .for_each(|entity| {
             if let Ok((button_ent, variant, disabled, pressed, hovered, bg_color, font_color)) =
-                q_buttons.get(ent)
+                buttons.get(entity)
             {
                 set_button_styles(
                     button_ent,
@@ -213,11 +212,10 @@ fn set_button_styles(
         .insert(EntityCursor::System(cursor_shape));
 }
 
-/// Plugin which registers the systems for updating the button styles.
 pub struct ButtonPlugin;
 
 impl Plugin for ButtonPlugin {
-    fn build(&self, app: &mut bevy::app::App) {
+    fn build(&self, app: &mut App) {
         app.add_systems(
             PreUpdate,
             (update_button_styles, update_button_styles_remove).in_set(PickingSystems::Last),

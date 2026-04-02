@@ -1,9 +1,6 @@
-use std::borrow::Cow;
-
 use bevy::{
     ecs::bundle::Bundle,
     reflect::{Reflect, prelude::ReflectDefault},
-    ui::widget::Text,
 };
 
 use crate::theme::{EditorThemeToken, ThemedTextColor, ThemedTextFont, ThemedTextSize};
@@ -13,7 +10,7 @@ use crate::theme::{EditorThemeToken, ThemedTextColor, ThemedTextFont, ThemedText
 pub enum EditorTextFont {
     Regular,
     Bold,
-    Mono
+    Mono,
 }
 
 impl Into<EditorThemeToken> for EditorTextFont {
@@ -75,18 +72,24 @@ pub enum EditorTextStyle {
 #[derive(Bundle, Clone, Debug, Reflect)]
 #[reflect(Clone, Debug, Default)]
 pub struct EditorText {
-    text: Text,
     theme_text_font: ThemedTextFont,
     theme_text_size: ThemedTextSize,
     theme_text_color: ThemedTextColor,
 }
 
 impl EditorText {
-    pub fn new(text: impl Into<String>) -> Self {
+    pub fn body() -> Self {
         Self {
-            text: Text::new(text),
             theme_text_font: ThemedTextFont::new(EditorTextFont::Regular),
             theme_text_size: ThemedTextSize::new(EditorTextSize::Normal),
+            theme_text_color: ThemedTextColor::new(EditorTextColor::Bright),
+        }
+    }
+
+    pub fn heading() -> Self {
+        Self {
+            theme_text_font: ThemedTextFont::new(EditorTextFont::Bold),
+            theme_text_size: ThemedTextSize::new(EditorTextSize::Raised),
             theme_text_color: ThemedTextColor::new(EditorTextColor::Bright),
         }
     }
@@ -105,85 +108,10 @@ impl EditorText {
         self.theme_text_color.0 = color.into();
         self
     }
-
-    pub fn styled(self, style: EditorTextStyle) -> Self {
-        match style {
-            EditorTextStyle::Body => self
-                .with_font(EditorTextFont::Regular)
-                .with_size(EditorTextSize::Normal)
-                .with_color(EditorTextColor::Bright),
-            EditorTextStyle::Heading => self
-                .with_font(EditorTextFont::Bold)
-                .with_size(EditorTextSize::Raised)
-                .with_color(EditorTextColor::Bright),
-        }
-    }
-
-    pub fn body(self) -> Self {
-        self.styled(EditorTextStyle::Body)
-    }
-
-    pub fn heading(self) -> Self {
-        self.styled(EditorTextStyle::Heading)
-    }
 }
 
 impl Default for EditorText {
     fn default() -> Self {
-        Self::new(String::default())
-    }
-}
-
-impl From<Text> for EditorText {
-    fn from(text: Text) -> Self {
-        Self::new(text.0)
-    }
-}
-
-impl From<&str> for EditorText {
-    fn from(text: &str) -> Self {
-        Self::new(text)
-    }
-}
-
-impl From<&String> for EditorText {
-    fn from(text: &String) -> Self {
-        Self::new(text)
-    }
-}
-
-impl From<&mut String> for EditorText {
-    fn from(text: &mut String) -> Self {
-        Self::new(text.clone())
-    }
-}
-
-impl From<String> for EditorText {
-    fn from(text: String) -> Self {
-        Self::new(text)
-    }
-}
-
-impl From<&Box<str>> for EditorText {
-    fn from(text: &Box<str>) -> Self {
-        Self::new(text.clone())
-    }
-}
-
-impl From<&mut Box<str>> for EditorText {
-    fn from(text: &mut Box<str>) -> Self {
-        Self::new(text.clone())
-    }
-}
-
-impl From<Box<str>> for EditorText {
-    fn from(text: Box<str>) -> Self {
-        Self::new(text)
-    }
-}
-
-impl From<Cow<'_, str>> for EditorText {
-    fn from(text: Cow<'_, str>) -> Self {
-        Self::new(text)
+        Self::body()
     }
 }

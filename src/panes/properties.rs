@@ -6,18 +6,28 @@ use bevy::{
         entity::Entity,
         hierarchy::ChildOf,
         message::MessageReader,
+        observer::On,
         query::With,
         system::{Commands, In, Query, Res},
         world::Ref,
     },
-    ui::{FlexDirection, Node, Overflow, PositionType, UiRect, percent, px},
+    picking::{
+        Pickable,
+        events::{Click, Pointer},
+    },
+    platform::collections::HashSet,
+    ui::{
+        AlignContent, AlignItems, FlexDirection, Node, Overflow, PositionType, UiRect,
+        auto_directional_navigation::AutoDirectionalNavigator, percent, px, widget::Text,
+    },
     utils::default,
 };
 
 use crate::{
     pane::{PaneApp, PaneStructure},
     selection::{Selection, SelectionChanged, SelectionMap},
-    widget::{EditorText, ScrollArea},
+    theme::{RoundedCorners, ThemedBackgroundColor, ThemedBorderColor, tokens::BUTTON_BG},
+    widget::{EditorText, ScrollArea, TextField, TextFieldSettings, ValueChange},
 };
 
 pub struct PropertiesPlugin;
@@ -81,21 +91,57 @@ fn update(
             .entity(root_entity)
             .despawn_children()
             .with_children(|commands| {
+                let root = commands.target_entity();
                 if selection_map.0.len() > 1 {
-                    commands.spawn(EditorText::new("Selection:"));
+                    commands.spawn((Text::new("Selection:"), EditorText::body()));
                     for (selection, entities) in selection_map.0.iter() {
-                        commands.spawn(EditorText::new(format!(
-                            "\t{} x{}",
-                            selection,
-                            entities.len()
-                        )));
+                        commands.spawn((
+                            Text::new(format!("\t{} x{}", selection, entities.len())),
+                            EditorText::body(),
+                        ));
                     }
                 } else if let Some((selection, entities)) = selection_map.0.iter().next() {
                     match selection {
-                        Selection::Entity => {}
+                        Selection::Entity => {
+                            commands.commands_mut().run_system_cached_with(
+                                setup_entities_properties,
+                                (root, entities.clone()),
+                            );
+                        }
                         Selection::File(path_buf) => todo!(),
                     }
                 }
             });
     }
+}
+
+fn setup_entities_properties(
+    In((root, entities)): In<(Entity, HashSet<Entity>)>,
+    mut commands: Commands,
+) {
+    if entities.len() != 1 {
+        return;
+    }
+
+    let entity = *entities.iter().next().unwrap();
+
+    commands
+        .spawn((
+            ChildOf(root),
+            Node {
+                width: percent(100),
+                align_items: AlignItems::Center,
+                column_gap: px(6),
+                ..default()
+            },
+        ))
+        .with_children(|commands| {
+            commands.spawn((Text::new("Name:"), EditorText::body()));
+
+            commands
+                .spawn(TextField::new().build())
+                .observe(|trigger: On<ValueChange<String>>| {
+                    bevy::log::info!("{} -> {}", trigger.previous, trigger.new);
+                });
+        });
 }

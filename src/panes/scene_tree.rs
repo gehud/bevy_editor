@@ -36,7 +36,7 @@ use bevy::{
     transform::components::Transform,
     ui::{
         AlignItems, FlexDirection, JustifyContent, Node, Overflow, PositionType, UiRect, auto,
-        percent, px, widget::ImageNode,
+        percent, px, widget::{ImageNode, Text},
     },
     utils::default,
 };
@@ -331,7 +331,8 @@ fn populate_scene_tree(
                     commands.spawn((
                         Pickable::IGNORE,
                         TextLayout::new_with_no_wrap(),
-                        EditorText::new(name),
+                        Text::new(name),
+                        EditorText::body(),
                     ));
                 });
         })

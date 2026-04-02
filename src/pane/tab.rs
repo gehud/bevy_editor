@@ -23,7 +23,7 @@ use bevy::{
         pointer::{PointerButton, PointerLocation, PointerMap},
     },
     ui::{
-        AlignItems, ComputedNode, Node, PositionType, ScrollPosition, UiRect, UiScale, percent, px,
+        AlignItems, ComputedNode, Node, PositionType, ScrollPosition, UiRect, UiScale, percent, px, widget::Text,
     },
     utils::default,
     window::SystemCursorIcon,
@@ -369,7 +369,7 @@ pub(super) fn spawn_tab<'a>(
         ))
         .id();
 
-    commands.spawn((Pickable::IGNORE, ChildOf(root), EditorText::new(tab)));
+    commands.spawn((Pickable::IGNORE, ChildOf(root), Text::new(tab), EditorText::body()));
 
     commands.entity(root)
 }

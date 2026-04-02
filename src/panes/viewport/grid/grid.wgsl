@@ -126,7 +126,6 @@ fn fragment(in: VertexOutput) -> FragmentOutput {
     // The scaling to be used when the camera projection has perspective
     let perspective_scaling = pow(10., floor(log10_distance));
 
-
     // Orthographic scaling
 
     // The height of the view in world units

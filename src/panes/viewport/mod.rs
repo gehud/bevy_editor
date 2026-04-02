@@ -101,8 +101,8 @@ fn setup(In(pane): In<PaneStructure>, mut images: ResMut<Assets<Image>>, mut com
             ViewportCamera {
                 movement: None,
                 origin: camera_origin,
-                rotation_sensitivity: 0.01,
-                pane_sensitivity: 0.03,
+                rotation_sensitivity: 0.005,
+                pane_sensitivity: 0.015,
                 fly_speed: 5.0,
             },
             Camera3d::default(),
