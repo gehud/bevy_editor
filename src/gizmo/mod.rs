@@ -21,6 +21,7 @@ use mesh::{RotationGizmo, ViewTranslateGizmo};
 
 use normalization::*;
 
+use crate::gizmo::mesh::GizmoMeshPlugin;
 use crate::panes::ViewportCamera;
 use crate::selection::{Selection, SelectionSettings};
 
@@ -875,6 +876,8 @@ impl Plugin for EditorGizmoPlugin {
             app.add_plugins(MeshPickingPlugin);
         }
 
+        app.add_plugins(GizmoMeshPlugin);
+
         app.init_resource::<TransformGizmoSettings>()
             .add_plugins(Ui3dNormalizationPlugin)
             .add_message::<TransformGizmoEvent>()
@@ -916,7 +919,6 @@ impl Plugin for EditorGizmoPlugin {
                 .run_if(|settings: Res<TransformGizmoSettings>| settings.enabled),
         );
 
-        app.add_systems(Startup, mesh::build_gizmo)
-            .add_systems(PostStartup, place_gizmo);
+        app.add_systems(PostStartup, place_gizmo);
     }
 }

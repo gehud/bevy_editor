@@ -5,7 +5,7 @@ use bevy::{
     camera::visibility::{
         NoFrustumCulling, VisibilityClass, VisibleEntities, add_visibility_class,
     },
-    core_pipeline::{core_2d::Transparent2d, core_3d::Transparent3d},
+    core_pipeline::{core_2d::Transparent2d, core_3d::{CORE_3D_DEPTH_FORMAT, Transparent3d}},
     ecs::{
         query::ROQueryItem,
         system::{
@@ -570,7 +570,7 @@ impl SpecializedRenderPipeline for InfiniteGridPipeline {
                 conservative: false,
             },
             depth_stencil: Some(DepthStencilState {
-                format: TextureFormat::Depth32Float,
+                format: CORE_3D_DEPTH_FORMAT,
                 depth_write_enabled: false,
                 depth_compare: CompareFunction::Greater,
                 stencil: StencilState {
