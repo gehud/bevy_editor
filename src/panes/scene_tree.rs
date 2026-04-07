@@ -36,7 +36,8 @@ use bevy::{
     transform::components::Transform,
     ui::{
         AlignItems, FlexDirection, JustifyContent, Node, Overflow, PositionType, UiRect, auto,
-        percent, px, widget::{ImageNode, Text},
+        percent, px,
+        widget::{ImageNode, Text},
     },
     utils::default,
 };
@@ -418,6 +419,7 @@ fn add_selection(
     trigger: On<Add, Selection>,
     selections: Query<&Selection>,
     related_views: Query<&ViewHeaderEntity>,
+    entities: Query<Entity>,
     mut commands: Commands,
 ) -> Result {
     let selection = selections.get(trigger.event_target())?;
@@ -430,9 +432,11 @@ fn add_selection(
         return Ok(());
     };
 
-    commands
-        .entity(view.header)
-        .insert(ThemedBorderColor::all(PANE_TAB_ACTIVE));
+    if entities.contains(view.header) {
+        commands
+            .entity(view.header)
+            .insert(ThemedBorderColor::all(PANE_TAB_ACTIVE));
+    }
 
     Ok(())
 }
@@ -441,6 +445,7 @@ fn remove_selection(
     trigger: On<Remove, Selection>,
     selections: Query<&Selection>,
     related_views: Query<&ViewHeaderEntity>,
+    entities: Query<Entity>,
     mut commands: Commands,
 ) -> Result {
     let selection = selections.get(trigger.event_target())?;
@@ -453,9 +458,11 @@ fn remove_selection(
         return Ok(());
     };
 
-    commands
-        .entity(view.header)
-        .insert(ThemedBorderColor::all(PANE_BG));
+    if entities.contains(view.header) {
+        commands
+            .entity(view.header)
+            .insert(ThemedBorderColor::all(PANE_BG));
+    }
 
     Ok(())
 }
