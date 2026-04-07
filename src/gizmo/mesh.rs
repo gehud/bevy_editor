@@ -45,10 +45,9 @@ use bevy::{
         render_resource::{
             BlendComponent, BlendFactor, BlendOperation, BlendState, CachedRenderPipelineId,
             ColorTargetState, ColorWrites, CompareFunction, DepthStencilState, Face, FragmentState,
-            LoadOp, MultisampleState, Operations, PipelineCache, PrimitiveState,
-            RenderPassDescriptor, RenderPipelineDescriptor, SpecializedMeshPipeline,
-            SpecializedMeshPipelineError, SpecializedMeshPipelines, StencilFaceState,
-            StencilOperation, StencilState, StoreOp, TextureFormat, VertexState,
+            MultisampleState, PipelineCache, PrimitiveState, RenderPassDescriptor,
+            RenderPipelineDescriptor, SpecializedMeshPipeline, SpecializedMeshPipelineError,
+            SpecializedMeshPipelines, StoreOp, TextureFormat, VertexState,
         },
         renderer::RenderContext,
         sync_world::MainEntity,
@@ -124,21 +123,21 @@ impl SpecializedMeshPipeline for StencilPipeline {
                 buffers: vec![vertex_buffer_layout],
                 ..default()
             },
+            fragment: Some(FragmentState {
+                shader: self.shader_handle.clone(),
+                targets: vec![Some(ColorTargetState {
+                    format: TextureFormat::bevy_default(),
+                    blend: Some(BlendState::REPLACE),
+                    write_mask: ColorWrites::ALL,
+                })],
+                ..default()
+            }),
             depth_stencil: Some(DepthStencilState {
                 bias: default(),
                 depth_compare: CompareFunction::Greater,
                 depth_write_enabled: false,
                 format: CORE_3D_DEPTH_FORMAT,
-                stencil: StencilState {
-                    front: StencilFaceState {
-                        compare: CompareFunction::Always,
-                        depth_fail_op: StencilOperation::Keep,
-                        fail_op: StencilOperation::Keep,
-                        pass_op: StencilOperation::Replace,
-                    },
-                    write_mask: 0xff,
-                    ..default()
-                },
+                stencil: default(),
             }),
             primitive: PrimitiveState {
                 topology: key.primitive_topology(),
@@ -496,7 +495,6 @@ struct CustomDrawPassLabel;
 
 #[derive(Default)]
 struct CustomDrawNode;
-
 impl ViewNode for CustomDrawNode {
     type ViewQuery = (
         &'static ExtractedCamera,
@@ -530,21 +528,15 @@ impl ViewNode for CustomDrawNode {
             return Ok(());
         };
 
-        let mut depth_stencil_attachment = depth_target.get_attachment(StoreOp::Store);
-        depth_stencil_attachment.stencil_ops = Some(Operations {
-            load: LoadOp::Clear(0),
-            store: StoreOp::Store,
-        });
-
         // Render pass setup
-        let mut stencil_pass = render_context.begin_tracked_render_pass(RenderPassDescriptor {
+        let mut render_pass = render_context.begin_tracked_render_pass(RenderPassDescriptor {
             label: Some("stencil_pass"),
             // For the purpose of the example, we will write directly to the view target. A real
             // stencil pass would write to a custom texture and that texture would be used in later
             // passes to render custom effects using it.
-            color_attachments: &[],
+            color_attachments: &[Some(target.get_color_attachment())],
             // We don't bind any depth buffer for this pass
-            depth_stencil_attachment: Some(depth_stencil_attachment),
+            depth_stencil_attachment: Some(depth_target.get_attachment(StoreOp::Store)),
             timestamp_writes: None,
             occlusion_query_set: None,
         });
@@ -552,14 +544,12 @@ impl ViewNode for CustomDrawNode {
         if let Some(viewport) =
             Viewport::from_viewport_and_override(camera.viewport.as_ref(), resolution_override)
         {
-            stencil_pass.set_camera_viewport(&viewport);
+            render_pass.set_camera_viewport(&viewport);
         }
-
-        stencil_pass.set_stencil_reference(0xff);
 
         // Render the phase
         // This will execute each draw functions of each phase items queued in this phase
-        stencil_phase.render(&mut stencil_pass, world, view_entity)?;
+        stencil_phase.render(&mut render_pass, world, view_entity)?;
 
         Ok(())
     }
@@ -617,6 +607,7 @@ fn build_gizmo(
             base_color: color,
             unlit: true,
             cull_mode: None,
+            alpha_mode: AlphaMode::AlphaToCoverage,
             ..default()
         }
     }
@@ -630,6 +621,9 @@ fn build_gizmo(
     let gizmo_matl_x_sel = materials.add(material(palette::X_AXIS.lighter(0.1)));
     let gizmo_matl_y_sel = materials.add(material(palette::Y_AXIS.lighter(0.1)));
     let gizmo_matl_z_sel = materials.add(material(palette::Z_AXIS.lighter(0.1)));
+
+    // View gizmo - neutral dark/gray
+    let gizmo_matl_v = materials.add(material(Color::NONE));
 
     // View gizmo - neutral white/gray
     let gizmo_matl_v_sel = materials.add(material(Color::srgba(0.9, 0.9, 0.9, 0.8)));
@@ -847,6 +841,7 @@ fn build_gizmo(
             parent.spawn((
                 NoSelect,
                 Mesh3d(uniform_rotation_mesh.clone()),
+                MeshMaterial3d(gizmo_matl_v.clone()),
                 DrawStencil,
                 RotationGizmo,
                 InteractionKind::RotateUniform,
