@@ -27,10 +27,12 @@ use bevy::{
     math::{EulerRot, Quat, UVec2},
     mesh::{Mesh2d, Mesh3d},
     picking::{
-        PickingSystems,
+        Pickable, PickingSystems,
         events::{Click, Drag, DragEnd, DragStart, Pointer, PointerState},
         hover::HoverMap,
-        mesh_picking::MeshPickingCamera,
+        mesh_picking::{
+            MeshPickingCamera, MeshPickingPlugin, MeshPickingSettings, ray_cast::RayCastVisibility,
+        },
         pointer::{Location, PointerButton, PointerId, PointerInput, PointerLocation},
     },
     reflect::Reflect,
@@ -38,14 +40,15 @@ use bevy::{
     time::Time,
     transform::components::{GlobalTransform, Transform},
     ui::{
-        ComputedNode, Node, UiGlobalTransform, UiRect, UiSystems, percent, px, widget::ImageNode,
+        ComputedNode, Node, PositionType, UiGlobalTransform, UiRect, UiSystems, percent, px,
+        widget::{ImageNode, NodeImageMode},
     },
     utils::default,
 };
-use bevy_mod_outline::{OutlineMode, OutlineVolume};
+use bevy_mod_outline::{OutlineMode, OutlinePlugin, OutlineVolume};
 
 use crate::{
-    gizmo::GizmoCamera,
+    gizmo::{GIZMO_LAYER, GizmoCamera, InternalGizmoCamera},
     pane::{PaneApp, PaneStructure},
     panes::viewport::grid::{InfiniteGrid, InfiniteGridPlugin, InfiniteGridSettings},
     selection::{NoSelect, Selected, Selection},
@@ -81,17 +84,20 @@ pub(crate) struct ViewportCamera {
 }
 
 fn setup(In(pane): In<PaneStructure>, mut images: ResMut<Assets<Image>>, mut commands: Commands) {
-    let mut image = Image::new_uninit(
+    let mut viewport_target = Image::new_uninit(
         default(),
         TextureDimension::D2,
         TextureFormat::bevy_default(),
         RenderAssetUsages::RENDER_WORLD,
     );
 
-    image.texture_descriptor.usage =
+    viewport_target.texture_descriptor.usage =
         TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST | TextureUsages::RENDER_ATTACHMENT;
 
-    let image = images.add(image);
+    let gizmo_target = viewport_target.clone();
+
+    let viewport_target_handle = images.add(viewport_target);
+    let gizmo_target_handle = images.add(gizmo_target);
 
     let camera_origin = commands
         .spawn((
@@ -100,7 +106,7 @@ fn setup(In(pane): In<PaneStructure>, mut images: ResMut<Assets<Image>>, mut com
         ))
         .id();
 
-    let camera = commands
+    let viewport_camera = commands
         .spawn((
             ChildOf(camera_origin),
             MeshPickingCamera,
@@ -118,8 +124,22 @@ fn setup(In(pane): In<PaneStructure>, mut images: ResMut<Assets<Image>>, mut com
                 order: -1,
                 ..default()
             },
-            RenderTarget::Image(image.clone().into()),
+            RenderTarget::Image(viewport_target_handle.clone().into()),
             Transform::from_rotation(Quat::from_rotation_x(-PI / 5.0)),
+        ))
+        .id();
+
+    let gizmo_camera = commands
+        .spawn((
+            Camera3d::default(),
+            Camera {
+                clear_color: ClearColorConfig::Custom(Color::NONE),
+                order: -2,
+                ..default()
+            },
+            InternalGizmoCamera,
+            RenderTarget::Image(gizmo_target_handle.clone().into()),
+            GIZMO_LAYER,
         ))
         .id();
 
@@ -127,14 +147,16 @@ fn setup(In(pane): In<PaneStructure>, mut images: ResMut<Assets<Image>>, mut com
         commands
             .spawn((
                 Node {
+                    position_type: PositionType::Absolute,
                     width: percent(100),
                     height: percent(100),
                     border: UiRect::top(px(1)),
                     ..default()
                 },
                 ThemedBorderColor::all(PANE_BG),
-                ImageNode::new(image),
-                ViewportNode::new(camera, true),
+                ImageNode::new(viewport_target_handle),
+                ViewportNode::new(viewport_camera),
+                ViewportNodePicking,
             ))
             .observe(on_viewport_click)
             .observe(on_viewport_drag_start)
@@ -143,8 +165,23 @@ fn setup(In(pane): In<PaneStructure>, mut images: ResMut<Assets<Image>>, mut com
             .observe(
                 move |_: On<Despawn, ViewportNode>, mut commands: Commands| {
                     commands.entity(camera_origin).despawn();
+                    commands.entity(gizmo_camera).despawn();
                 },
             );
+
+        commands.spawn((
+            Pickable::IGNORE,
+            Node {
+                position_type: PositionType::Absolute,
+                width: percent(100),
+                height: percent(100),
+                border: UiRect::top(px(1)),
+                ..default()
+            },
+            ThemedBorderColor::all(PANE_BG),
+            ImageNode::new(gizmo_target_handle),
+            ViewportNode::new(gizmo_camera),
+        ));
     });
 }
 
@@ -165,14 +202,18 @@ pub struct ViewportNode {
     /// Note: Despawning the camera entity will leave a viewport node with an
     /// invalid camera.
     pub camera: Entity,
-    pub picking: bool,
 }
+
+#[derive(Component, Debug, Clone, Copy, Reflect)]
+#[reflect(Component, Debug)]
+#[require(Node, PointerId::Custom(Uuid::new_v4()))]
+pub struct ViewportNodePicking;
 
 impl ViewportNode {
     /// Creates a new [`ViewportNode`] with a given `camera`.
     #[inline]
-    pub const fn new(camera: Entity, picking: bool) -> Self {
-        Self { camera, picking }
+    pub const fn new(camera: Entity) -> Self {
+        Self { camera }
     }
 }
 
@@ -202,22 +243,18 @@ pub fn viewport_picking(
         .iter()
         .flat_map(|(hover_pointer_id, hits)| {
             hits.iter()
-                .filter(|(entity, _)| {
-                    viewport_query
-                        .get(**entity)
-                        .is_ok_and(|(_, node, ..)| node.picking)
-                })
+                .filter(|(entity, _)| viewport_query.contains(**entity))
                 .map(|(entity, _)| (*entity, *hover_pointer_id))
         })
         .collect();
 
     // Handle dragged entities, which need to be considered for dragging in and out of viewports.
     for ((pointer_id, _), pointer_state) in pointer_state.pointer_buttons.iter() {
-        for &target in pointer_state.dragging.keys().filter(|entity| {
-            viewport_query
-                .get(**entity)
-                .is_ok_and(|(_, node, ..)| node.picking)
-        }) {
+        for &target in pointer_state
+            .dragging
+            .keys()
+            .filter(|entity| viewport_query.contains(**entity))
+        {
             viewport_picks.insert(target, *pointer_id);
         }
     }
@@ -236,6 +273,7 @@ pub fn viewport_picking(
             viewport_pointer_location.location = None;
             continue;
         };
+
         let Ok((camera, render_target)) = camera_query.get(viewport.camera) else {
             continue;
         };
@@ -536,6 +574,12 @@ pub struct ViewportPlugin;
 impl Plugin for ViewportPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(InfiniteGridPlugin)
+            .add_plugins(OutlinePlugin)
+            .add_plugins(MeshPickingPlugin)
+            .insert_resource(MeshPickingSettings {
+                require_markers: false,
+                ray_cast_visibility: RayCastVisibility::Visible,
+            })
             .add_systems(Startup, setup_grid)
             .add_systems(First, viewport_picking.in_set(PickingSystems::PostInput))
             .add_systems(Update, move_camera)

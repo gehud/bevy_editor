@@ -21,15 +21,23 @@ use bevy::{
         observer::On,
         system::{Commands, Query},
     },
-    picking::{Pickable, mesh_picking::MeshPickingPlugin},
+    picking::Pickable,
     ui::{FlexDirection, JustifyContent, Node, UiRect, percent, px},
     utils::default,
     window::WindowPlugin,
 };
-use bevy_mod_outline::OutlinePlugin;
 
 use crate::{
-    asset::EditorAssetPlugin, assets::EditorAssetsPlugin, gizmo::EditorGizmoPlugin, menu::{EditorMenuPlugin, EditorMenuRoot}, pane::PaneLayoutRoot, panes::EditorPanePlugins, selection::EditorSelectionPlugin, theme::EditorThemePlugin, widget::EditorWidgetPlugins, window::{EditorWindowPlugin, EditorWindowStructure, PrimaryEditorWindowConfigured}
+    asset::EditorAssetPlugin,
+    assets::EditorAssetsPlugin,
+    gizmo::EditorGizmoPlugin,
+    menu::{EditorMenuPlugin, EditorMenuRoot},
+    pane::PaneLayoutRoot,
+    panes::EditorPanePlugins,
+    selection::EditorSelectionPlugin,
+    theme::EditorThemePlugin,
+    widget::EditorWidgetPlugins,
+    window::{EditorWindowPlugin, EditorWindowStructure, PrimaryEditorWindowConfigured},
 };
 
 #[derive(Default)]
@@ -45,8 +53,6 @@ impl Plugin for EditorPlugin {
                     .disable::<WindowPlugin>()
                     .disable::<AssetPlugin>(),
             )
-            .add_plugins(MeshPickingPlugin)
-            .add_plugins(OutlinePlugin)
             .add_plugins(EditorGizmoPlugin)
             .add_plugins(EditorAssetsPlugin)
             .add_plugins(EditorSelectionPlugin)

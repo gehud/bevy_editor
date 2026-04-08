@@ -28,6 +28,8 @@ use crate::selection::{Selection, SelectionSettings};
 mod mesh;
 pub mod normalization;
 
+pub use mesh::GIZMO_LAYER;
+
 /// Set enum for the systems relating to transform gizmos.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, SystemSet)]
 pub enum TransformGizmoSystems {
@@ -213,12 +215,14 @@ fn on_transform_gizmo_pointer_press(
     if trigger.button != PointerButton::Primary {
         return;
     }
+
     let Ok((interaction, child_of)) = target_query.get(trigger.event().event_target()) else {
         return;
     };
     let Ok((mut gizmo, transform)) = query.get_mut(child_of.parent()) else {
         return;
     };
+
 
     selection_settings.disable_deselection = true;
 
@@ -742,37 +746,17 @@ fn adjust_view_translate_gizmo(
 }
 
 fn gizmo_cam_copy_settings(
-    main_cam: Query<
-        (
-            Ref<Camera>,
-            Ref<RenderTarget>,
-            Ref<GlobalTransform>,
-            Ref<Projection>,
-        ),
-        With<GizmoCamera>,
-    >,
+    main_cam: Query<(Ref<GlobalTransform>, Ref<Projection>), With<GizmoCamera>>,
     mut gizmo_cam: Query<
-        (
-            &mut Camera,
-            &mut RenderTarget,
-            &mut GlobalTransform,
-            &mut Projection,
-        ),
+        (&mut GlobalTransform, &mut Projection),
         (With<InternalGizmoCamera>, Without<GizmoCamera>),
     >,
 ) {
-    if let Ok((main_cam, main_cam_target, main_cam_pos, main_proj)) = main_cam.single()
-        && let Ok((mut gizmo_cam, mut gizmo_cam_target, mut gizmo_cam_pos, mut proj)) =
-            gizmo_cam.single_mut()
+    if let Ok((main_cam_pos, main_proj)) = main_cam.single()
+        && let Ok((mut gizmo_cam_pos, mut proj)) = gizmo_cam.single_mut()
     {
         if main_cam_pos.is_changed() {
             *gizmo_cam_pos = *main_cam_pos;
-        }
-        if main_cam.is_changed() {
-            gizmo_cam.order = main_cam.order + 1;
-        }
-        if main_cam_target.is_changed() {
-            *gizmo_cam_target = main_cam_target.clone();
         }
         if main_proj.is_changed() {
             *proj = main_proj.clone();
@@ -872,10 +856,6 @@ pub struct EditorGizmoPlugin;
 
 impl Plugin for EditorGizmoPlugin {
     fn build(&self, app: &mut App) {
-        if !app.is_plugin_added::<MeshPickingPlugin>() {
-            app.add_plugins(MeshPickingPlugin);
-        }
-
         app.add_plugins(GizmoMeshPlugin);
 
         app.init_resource::<TransformGizmoSettings>()

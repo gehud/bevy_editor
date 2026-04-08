@@ -561,6 +561,8 @@ pub struct RotationGizmo;
 #[derive(Component)]
 pub struct ViewTranslateGizmo;
 
+pub const GIZMO_LAYER: RenderLayers = RenderLayers::layer(12);
+
 /// Startup system that builds the procedural mesh and materials of the gizmo.
 fn build_gizmo(
     mut commands: Commands,
@@ -647,7 +649,7 @@ fn build_gizmo(
                 },
                 TranslationGizmo,
                 NotShadowCaster,
-                RenderLayers::layer(12),
+                GIZMO_LAYER,
             ));
             parent.spawn((
                 NoSelect,
@@ -663,7 +665,7 @@ fn build_gizmo(
                 },
                 TranslationGizmo,
                 NotShadowCaster,
-                RenderLayers::layer(12),
+                GIZMO_LAYER,
             ));
             parent.spawn((
                 NoSelect,
@@ -679,7 +681,7 @@ fn build_gizmo(
                 },
                 TranslationGizmo,
                 NotShadowCaster,
-                RenderLayers::layer(12),
+                GIZMO_LAYER,
             ));
 
             // Translation handles
@@ -697,7 +699,7 @@ fn build_gizmo(
                 },
                 TranslationGizmo,
                 NotShadowCaster,
-                RenderLayers::layer(12),
+                GIZMO_LAYER,
             ));
             parent.spawn((
                 NoSelect,
@@ -710,7 +712,7 @@ fn build_gizmo(
                 },
                 TranslationGizmo,
                 NotShadowCaster,
-                RenderLayers::layer(12),
+                GIZMO_LAYER,
             ));
             parent.spawn((
                 NoSelect,
@@ -726,7 +728,7 @@ fn build_gizmo(
                 },
                 TranslationGizmo,
                 NotShadowCaster,
-                RenderLayers::layer(12),
+                GIZMO_LAYER,
             ));
 
             // Translation planes
@@ -745,7 +747,7 @@ fn build_gizmo(
                 TranslationGizmo,
                 RayCastBackfaces,
                 NotShadowCaster,
-                RenderLayers::layer(12),
+                GIZMO_LAYER,
             ));
             parent.spawn((
                 NoSelect,
@@ -759,7 +761,7 @@ fn build_gizmo(
                 TranslationGizmo,
                 RayCastBackfaces,
                 NotShadowCaster,
-                RenderLayers::layer(12),
+                GIZMO_LAYER,
             ));
             parent.spawn((
                 NoSelect,
@@ -776,7 +778,7 @@ fn build_gizmo(
                 TranslationGizmo,
                 RayCastBackfaces,
                 NotShadowCaster,
-                RenderLayers::layer(12),
+                GIZMO_LAYER,
             ));
 
             // Free translation
@@ -791,7 +793,7 @@ fn build_gizmo(
                 ViewTranslateGizmo,
                 TranslationGizmo,
                 NotShadowCaster,
-                RenderLayers::layer(12),
+                GIZMO_LAYER,
             ));
 
             // Rotation Arcs
@@ -806,7 +808,7 @@ fn build_gizmo(
                     axis: Vec3::X,
                 },
                 NotShadowCaster,
-                RenderLayers::layer(12),
+                GIZMO_LAYER,
             ));
             parent.spawn((
                 NoSelect,
@@ -818,7 +820,7 @@ fn build_gizmo(
                     axis: Vec3::Y,
                 },
                 NotShadowCaster,
-                RenderLayers::layer(12),
+                GIZMO_LAYER,
             ));
             parent.spawn((
                 NoSelect,
@@ -834,7 +836,7 @@ fn build_gizmo(
                     axis: Vec3::Z,
                 },
                 NotShadowCaster,
-                RenderLayers::layer(12),
+                GIZMO_LAYER,
             ));
 
             // Uniform rotation
@@ -846,7 +848,7 @@ fn build_gizmo(
                 RotationGizmo,
                 InteractionKind::RotateUniform,
                 NotShadowCaster,
-                RenderLayers::layer(12),
+                GIZMO_LAYER,
             ));
 
             // Scale tips
@@ -861,7 +863,7 @@ fn build_gizmo(
                 },
                 ScaleGizmo,
                 NotShadowCaster,
-                RenderLayers::layer(12),
+                GIZMO_LAYER,
             ));
             parent.spawn((
                 NoSelect,
@@ -874,7 +876,7 @@ fn build_gizmo(
                 },
                 ScaleGizmo,
                 NotShadowCaster,
-                RenderLayers::layer(12),
+                GIZMO_LAYER,
             ));
             parent.spawn((
                 NoSelect,
@@ -887,7 +889,7 @@ fn build_gizmo(
                 },
                 ScaleGizmo,
                 NotShadowCaster,
-                RenderLayers::layer(12),
+                GIZMO_LAYER,
             ));
 
             // Scale handles
@@ -905,7 +907,7 @@ fn build_gizmo(
                 },
                 ScaleGizmo,
                 NotShadowCaster,
-                RenderLayers::layer(12),
+                GIZMO_LAYER,
             ));
             parent.spawn((
                 NoSelect,
@@ -918,7 +920,7 @@ fn build_gizmo(
                 },
                 ScaleGizmo,
                 NotShadowCaster,
-                RenderLayers::layer(12),
+                GIZMO_LAYER,
             ));
             parent.spawn((
                 NoSelect,
@@ -934,7 +936,7 @@ fn build_gizmo(
                 },
                 ScaleGizmo,
                 NotShadowCaster,
-                RenderLayers::layer(12),
+                GIZMO_LAYER,
             ));
 
             // Uniform scale handle - larger cube at center
@@ -948,19 +950,9 @@ fn build_gizmo(
                 },
                 ScaleGizmo,
                 NotShadowCaster,
-                RenderLayers::layer(12),
+                GIZMO_LAYER,
             ));
         });
-
-    commands.spawn((
-        Camera3d::default(),
-        Camera {
-            clear_color: ClearColorConfig::None,
-            ..default()
-        },
-        InternalGizmoCamera,
-        RenderLayers::layer(12),
-    ));
 }
 
 pub(super) struct GizmoMeshPlugin;
