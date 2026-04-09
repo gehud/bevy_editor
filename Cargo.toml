@@ -16,12 +16,68 @@ bevy = { git = "https://github.com/gehud/bevy.git", branch = "editor", features 
     "debug",
     "track_location",
 ] }
+bevy_egui = "0.39.1"
 bevy_mod_outline = { git = "https://github.com/gehud/bevy_mod_outline.git" }
 rusqlite = { version = "0.39.0", features = ["bundled", "chrono"] }
 chrono = "0.4.44"
 
 [patch.crates-io]
 bevy = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_a11y = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_android = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_animation = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_anti_alias = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_app = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_asset = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_audio = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_camera = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_camera_controller = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_color = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_core_pipeline = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_derive = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_dev_tools = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_diagnostic = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_dylib = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_ecs = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_encase_derive = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_feathers = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_gilrs = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_gizmos = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_gizmos_render = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_gltf = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_image = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_input = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_input_focus = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_internal = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_light = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_log = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_macro_utils = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_math = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_mesh = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_pbr = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_picking = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_platform = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_post_process = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_ptr = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_reflect = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_remote = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_render = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_scene = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_shader = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_solari = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_sprite = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_sprite_render = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_state = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_tasks = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_text = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_time = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_transform = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_ui = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_ui_render = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_ui_widgets = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_utils = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_window = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
+bevy_winit = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
 
 [patch.'https://github.com/gehud/bevy_editor']
 bevy_editor = { path = "./" }
