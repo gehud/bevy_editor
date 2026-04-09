@@ -5,7 +5,10 @@ use std::f32::consts::PI;
 use bevy::{
     app::{App, First, Plugin, PostUpdate, Startup, Update},
     asset::{Assets, RenderAssetUsages, uuid::Uuid},
-    camera::{Camera, Camera3d, ClearColorConfig, RenderTarget, visibility::InheritedVisibility},
+    camera::{
+        Camera, Camera3d, ClearColorConfig, NormalizedRenderTarget, RenderTarget,
+        visibility::InheritedVisibility,
+    },
     color::Color,
     ecs::{
         component::Component,
@@ -28,7 +31,7 @@ use bevy::{
     mesh::{Mesh2d, Mesh3d},
     picking::{
         Pickable, PickingSystems,
-        events::{Click, Drag, DragEnd, DragStart, Pointer, PointerState},
+        events::{Click, Drag, DragEnd, DragStart, Move, Pointer, PointerState},
         hover::HoverMap,
         mesh_picking::{
             MeshPickingCamera, MeshPickingPlugin, MeshPickingSettings, ray_cast::RayCastVisibility,
@@ -41,7 +44,7 @@ use bevy::{
     transform::components::{GlobalTransform, Transform},
     ui::{
         ComputedNode, Node, PositionType, UiGlobalTransform, UiRect, UiSystems, percent, px,
-        widget::{ImageNode, NodeImageMode},
+        widget::{ImageNode, NodeImageMode, ViewportNode},
     },
     utils::default,
 };
@@ -94,10 +97,7 @@ fn setup(In(pane): In<PaneStructure>, mut images: ResMut<Assets<Image>>, mut com
     viewport_target.texture_descriptor.usage =
         TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST | TextureUsages::RENDER_ATTACHMENT;
 
-    let gizmo_target = viewport_target.clone();
-
     let viewport_target_handle = images.add(viewport_target);
-    let gizmo_target_handle = images.add(gizmo_target);
 
     let camera_origin = commands
         .spawn((
@@ -109,7 +109,6 @@ fn setup(In(pane): In<PaneStructure>, mut images: ResMut<Assets<Image>>, mut com
     let viewport_camera = commands
         .spawn((
             ChildOf(camera_origin),
-            MeshPickingCamera,
             GizmoCamera,
             ViewportCamera {
                 movement: None,
@@ -121,7 +120,7 @@ fn setup(In(pane): In<PaneStructure>, mut images: ResMut<Assets<Image>>, mut com
             Camera3d::default(),
             Camera {
                 clear_color: ClearColorConfig::Custom(palette::GRAY_0),
-                order: -1,
+                order: -2,
                 ..default()
             },
             RenderTarget::Image(viewport_target_handle.clone().into()),
@@ -129,34 +128,17 @@ fn setup(In(pane): In<PaneStructure>, mut images: ResMut<Assets<Image>>, mut com
         ))
         .id();
 
-    let gizmo_camera = commands
-        .spawn((
-            Camera3d::default(),
-            Camera {
-                clear_color: ClearColorConfig::Custom(Color::NONE),
-                order: -2,
-                ..default()
-            },
-            InternalGizmoCamera,
-            RenderTarget::Image(gizmo_target_handle.clone().into()),
-            GIZMO_LAYER,
-        ))
-        .id();
-
     commands.entity(pane.content()).with_children(|commands| {
         commands
             .spawn((
                 Node {
-                    position_type: PositionType::Absolute,
                     width: percent(100),
                     height: percent(100),
                     border: UiRect::top(px(1)),
                     ..default()
                 },
                 ThemedBorderColor::all(PANE_BG),
-                ImageNode::new(viewport_target_handle),
                 ViewportNode::new(viewport_camera),
-                ViewportNodePicking,
             ))
             .observe(on_viewport_click)
             .observe(on_viewport_drag_start)
@@ -165,176 +147,9 @@ fn setup(In(pane): In<PaneStructure>, mut images: ResMut<Assets<Image>>, mut com
             .observe(
                 move |_: On<Despawn, ViewportNode>, mut commands: Commands| {
                     commands.entity(camera_origin).despawn();
-                    commands.entity(gizmo_camera).despawn();
                 },
             );
-
-        commands.spawn((
-            Pickable::IGNORE,
-            Node {
-                position_type: PositionType::Absolute,
-                width: percent(100),
-                height: percent(100),
-                border: UiRect::top(px(1)),
-                ..default()
-            },
-            ThemedBorderColor::all(PANE_BG),
-            ImageNode::new(gizmo_target_handle),
-            ViewportNode::new(gizmo_camera),
-        ));
     });
-}
-
-/// Component used to render a [`RenderTarget`]  to a node.
-///
-/// # See Also
-///
-/// [`update_viewport_render_target_size`]
-#[derive(Component, Debug, Clone, Copy, Reflect)]
-#[reflect(Component, Debug)]
-#[require(Node, PointerId::Custom(Uuid::new_v4()))]
-pub struct ViewportNode {
-    /// The entity representing the [`Camera`] associated with this viewport.
-    ///
-    /// Note: Removing the [`ViewportNode`] component will not despawn this
-    /// entity.
-    ///
-    /// Note: Despawning the camera entity will leave a viewport node with an
-    /// invalid camera.
-    pub camera: Entity,
-}
-
-#[derive(Component, Debug, Clone, Copy, Reflect)]
-#[reflect(Component, Debug)]
-#[require(Node, PointerId::Custom(Uuid::new_v4()))]
-pub struct ViewportNodePicking;
-
-impl ViewportNode {
-    /// Creates a new [`ViewportNode`] with a given `camera`.
-    #[inline]
-    pub const fn new(camera: Entity) -> Self {
-        Self { camera }
-    }
-}
-
-/// Handles viewport picking logic.
-///
-/// Viewport entities that are being hovered or dragged will have all pointer inputs sent to them.
-pub fn viewport_picking(
-    mut commands: Commands,
-    mut viewport_query: Query<(
-        Entity,
-        &ViewportNode,
-        &PointerId,
-        &mut PointerLocation,
-        &ComputedNode,
-        &UiGlobalTransform,
-    )>,
-    camera_query: Query<(&Camera, &RenderTarget)>,
-    hover_map: Res<HoverMap>,
-    pointer_state: Res<PointerState>,
-    mut pointer_inputs: MessageReader<PointerInput>,
-) {
-    use bevy::camera::NormalizedRenderTarget;
-    use bevy::math::Rect;
-    use bevy::platform::collections::HashMap;
-    // Handle hovered entities.
-    let mut viewport_picks: HashMap<Entity, PointerId> = hover_map
-        .iter()
-        .flat_map(|(hover_pointer_id, hits)| {
-            hits.iter()
-                .filter(|(entity, _)| viewport_query.contains(**entity))
-                .map(|(entity, _)| (*entity, *hover_pointer_id))
-        })
-        .collect();
-
-    // Handle dragged entities, which need to be considered for dragging in and out of viewports.
-    for ((pointer_id, _), pointer_state) in pointer_state.pointer_buttons.iter() {
-        for &target in pointer_state
-            .dragging
-            .keys()
-            .filter(|entity| viewport_query.contains(**entity))
-        {
-            viewport_picks.insert(target, *pointer_id);
-        }
-    }
-
-    for (
-        viewport_entity,
-        &viewport,
-        &viewport_pointer_id,
-        mut viewport_pointer_location,
-        computed_node,
-        global_transform,
-    ) in &mut viewport_query
-    {
-        let Some(pick_pointer_id) = viewport_picks.get(&viewport_entity) else {
-            // Lift the viewport pointer if it's not being used.
-            viewport_pointer_location.location = None;
-            continue;
-        };
-
-        let Ok((camera, render_target)) = camera_query.get(viewport.camera) else {
-            continue;
-        };
-        let Some(cam_viewport_size) = camera.logical_viewport_size() else {
-            continue;
-        };
-
-        // Create a `Rect` in *physical* coordinates centered at the node's GlobalTransform
-        let node_rect =
-            Rect::from_center_size(global_transform.translation.trunc(), computed_node.size());
-        // Location::position uses *logical* coordinates
-        let top_left = node_rect.min * computed_node.inverse_scale_factor();
-        let logical_size = computed_node.size() * computed_node.inverse_scale_factor();
-
-        let Some(target) = render_target.as_image() else {
-            continue;
-        };
-
-        for input in pointer_inputs
-            .read()
-            .filter(|input| &input.pointer_id == pick_pointer_id)
-        {
-            let local_position = (input.location.position - top_left) / logical_size;
-            let position = local_position * cam_viewport_size;
-
-            let location = Location {
-                position,
-                target: NormalizedRenderTarget::Image(target.clone().into()),
-            };
-            viewport_pointer_location.location = Some(location.clone());
-
-            commands.write_message(PointerInput {
-                location,
-                pointer_id: viewport_pointer_id,
-                action: input.action,
-            });
-        }
-    }
-}
-
-/// Updates the size of the associated render target for viewports when the node size changes.
-pub fn update_viewport_render_target_size(
-    viewport_query: Query<
-        (&ViewportNode, &ComputedNode),
-        Or<(Changed<ComputedNode>, Changed<ViewportNode>)>,
-    >,
-    camera_query: Query<&RenderTarget>,
-    mut images: ResMut<Assets<Image>>,
-) {
-    for (viewport, computed_node) in &viewport_query {
-        let Ok(render_target) = camera_query.get(viewport.camera) else {
-            continue;
-        };
-        let size = computed_node.size();
-
-        let Some(image_handle) = render_target.as_image() else {
-            continue;
-        };
-        let size = size.as_uvec2().max(UVec2::ONE).to_extents();
-        images.get_mut(image_handle).unwrap().resize(size);
-    }
 }
 
 fn on_viewport_click(
@@ -576,17 +391,8 @@ impl Plugin for ViewportPlugin {
         app.add_plugins(InfiniteGridPlugin)
             .add_plugins(OutlinePlugin)
             .add_plugins(MeshPickingPlugin)
-            .insert_resource(MeshPickingSettings {
-                require_markers: false,
-                ray_cast_visibility: RayCastVisibility::Visible,
-            })
             .add_systems(Startup, setup_grid)
-            .add_systems(First, viewport_picking.in_set(PickingSystems::PostInput))
             .add_systems(Update, move_camera)
-            .add_systems(
-                PostUpdate,
-                update_viewport_render_target_size.in_set(UiSystems::PostLayout),
-            )
             .register_pane("Viewport", setup)
             .add_observer(on_pick_mesh)
             .add_observer(on_entity_selected)

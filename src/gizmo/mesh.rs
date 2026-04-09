@@ -624,9 +624,6 @@ fn build_gizmo(
     let gizmo_matl_y_sel = materials.add(material(palette::Y_AXIS.lighter(0.1)));
     let gizmo_matl_z_sel = materials.add(material(palette::Z_AXIS.lighter(0.1)));
 
-    // View gizmo - neutral dark/gray
-    let gizmo_matl_v = materials.add(material(Color::NONE));
-
     // View gizmo - neutral white/gray
     let gizmo_matl_v_sel = materials.add(material(Color::srgba(0.9, 0.9, 0.9, 0.8)));
 
@@ -843,7 +840,6 @@ fn build_gizmo(
             parent.spawn((
                 NoSelect,
                 Mesh3d(uniform_rotation_mesh.clone()),
-                MeshMaterial3d(gizmo_matl_v.clone()),
                 DrawStencil,
                 RotationGizmo,
                 InteractionKind::RotateUniform,
@@ -953,6 +949,17 @@ fn build_gizmo(
                 GIZMO_LAYER,
             ));
         });
+
+    commands.spawn((
+        Camera3d::default(),
+        Camera {
+            clear_color: ClearColorConfig::None,
+            order: -1,
+            ..default()
+        },
+        InternalGizmoCamera,
+        GIZMO_LAYER,
+    ));
 }
 
 pub(super) struct GizmoMeshPlugin;

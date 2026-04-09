@@ -746,17 +746,20 @@ fn adjust_view_translate_gizmo(
 }
 
 fn gizmo_cam_copy_settings(
-    main_cam: Query<(Ref<GlobalTransform>, Ref<Projection>), With<GizmoCamera>>,
+    main_cam: Query<(Ref<GlobalTransform>, Ref<RenderTarget>, Ref<Projection>), With<GizmoCamera>>,
     mut gizmo_cam: Query<
-        (&mut GlobalTransform, &mut Projection),
+        (&mut GlobalTransform, &mut RenderTarget, &mut Projection),
         (With<InternalGizmoCamera>, Without<GizmoCamera>),
     >,
 ) {
-    if let Ok((main_cam_pos, main_proj)) = main_cam.single()
-        && let Ok((mut gizmo_cam_pos, mut proj)) = gizmo_cam.single_mut()
+    if let Ok((main_cam_pos, main_cam_target, main_proj)) = main_cam.single()
+        && let Ok((mut gizmo_cam_pos, mut target, mut proj)) = gizmo_cam.single_mut()
     {
         if main_cam_pos.is_changed() {
             *gizmo_cam_pos = *main_cam_pos;
+        }
+        if main_cam_target.is_changed() {
+            *target = main_cam_target.clone();
         }
         if main_proj.is_changed() {
             *proj = main_proj.clone();

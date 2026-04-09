@@ -36,6 +36,5 @@ fn vertex(vertex: Vertex) -> VertexOutput {
 
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
-    // Output a red color to represent the stencil of the mesh
-    return vec4(0.3, 0.3, 0.3, 0.3);
+    return vec4(0.0, 0.0, 0.0, 0.0);
 }
