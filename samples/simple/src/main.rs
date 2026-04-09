@@ -7,13 +7,25 @@ use bevy::{
     log::info,
     prelude::bevy_main,
 };
-
 use bevy_editor::{EditorPlugin, is_play_mode};
 
 #[derive(Default)]
 struct MyRuntimePlugin;
 
 impl Plugin for MyRuntimePlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(Startup, start);
+    }
+}
+
+fn start() {
+    info!("The game begins");
+}
+
+#[derive(Default)]
+struct MySharedPlugin;
+
+impl Plugin for MySharedPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, greet);
     }
@@ -30,13 +42,16 @@ fn main() {
     if cfg!(feature = "editor") {
         if is_play_mode() {
             app.add_plugins(DefaultPlugins);
+            app.add_plugins(MySharedPlugin::default());
             app.add_plugins(MyRuntimePlugin::default());
         } else {
             app.add_plugins(EditorPlugin::default());
+            app.add_plugins(MySharedPlugin::default());
             app.add_plugins(editor::MyEditorPlugin);
         }
     } else {
         app.add_plugins(DefaultPlugins);
+        app.add_plugins(MySharedPlugin::default());
         app.add_plugins(MyRuntimePlugin::default());
     }
 

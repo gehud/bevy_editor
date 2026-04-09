@@ -694,13 +694,9 @@ dependencies = [
 name = "bevy_editor"
 version = "0.1.0"
 dependencies = [
- "accesskit",
  "bevy",
  "bevy_mod_outline",
- "bitflags 2.11.0",
  "chrono",
- "crossbeam-channel",
- "nonmax",
  "rusqlite",
 ]
 
@@ -954,7 +950,6 @@ dependencies = [
  "bevy_transform",
  "bevy_ui",
  "bevy_ui_render",
- "bevy_ui_widgets",
  "bevy_utils",
  "bevy_window",
  "bevy_winit",

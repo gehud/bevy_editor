@@ -15,15 +15,10 @@ custom_cursor = ["bevy/custom_cursor"]
 bevy = { git = "https://github.com/gehud/bevy.git", branch = "editor", features = [
     "debug",
     "track_location",
-    "experimental_bevy_ui_widgets",
 ] }
 bevy_mod_outline = { git = "https://github.com/gehud/bevy_mod_outline.git" }
-accesskit = { version = "0.21" }
 rusqlite = { version = "0.39.0", features = ["bundled", "chrono"] }
 chrono = "0.4.44"
-bitflags = "2.11.0"
-nonmax = "0.5.5"
-crossbeam-channel = "0.5.15"
 
 [patch.crates-io]
 bevy = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
