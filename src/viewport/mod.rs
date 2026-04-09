@@ -147,9 +147,9 @@ fn setup(
     ));
 }
 
-pub struct EditorViewportPlugin;
+pub struct ViewportPlugin;
 
-impl Plugin for EditorViewportPlugin {
+impl Plugin for ViewportPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(InfiniteGridPlugin)
             .register_pane(ViewportPane)

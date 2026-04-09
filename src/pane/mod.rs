@@ -100,9 +100,9 @@ impl Default for PaneDocking {
     }
 }
 
-pub struct EditorPanePlugin;
+pub struct PanePlugin;
 
-impl Plugin for EditorPanePlugin {
+impl Plugin for PanePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<PaneRegistry>()
             .init_resource::<PaneDocking>();

@@ -1,5 +1,6 @@
 mod dock;
 pub mod pane;
+mod scene_tree;
 mod style;
 mod viewport;
 
@@ -29,9 +30,10 @@ use egui::{
 
 use crate::{
     dock::{DockArea, DockState},
-    pane::{EditorPanePlugin, PaneDocking, PaneRegistry, PaneViewer},
+    pane::{PaneDocking, PanePlugin, PaneRegistry, PaneViewer},
+    scene_tree::SceneTreePlugin,
     style::{IntoDockStyle, set_dark_style},
-    viewport::EditorViewportPlugin,
+    viewport::ViewportPlugin,
 };
 
 pub const PLAY_MODE_VAR: &'static str = "BEVY_EDITOR_PLAY";
@@ -55,8 +57,9 @@ impl Plugin for EditorPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(DefaultPlugins)
             .add_plugins(EguiPlugin::default())
-            .add_plugins(EditorPanePlugin)
-            .add_plugins(EditorViewportPlugin)
+            .add_plugins(PanePlugin)
+            .add_plugins(ViewportPlugin)
+            .add_plugins(SceneTreePlugin)
             .insert_resource(EguiGlobalSettings {
                 auto_create_primary_context: false,
                 ..default()
