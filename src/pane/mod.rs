@@ -1,6 +1,6 @@
 use bevy::{
     app::{App, Plugin},
-    ecs::{resource::Resource, world::World},
+    ecs::{error::Result, resource::Resource, world::World},
     log::{warn, warn_once},
     platform::collections::HashMap,
     utils::default,
@@ -12,7 +12,7 @@ use crate::dock::{DockState, NodeIndex, TabViewer};
 pub trait Pane: Send + Sync + 'static {
     fn name(&self) -> &str;
 
-    fn ui(&mut self, ui: &mut Ui, world: &mut World);
+    fn ui(&mut self, ui: &mut Ui, world: &mut World) -> Result;
 }
 
 #[derive(Default, Resource)]
@@ -52,6 +52,7 @@ pub(crate) type Tab = String;
 pub(crate) struct PaneViewer<'a> {
     pub registry: &'a mut PaneRegistry,
     pub world: &'a mut World,
+    pub result: Result,
 }
 
 impl TabViewer for PaneViewer<'_> {
@@ -62,8 +63,12 @@ impl TabViewer for PaneViewer<'_> {
     }
 
     fn ui(&mut self, ui: &mut Ui, tab: &mut Self::Tab) {
+        // if self.result.is_err() {
+        //     return;
+        // }
+
         if let Some(pane) = self.registry.get_pane_mut(tab) {
-            pane.ui(ui, self.world)
+            self.result = pane.ui(ui, self.world);
         } else {
             ui.label("Missing");
         }

@@ -1,6 +1,7 @@
 mod dock;
 pub mod pane;
 mod style;
+mod viewport;
 
 pub use egui;
 
@@ -12,13 +13,17 @@ use bevy::{
     camera::Camera2d,
     ecs::{
         error::Result,
-        system::{Commands, Local, SystemState},
+        system::{Commands, Local, ResMut, SystemState},
         world::{DeferredWorld, Mut, World},
     },
+    utils::default,
 };
-use bevy_egui::{EguiContexts, EguiPlugin, EguiPrimaryContextPass, egui::CentralPanel};
+use bevy_egui::{
+    EguiContexts, EguiGlobalSettings, EguiPlugin, EguiPrimaryContextPass, PrimaryEguiContext,
+    egui::CentralPanel,
+};
 use egui::{
-    FontData, FontFamily, Frame, MenuBar, TopBottomPanel, WidgetText,
+    FontData, FontFamily, Frame, InnerResponse, MenuBar, TopBottomPanel, WidgetText,
     epaint::text::{FontInsert, FontPriority, InsertFontFamily},
 };
 
@@ -26,6 +31,7 @@ use crate::{
     dock::{DockArea, DockState},
     pane::{EditorPanePlugin, PaneDocking, PaneRegistry, PaneViewer},
     style::{IntoDockStyle, set_dark_style},
+    viewport::EditorViewportPlugin,
 };
 
 pub const PLAY_MODE_VAR: &'static str = "BEVY_EDITOR_PLAY";
@@ -50,13 +56,18 @@ impl Plugin for EditorPlugin {
         app.add_plugins(DefaultPlugins)
             .add_plugins(EguiPlugin::default())
             .add_plugins(EditorPanePlugin)
+            .add_plugins(EditorViewportPlugin)
+            .insert_resource(EguiGlobalSettings {
+                auto_create_primary_context: false,
+                ..default()
+            })
             .add_systems(Startup, setup)
             .add_systems(EguiPrimaryContextPass, ui);
     }
 }
 
 fn setup(mut commands: Commands) {
-    commands.spawn(Camera2d);
+    commands.spawn((Camera2d, PrimaryEguiContext));
 }
 
 fn ui(world: &mut World, state: &mut SystemState<(EguiContexts, Local<bool>)>) -> Result {
@@ -99,7 +110,7 @@ fn ui(world: &mut World, state: &mut SystemState<(EguiContexts, Local<bool>)>) -
             });
         });
 
-    CentralPanel::default()
+    let InnerResponse { inner, .. } = CentralPanel::default()
         .frame(
             Frame::central_panel(&ctx.style())
                 .inner_margin(0)
@@ -113,6 +124,7 @@ fn ui(world: &mut World, state: &mut SystemState<(EguiContexts, Local<bool>)>) -
                     let mut viewer = PaneViewer {
                         registry: &mut registry,
                         world: world,
+                        result: Ok(()),
                     };
 
                     DockArea::new(&mut docking.0)
@@ -120,9 +132,13 @@ fn ui(world: &mut World, state: &mut SystemState<(EguiContexts, Local<bool>)>) -
                         .show_leaf_close_all_buttons(false)
                         .show_leaf_collapse_buttons(false)
                         .show_inside(ui, &mut viewer);
-                });
-            });
+
+                    viewer.result
+                })
+            })
         });
+
+    inner?;
 
     Ok(())
 }
