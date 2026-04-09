@@ -1,4 +1,4 @@
-use std::{f32::consts::TAU, ops::Range};
+use std::ops::Range;
 
 use bevy::{
     asset::{load_internal_asset, uuid_handle},
@@ -43,11 +43,11 @@ use bevy::{
             SortedRenderPhasePlugin, ViewSortedRenderPhases, sort_phase_system,
         },
         render_resource::{
-            BlendComponent, BlendFactor, BlendOperation, BlendState, CachedRenderPipelineId,
-            ColorTargetState, ColorWrites, CompareFunction, DepthStencilState, Face, FragmentState,
-            MultisampleState, PipelineCache, PrimitiveState, RenderPassDescriptor,
-            RenderPipelineDescriptor, SpecializedMeshPipeline, SpecializedMeshPipelineError,
-            SpecializedMeshPipelines, StoreOp, TextureFormat, VertexState,
+            BlendState, CachedRenderPipelineId, ColorTargetState, ColorWrites, CompareFunction,
+            DepthStencilState, Face, FragmentState, MultisampleState, PipelineCache,
+            PrimitiveState, RenderPassDescriptor, RenderPipelineDescriptor,
+            SpecializedMeshPipeline, SpecializedMeshPipelineError, SpecializedMeshPipelines,
+            StoreOp, TextureFormat, VertexState,
         },
         renderer::RenderContext,
         sync_world::MainEntity,

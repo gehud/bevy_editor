@@ -3,12 +3,9 @@ mod grid;
 use std::f32::consts::PI;
 
 use bevy::{
-    app::{App, First, Plugin, PostUpdate, Startup, Update},
-    asset::{Assets, RenderAssetUsages, uuid::Uuid},
-    camera::{
-        Camera, Camera3d, ClearColorConfig, NormalizedRenderTarget, RenderTarget,
-        visibility::InheritedVisibility,
-    },
+    app::{App, Plugin, Startup, Update},
+    asset::{Assets, RenderAssetUsages},
+    camera::{Camera, Camera3d, ClearColorConfig, RenderTarget, visibility::InheritedVisibility},
     color::Color,
     ecs::{
         component::Component,
@@ -17,41 +14,29 @@ use bevy::{
         event::EntityEvent,
         hierarchy::ChildOf,
         lifecycle::{Add, Despawn, Remove},
-        message::{MessageReader, MessageWriter},
         observer::On,
-        query::{Changed, Or, With, Without},
-        reflect::ReflectComponent,
-        schedule::IntoScheduleConfigs,
+        query::{Or, With, Without},
         system::{Commands, In, Query, Res, ResMut},
-        world::Ref,
     },
-    image::{BevyDefault, Image, ToExtents},
+    image::{BevyDefault, Image},
     input::{ButtonInput, keyboard::KeyCode, mouse::AccumulatedMouseMotion},
-    math::{EulerRot, Quat, UVec2},
+    math::{EulerRot, Quat},
     mesh::{Mesh2d, Mesh3d},
     picking::{
-        Pickable, PickingSystems,
-        events::{Click, Drag, DragEnd, DragStart, Move, Pointer, PointerState},
-        hover::HoverMap,
-        mesh_picking::{
-            MeshPickingCamera, MeshPickingPlugin, MeshPickingSettings, ray_cast::RayCastVisibility,
-        },
-        pointer::{Location, PointerButton, PointerId, PointerInput, PointerLocation},
+        events::{Click, Drag, DragEnd, DragStart, Pointer},
+        mesh_picking::MeshPickingPlugin,
+        pointer::PointerButton,
     },
-    reflect::Reflect,
     render::render_resource::{TextureDimension, TextureFormat, TextureUsages},
     time::Time,
     transform::components::{GlobalTransform, Transform},
-    ui::{
-        ComputedNode, Node, PositionType, UiGlobalTransform, UiRect, UiSystems, percent, px,
-        widget::{ImageNode, NodeImageMode, ViewportNode},
-    },
+    ui::{Node, UiRect, percent, px, widget::ViewportNode},
     utils::default,
 };
 use bevy_mod_outline::{OutlineMode, OutlinePlugin, OutlineVolume};
 
 use crate::{
-    gizmo::{GIZMO_LAYER, GizmoCamera, InternalGizmoCamera},
+    gizmo::GizmoCamera,
     pane::{PaneApp, PaneStructure},
     panes::viewport::grid::{InfiniteGrid, InfiniteGridPlugin, InfiniteGridSettings},
     selection::{NoSelect, Selected, Selection},
@@ -65,8 +50,8 @@ fn setup_grid(mut commands: Commands) {
         InfiniteGridSettings {
             x_axis_color: palette::X_AXIS,
             z_axis_color: palette::Z_AXIS,
-            major_line_color: palette::WARM_GRAY_1,
-            minor_line_color: palette::GRAY_2,
+            major_line_color: Color::srgb(0.32, 0.32, 0.32),
+            minor_line_color: Color::srgb(0.27, 0.27, 0.27),
             ..default()
         },
     ));
@@ -119,7 +104,7 @@ fn setup(In(pane): In<PaneStructure>, mut images: ResMut<Assets<Image>>, mut com
             },
             Camera3d::default(),
             Camera {
-                clear_color: ClearColorConfig::Custom(palette::GRAY_0),
+                clear_color: ClearColorConfig::Custom(Color::srgb(0.25, 0.25, 0.25)),
                 order: -2,
                 ..default()
             },
@@ -214,7 +199,7 @@ fn on_viewport_drag(
     };
 
     trigger.propagate(false);
-    let delta = mouse_motion.delta;
+    let delta = mouse_motion.delta * time.delta_secs();
 
     let camera_global_transform = global_transforms.get(camera_entity)?;
 
@@ -222,13 +207,12 @@ fn on_viewport_drag(
         ViewportCameraMovement::Fly => {
             let mut camera_transform = transforms.get_mut(camera_entity)?;
             let mut pitch = camera_transform.rotation.to_euler(EulerRot::XYZ).0;
-            pitch = (pitch - delta.y * camera.rotation_sensitivity * time.delta_secs())
-                .clamp(-PI / 2.0, PI / 2.0);
+            pitch = (pitch - delta.y * camera.rotation_sensitivity).clamp(-PI / 2.0, PI / 2.0);
             camera_transform.rotation = Quat::from_rotation_x(pitch);
 
             let mut origin_transform = transforms.get_mut(camera.origin)?;
             origin_transform.rotate(Quat::from_rotation_y(
-                -delta.x * camera.rotation_sensitivity * time.delta_secs(),
+                -delta.x * camera.rotation_sensitivity,
             ));
         }
         ViewportCameraMovement::Pan => {
@@ -236,10 +220,8 @@ fn on_viewport_drag(
             let up = camera_global_transform.up().as_vec3();
 
             let mut origin_transform = transforms.get_mut(camera.origin)?;
-            origin_transform.translation +=
-                left * delta.x * camera.pane_sensitivity * time.delta_secs();
-            origin_transform.translation +=
-                up * delta.y * camera.pane_sensitivity * time.delta_secs();
+            origin_transform.translation += left * delta.x * camera.pane_sensitivity;
+            origin_transform.translation += up * delta.y * camera.pane_sensitivity;
         }
     }
 

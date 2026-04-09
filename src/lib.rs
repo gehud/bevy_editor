@@ -37,7 +37,9 @@ use crate::{
     selection::EditorSelectionPlugin,
     theme::EditorThemePlugin,
     widget::EditorWidgetPlugins,
-    window::{EditorWindowPlugin, EditorWindowStructure, PrimaryEditorWindowConfigured},
+    window::{
+        EditorWindow, EditorWindowPlugin, EditorWindowStructure, PrimaryEditorWindowConfigured,
+    },
 };
 
 #[derive(Default)]
@@ -72,10 +74,10 @@ fn setup(
 ) -> Result {
     // ui_scale.0 = 1.5;
 
-    let editor_window = editor_windows.get_mut(trigger.entity)?;
+    let structure = editor_windows.get_mut(trigger.entity)?;
 
     commands
-        .entity(editor_window.titlebar())
+        .entity(structure.titlebar())
         .with_children(|commands| {
             commands.spawn((
                 EditorMenuRoot,
@@ -90,7 +92,7 @@ fn setup(
         });
 
     commands
-        .entity(editor_window.content())
+        .entity(structure.content())
         .with_children(|commands| {
             commands
                 .spawn(Node {

@@ -11,9 +11,7 @@
 //! Then, when these entities are selected via [`bevy_editor_core::selection`] the
 //! transform gizmo will appear and allow you to move and rotate your selection.
 
-use bevy::asset::load_internal_asset;
 use bevy::camera::{Projection, RenderTarget};
-use bevy::pbr::ExtendedMaterial;
 use bevy::picking::{backend::ray::RayMap, pointer::PointerId};
 use bevy::{prelude::*, transform::TransformSystems};
 use bitflags::bitflags;

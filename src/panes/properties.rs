@@ -27,7 +27,7 @@ use crate::{
     pane::{PaneApp, PaneStructure},
     selection::{Selection, SelectionChanged, SelectionMap},
     theme::{RoundedCorners, ThemedBackgroundColor, ThemedBorderColor, tokens::BUTTON_BG},
-    widget::{EditorText, ScrollArea, TextField, TextFieldSettings, ValueChange},
+    widget::{EditorText, ScrollArea, TextField, ValueChange},
 };
 
 pub struct PropertiesPlugin;
@@ -139,7 +139,7 @@ fn setup_entities_properties(
             commands.spawn((Text::new("Name:"), EditorText::body()));
 
             commands
-                .spawn(TextField::new().build())
+                .spawn(TextField::new())
                 .observe(|trigger: On<ValueChange<String>>| {
                     bevy::log::info!("{} -> {}", trigger.previous, trigger.new);
                 });
