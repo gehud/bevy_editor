@@ -31,6 +31,8 @@ opener = "0.8.4"
 fuzzy-matcher = "0.3.7"
 bytemuck = "1.25.0"
 image = "0.25.10"
+platform-dirs = "0.3.0"
+ron = "0.12.1"
 
 [patch.crates-io]
 bevy = { git = "https://github.com/gehud/bevy.git", branch = "editor" }

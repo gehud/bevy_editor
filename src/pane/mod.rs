@@ -6,8 +6,12 @@ use bevy::{
     utils::default,
 };
 use egui::{RichText, Ui, WidgetText};
+use serde::{Deserialize, Serialize};
 
-use crate::dock::{DockState, NodeIndex, TabViewer};
+use crate::{
+    dock::{DockState, NodeIndex, TabViewer},
+    prefs::RegisterPref,
+};
 
 pub trait Pane: Send + Sync + 'static {
     fn name(&self) -> &str;
@@ -75,7 +79,7 @@ impl TabViewer for PaneViewer<'_> {
     }
 }
 
-#[derive(Resource)]
+#[derive(Resource, Serialize, Deserialize)]
 pub(crate) struct PaneDocking(pub DockState<Tab>);
 
 impl Default for PaneDocking {
@@ -105,6 +109,6 @@ pub struct PanePlugin;
 impl Plugin for PanePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<PaneRegistry>()
-            .init_resource::<PaneDocking>();
+            .register_pref::<PaneDocking>();
     }
 }

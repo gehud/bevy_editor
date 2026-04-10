@@ -2,6 +2,7 @@ mod cursor;
 mod dock;
 pub mod inspection;
 pub mod pane;
+pub mod prefs;
 mod properties;
 mod scene_tree;
 pub mod selection;
@@ -9,6 +10,7 @@ mod style;
 mod viewport;
 
 pub use egui;
+use serde::{Deserialize, Serialize};
 
 use std::env;
 
@@ -18,10 +20,13 @@ use bevy::{
     camera::Camera2d,
     ecs::{
         error::Result,
+        observer::On,
         query::With,
-        system::{Commands, Local, ResMut, Single, SystemState},
+        resource::Resource,
+        system::{Commands, Local, Res, ResMut, Single, SystemState},
         world::{DeferredWorld, Mut, World},
     },
+    reflect::Reflect,
     utils::default,
     window::{PrimaryWindow, Window, WindowPlugin},
 };
@@ -30,7 +35,7 @@ use bevy_egui::{
     egui::CentralPanel,
 };
 use egui::{
-    FontData, FontFamily, Frame, InnerResponse, MenuBar, TopBottomPanel, WidgetText,
+    FontData, FontFamily, Frame, InnerResponse, Memory, MenuBar, TopBottomPanel, WidgetText,
     epaint::text::{FontInsert, FontPriority, InsertFontFamily},
 };
 
@@ -39,6 +44,7 @@ use crate::{
     dock::{DockArea, DockState},
     inspection::{DefaultInspectorConfigPlugin, quick::WorldInspectorPlugin},
     pane::{PaneDocking, PanePlugin, PaneRegistry, PaneViewer},
+    prefs::{Load, PrefsPlugin, RegisterPref, Save},
     properties::PropertiesPlugin,
     scene_tree::SceneTreePlugin,
     selection::SelectionPlugin,
@@ -72,6 +78,7 @@ impl Plugin for EditorPlugin {
             }),
             ..default()
         }))
+        .add_plugins(PrefsPlugin)
         .add_plugins(CursorLockPlugin)
         .add_plugins(EguiPlugin::default())
         .add_plugins(DefaultInspectorConfigPlugin)
@@ -80,13 +87,27 @@ impl Plugin for EditorPlugin {
         .add_plugins(ViewportPlugin)
         .add_plugins(SceneTreePlugin)
         .add_plugins(PropertiesPlugin)
+        .register_pref::<EguiMemory>()
         .insert_resource(EguiGlobalSettings {
             auto_create_primary_context: false,
             ..default()
         })
         .add_systems(Startup, setup)
-        .add_systems(EguiPrimaryContextPass, ui);
+        .add_systems(EguiPrimaryContextPass, ui)
+        .add_observer(on_save);
     }
+}
+
+#[derive(Resource, Default, Serialize, Deserialize)]
+struct EguiMemory(Memory);
+
+fn on_save(_: On<Save>, mut contexts: EguiContexts, mut egui_memory: ResMut<EguiMemory>) -> Result {
+    let ctx = contexts.ctx_mut()?;
+    ctx.memory(|memory| {
+        egui_memory.0 = memory.clone();
+    });
+
+    Ok(())
 }
 
 fn setup(mut commands: Commands, mut primary_window: Single<&mut Window, With<PrimaryWindow>>) {
@@ -94,8 +115,11 @@ fn setup(mut commands: Commands, mut primary_window: Single<&mut Window, With<Pr
     primary_window.set_maximized(true);
 }
 
-fn ui(world: &mut World, state: &mut SystemState<(EguiContexts, Local<bool>)>) -> Result {
-    let (mut contexts, mut is_intialized) = state.get_mut(world);
+fn ui(
+    world: &mut World,
+    state: &mut SystemState<(EguiContexts, Res<EguiMemory>, Local<bool>)>,
+) -> Result {
+    let (mut contexts, loaded_memory, mut is_intialized) = state.get_mut(world);
     let mut ctx = contexts.ctx_mut()?.clone();
 
     if !*is_intialized {
@@ -110,6 +134,8 @@ fn ui(world: &mut World, state: &mut SystemState<(EguiContexts, Local<bool>)>) -
                 priority: FontPriority::Highest,
             }],
         ));
+
+        ctx.memory_mut(|memory| *memory = loaded_memory.0.clone());
 
         *is_intialized = true;
     }
