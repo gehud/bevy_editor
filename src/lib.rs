@@ -1,4 +1,5 @@
 mod dock;
+pub mod inspection;
 pub mod pane;
 mod properties;
 mod scene_tree;
@@ -32,6 +33,7 @@ use egui::{
 
 use crate::{
     dock::{DockArea, DockState},
+    inspection::{DefaultInspectorConfigPlugin, quick::WorldInspectorPlugin},
     pane::{PaneDocking, PanePlugin, PaneRegistry, PaneViewer},
     properties::PropertiesPlugin,
     scene_tree::SceneTreePlugin,
@@ -61,6 +63,7 @@ impl Plugin for EditorPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(DefaultPlugins)
             .add_plugins(EguiPlugin::default())
+            .add_plugins(DefaultInspectorConfigPlugin)
             .add_plugins(PanePlugin)
             .add_plugins(SelectionPlugin)
             .add_plugins(ViewportPlugin)

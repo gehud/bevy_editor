@@ -8,8 +8,9 @@ resolver = "3"
 members = ["samples/simple"]
 
 [features]
-default = ["custom_cursor"]
-custom_cursor = ["bevy/custom_cursor"]
+default = ["documentation"]
+highlight_changes = []
+documentation = ["bevy/reflect_documentation"]
 
 [dependencies]
 bevy = { git = "https://github.com/gehud/bevy.git", branch = "editor", features = [
@@ -24,6 +25,12 @@ chrono = "0.4.44"
 serde = { version = "1.0.228", features = ["derive"] }
 paste = "1.0.15"
 duplicate = "2.0.1"
+smallvec = "1.15.1"
+disqualified = "1.0.0"
+opener = "0.8.4"
+fuzzy-matcher = "0.3.7"
+bytemuck = "1.25.0"
+image = "0.25.10"
 
 [patch.crates-io]
 bevy = { git = "https://github.com/gehud/bevy.git", branch = "editor" }
