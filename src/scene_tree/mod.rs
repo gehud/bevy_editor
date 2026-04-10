@@ -63,8 +63,6 @@ impl Pane for SceneTreePane {
 
         let id = ui.make_persistent_id("scene_tree");
 
-        let mut selection_performed = false;
-
         if let Some(children) = world
             .query::<&Children>()
             .get(world, root)
@@ -72,18 +70,8 @@ impl Pane for SceneTreePane {
             .map(|children| children.to_vec())
         {
             for (i, entity) in children.iter().enumerate() {
-                selection_performed |= self.entity_ui_recurse(ui, world, *entity, id.with(i));
+                self.entity_ui_recurse(ui, world, *entity, id.with(i));
             }
-        }
-
-        let background = ui.interact(
-            ui.available_rect_before_wrap(),
-            Id::new("entity_menu"),
-            Sense::click(),
-        );
-
-        if !selection_performed && background.clicked() {
-            world.resource_mut::<SelectionMap>().clear();
         }
 
         Ok(())
@@ -91,15 +79,7 @@ impl Pane for SceneTreePane {
 }
 
 impl SceneTreePane {
-    fn entity_ui_recurse(
-        &mut self,
-        ui: &mut Ui,
-        world: &mut World,
-        entity: Entity,
-        id: Id,
-    ) -> bool {
-        let mut selection_performed = false;
-
+    fn entity_ui_recurse(&mut self, ui: &mut Ui, world: &mut World, entity: Entity, id: Id) {
         let name = world
             .query::<&Name>()
             .get(world, entity)
@@ -115,7 +95,7 @@ impl SceneTreePane {
         {
             CollapsingState::load_with_default_open(ui.ctx(), id, false)
                 .show_header(ui, |ui| {
-                    selection_performed |= self.entity_ui_header(ui, world, entity, &name);
+                    self.entity_ui_header(ui, world, entity, &name);
                 })
                 .body(|ui| {
                     for (i, child) in children.iter().enumerate() {
@@ -125,20 +105,12 @@ impl SceneTreePane {
         } else {
             ui.horizontal(|ui| {
                 ui.add_space(ui.spacing().indent);
-                selection_performed |= self.entity_ui_header(ui, world, entity, &name);
+                self.entity_ui_header(ui, world, entity, &name);
             });
         }
-
-        selection_performed
     }
 
-    fn entity_ui_header(
-        &mut self,
-        ui: &mut Ui,
-        world: &mut World,
-        entity: Entity,
-        name: &str,
-    ) -> bool {
+    fn entity_ui_header(&mut self, ui: &mut Ui, world: &mut World, entity: Entity, name: &str) {
         let mut selection_map = world.resource_mut::<SelectionMap>();
 
         let is_selected = selection_map.is_selected(entity);
@@ -154,10 +126,6 @@ impl SceneTreePane {
                     selection_map.select(entity);
                 }
             }
-
-            true
-        } else {
-            false
         }
     }
 }

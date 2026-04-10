@@ -17,9 +17,12 @@ use bevy::{
         query::With,
         resource::Resource,
         schedule::{IntoScheduleConfigs, SystemSet},
-        system::{Commands, Query, ResMut},
+        system::{Commands, Query, Res, ResMut, Single},
     },
+    pbr::material_uses_bindless_resources,
+    picking::events::{Click, Pointer},
     platform::collections::HashMap,
+    window::PrimaryWindow,
 };
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -102,6 +105,16 @@ impl<S: SelectionItem> SelectionItems for Vec<S> {
 #[derive(Component)]
 struct Selected;
 
+#[derive(EntityEvent)]
+pub struct Select {
+    entity: Entity,
+}
+
+#[derive(EntityEvent)]
+pub struct Deselect {
+    entity: Entity,
+}
+
 #[derive(Default, Resource)]
 pub struct SelectionMap {
     by_type: HashMap<Selection, Box<dyn SelectionItems>>,
@@ -183,34 +196,53 @@ impl SelectionMap {
 }
 
 fn mark_entities(
-    mut map: ResMut<SelectionMap>,
-    entities: Query<Entity>,
+    map: Res<SelectionMap>,
     marked: Query<Entity, With<Selected>>,
     mut commands: Commands,
 ) {
-    let Some(selection) = map
+    let selected = map
         .of_type::<EntitySelection>()
-        .map(|items| items.cloned().collect::<Vec<_>>())
-    else {
-        return;
-    };
+        .map(|items| items.map(|item| item.entity).collect::<Vec<_>>())
+        .unwrap_or_default();
 
-    for selected in selection {
-        if !entities.contains(selected.entity) {
-            map.deselect(selected.entity);
-        } else if !marked.contains(selected.entity) {
-            commands.entity(selected.entity).insert(Selected);
+    for entity in marked.iter() {
+        if !selected.contains(&entity) {
+            commands.entity(entity).remove::<Selected>();
+        }
+    }
+
+    for entity in selected {
+        if !marked.contains(entity) {
+            commands.entity(entity).insert(Selected);
         }
     }
 }
 
-fn deselect_entities(trigger: On<Despawn, Selected>, mut map: ResMut<SelectionMap>) {
-    map.deselect(trigger.event_target());
+fn on_selected(trigger: On<Add, Selected>, mut commands: Commands) {
+    commands.trigger(Select {
+        entity: trigger.event_target(),
+    });
+}
+
+fn on_deselected(trigger: On<Remove, Selected>, mut commands: Commands) {
+    commands.trigger(Deselect {
+        entity: trigger.event_target(),
+    });
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, SystemSet)]
 pub enum SelectionSystems {
     Mark,
+}
+
+fn deselect_all(
+    trigger: On<Pointer<Click>>,
+    primary_window: Single<Entity, With<PrimaryWindow>>,
+    mut map: ResMut<SelectionMap>,
+) {
+    if trigger.event_target() == *primary_window {
+        map.clear();
+    }
 }
 
 pub struct SelectionPlugin;
@@ -220,6 +252,8 @@ impl Plugin for SelectionPlugin {
         app.init_resource::<SelectionMap>()
             .configure_sets(Last, SelectionSystems::Mark)
             .add_systems(Last, mark_entities.in_set(SelectionSystems::Mark))
-            .add_observer(deselect_entities);
+            .add_observer(deselect_all)
+            .add_observer(on_selected)
+            .add_observer(on_deselected);
     }
 }
