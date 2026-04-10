@@ -144,7 +144,7 @@ pub mod restricted_world_view;
 
 pub mod dropdown;
 pub mod egui_utils;
-mod utils;
+pub mod utils;
 
 use std::any::TypeId;
 

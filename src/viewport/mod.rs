@@ -43,6 +43,7 @@ use bevy::{
     transform::components::{GlobalTransform, Transform},
     ui::{Node, UiTargetCamera, percent, widget::ViewportNode},
     utils::default,
+    window::PrimaryWindow,
 };
 use bevy_egui::{EguiContexts, EguiTextureHandle, EguiUserTextures};
 use bevy_mod_outline::{OutlineMode, OutlinePlugin, OutlineVolume};
@@ -430,6 +431,25 @@ fn on_deselect(trigger: On<Deselect>, mut commands: Commands) {
         .remove::<OutlineVolume>();
 }
 
+fn deselect_all(
+    trigger: On<Pointer<Click>>,
+    viewport_picking: Single<&ViewportPicking>,
+    primary_window: Single<Entity, With<PrimaryWindow>>,
+    mut map: ResMut<SelectionMap>,
+) {
+    if trigger.button != PointerButton::Primary {
+        return;
+    }
+
+    if viewport_picking.hover_pos.is_none() {
+        return;
+    }
+
+    if trigger.event_target() == *primary_window {
+        map.clear();
+    }
+}
+
 pub struct ViewportPlugin;
 
 impl Plugin for ViewportPlugin {
@@ -443,6 +463,7 @@ impl Plugin for ViewportPlugin {
             .add_systems(Update, move_camera)
             .add_observer(on_pick_mesh)
             .add_observer(on_select)
-            .add_observer(on_deselect);
+            .add_observer(on_deselect)
+            .add_observer(deselect_all);
     }
 }

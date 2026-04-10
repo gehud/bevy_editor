@@ -632,11 +632,6 @@ pub(crate) fn ui_for_entity_components(
             ReflectBorrow::Immutable(_) => None,
         };
 
-        if value.is_changed() {
-            #[cfg(feature = "highlight_changes")]
-            set_highlight_style(ui);
-        }
-
         let _response = header.show(ui, |ui| {
             ui.reset_style();
 
@@ -697,30 +692,6 @@ pub(crate) fn ui_for_entity_components(
 
         ui.reset_style();
     }
-}
-
-#[cfg(feature = "highlight_changes")]
-fn set_highlight_style(ui: &mut egui::Ui) {
-    let highlight_color = egui::Color32::GOLD;
-
-    let visuals = &mut ui.style_mut().visuals;
-    visuals.collapsing_header_frame = true;
-    visuals.widgets.inactive.bg_stroke = egui::Stroke {
-        width: 1.0,
-        color: highlight_color,
-    };
-    visuals.widgets.active.bg_stroke = egui::Stroke {
-        width: 1.0,
-        color: highlight_color,
-    };
-    visuals.widgets.hovered.bg_stroke = egui::Stroke {
-        width: 1.0,
-        color: highlight_color,
-    };
-    visuals.widgets.noninteractive.bg_stroke = egui::Stroke {
-        width: 1.0,
-        color: highlight_color,
-    };
 }
 
 fn components_of_entity(

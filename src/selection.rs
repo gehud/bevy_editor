@@ -238,22 +238,6 @@ pub enum SelectionSystems {
     Mark,
 }
 
-fn deselect_all(
-    trigger: On<Pointer<Click>>,
-    primary_window: Single<Entity, With<PrimaryWindow>>,
-    mut map: ResMut<SelectionMap>,
-) {
-    if trigger.button != PointerButton::Primary {
-        return;
-    }
-
-    if trigger.event_target() != *primary_window {
-        return;
-    }
-
-    map.clear();
-}
-
 pub struct SelectionPlugin;
 
 impl Plugin for SelectionPlugin {
@@ -261,7 +245,6 @@ impl Plugin for SelectionPlugin {
         app.init_resource::<SelectionMap>()
             .configure_sets(Last, SelectionSystems::Mark)
             .add_systems(Last, mark_entities.in_set(SelectionSystems::Mark))
-            .add_observer(deselect_all)
             .add_observer(on_selected)
             .add_observer(on_deselected);
     }

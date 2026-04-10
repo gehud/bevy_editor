@@ -9,7 +9,6 @@ members = ["samples/simple"]
 
 [features]
 default = ["documentation"]
-highlight_changes = []
 documentation = ["bevy/reflect_documentation"]
 
 [dependencies]

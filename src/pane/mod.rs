@@ -5,12 +5,12 @@ use bevy::{
     platform::collections::HashMap,
     utils::default,
 };
-use egui::{RichText, Ui, WidgetText};
+use egui::{RichText, Sense, Ui, WidgetText};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     dock::{DockState, NodeIndex, TabViewer},
-    prefs::RegisterPref,
+    prefs::RegisterPref, selection::SelectionMap,
 };
 
 pub trait Pane: Send + Sync + 'static {
@@ -67,14 +67,18 @@ impl TabViewer for PaneViewer<'_> {
     }
 
     fn ui(&mut self, ui: &mut Ui, tab: &mut Self::Tab) {
-        // if self.result.is_err() {
-        //     return;
-        // }
+        if self.result.is_err() {
+            return;
+        }
 
         if let Some(pane) = self.registry.get_pane_mut(tab) {
             self.result = pane.ui(ui, self.world);
         } else {
             ui.label("Missing");
+        }
+
+        if ui.response().interact(Sense::click()).clicked() {
+            self.world.resource_mut::<SelectionMap>().clear();
         }
     }
 }

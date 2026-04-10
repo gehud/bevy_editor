@@ -26,6 +26,10 @@ use bevy::{
         system::{Commands, Local, Res, ResMut, Single, SystemState},
         world::{DeferredWorld, Mut, World},
     },
+    picking::{
+        Pickable,
+        events::{Click, Pointer},
+    },
     reflect::Reflect,
     utils::default,
     window::{PrimaryWindow, Window, WindowPlugin},

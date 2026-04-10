@@ -71,7 +71,6 @@ struct PrefsRegistry {
 fn load(world: &mut World) {
     world.resource_scope(|world, registry: Mut<PrefsRegistry>| {
         for load in &registry.on_load {
-            bevy::log::info!("L");
             load(world);
         }
     });
