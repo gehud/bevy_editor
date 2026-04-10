@@ -20,7 +20,10 @@ use bevy::{
         system::{Commands, Query, Res, ResMut, Single},
     },
     pbr::material_uses_bindless_resources,
-    picking::events::{Click, Pointer},
+    picking::{
+        events::{Click, Pointer},
+        pointer::PointerButton,
+    },
     platform::collections::HashMap,
     window::PrimaryWindow,
 };
@@ -240,9 +243,15 @@ fn deselect_all(
     primary_window: Single<Entity, With<PrimaryWindow>>,
     mut map: ResMut<SelectionMap>,
 ) {
-    if trigger.event_target() == *primary_window {
-        map.clear();
+    if trigger.button != PointerButton::Primary {
+        return;
     }
+
+    if trigger.event_target() != *primary_window {
+        return;
+    }
+
+    map.clear();
 }
 
 pub struct SelectionPlugin;

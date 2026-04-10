@@ -3,7 +3,7 @@ mod grid;
 use std::{f32::consts::PI, ops::DerefMut};
 
 use bevy::{
-    app::{App, First, Plugin, Startup},
+    app::{App, First, Plugin, PostUpdate, PreUpdate, Startup, Update},
     asset::{Assets, Handle, RenderAssetUsages, uuid::Uuid},
     camera::{
         Camera, Camera3d, ClearColorConfig, NormalizedRenderTarget, RenderTarget,
@@ -26,20 +26,22 @@ use bevy::{
         world::World,
     },
     image::{BevyDefault, Image},
-    input::{ButtonInput, keyboard::KeyCode},
+    input::{ButtonInput, keyboard::KeyCode, mouse::AccumulatedMouseMotion},
     log::info,
-    math::{Quat, Rect, Vec2},
+    math::{EulerRot, Quat, Rect, Vec2},
     mesh::{Mesh2d, Mesh3d},
     picking::{
-        PickingSystems,
-        events::{Click, Pointer, PointerState},
+        Pickable, PickingSystems,
+        events::{Click, Drag, DragEnd, DragStart, Move, Pointer, PointerState},
         hover::HoverMap,
         mesh_picking::MeshPickingPlugin,
         pointer::{Location, PointerButton, PointerId, PointerInput, PointerLocation},
     },
     platform::collections::HashMap,
     render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages},
-    transform::components::Transform,
+    time::Time,
+    transform::components::{GlobalTransform, Transform},
+    ui::{Node, UiTargetCamera, percent, widget::ViewportNode},
     utils::default,
 };
 use bevy_egui::{EguiContexts, EguiTextureHandle, EguiUserTextures};
@@ -47,6 +49,7 @@ use bevy_mod_outline::{OutlineMode, OutlinePlugin, OutlineVolume};
 use egui::{Sense, TextureId, Ui, load::SizedTexture};
 
 use crate::{
+    cursor::CursorLock,
     pane::{Pane, RegisterPane},
     selection::{Deselect, Select, SelectionMap},
     viewport::grid::{InfiniteGrid, InfiniteGridPlugin, InfiniteGridSettings},
@@ -172,8 +175,8 @@ fn setup(
             ViewportCamera {
                 movement: None,
                 origin: camera_origin,
-                rotation_sensitivity: 0.005,
-                pane_sensitivity: 0.015,
+                rotation_sensitivity: 0.05,
+                pane_sensitivity: 0.15,
                 fly_speed: 5.0,
             },
             ViewportPicking::default(),
@@ -189,6 +192,23 @@ fn setup(
         ))
         .id();
 
+    commands
+        .spawn((
+            Pickable {
+                should_block_lower: false,
+                ..default()
+            },
+            Node {
+                width: percent(100),
+                height: percent(100),
+                ..default()
+            },
+            UiTargetCamera(viewport_camera),
+        ))
+        .observe(on_viewport_drag_start)
+        .observe(on_viewport_drag)
+        .observe(on_viewport_drag_end);
+
     commands.spawn((
         InfiniteGrid,
         InfiniteGridSettings {
@@ -199,6 +219,126 @@ fn setup(
             ..default()
         },
     ));
+}
+
+fn on_viewport_drag_start(
+    trigger: On<Pointer<DragStart>>,
+    mut camera: Single<&mut ViewportCamera>,
+    mut cursor_lock: ResMut<CursorLock>,
+) -> Result {
+    match trigger.button {
+        PointerButton::Secondary => {
+            camera.movement = Some(ViewportCameraMovement::Fly);
+        }
+        PointerButton::Middle => {
+            camera.movement = Some(ViewportCameraMovement::Pan);
+        }
+        _ => {}
+    }
+
+    if camera.movement.is_some() {
+        cursor_lock.0 = true;
+    }
+
+    Ok(())
+}
+
+fn on_viewport_drag(
+    _: On<Pointer<Drag>>,
+    camera: Single<(Entity, &ViewportCamera)>,
+    mut transforms: Query<&mut Transform>,
+    global_transforms: Query<&GlobalTransform>,
+    mouse_motion: Res<AccumulatedMouseMotion>,
+    time: Res<Time>,
+) -> Result {
+    let (entity, camera) = *camera;
+
+    let Some(movement) = &camera.movement else {
+        return Ok(());
+    };
+
+    let delta = mouse_motion.delta * time.delta_secs();
+
+    let camera_global_transform = global_transforms.get(entity)?;
+
+    match movement {
+        ViewportCameraMovement::Fly => {
+            let mut camera_transform = transforms.get_mut(entity)?;
+            let mut pitch = camera_transform.rotation.to_euler(EulerRot::XYZ).0;
+            pitch = (pitch - delta.y * camera.rotation_sensitivity).clamp(-PI / 2.0, PI / 2.0);
+            camera_transform.rotation = Quat::from_rotation_x(pitch);
+
+            let mut origin_transform = transforms.get_mut(camera.origin)?;
+            origin_transform.rotate(Quat::from_rotation_y(
+                -delta.x * camera.rotation_sensitivity,
+            ));
+        }
+        ViewportCameraMovement::Pan => {
+            let left = camera_global_transform.left().as_vec3();
+            let up = camera_global_transform.up().as_vec3();
+
+            let mut origin_transform = transforms.get_mut(camera.origin)?;
+            origin_transform.translation += left * delta.x * camera.pane_sensitivity;
+            origin_transform.translation += up * delta.y * camera.pane_sensitivity;
+        }
+    }
+
+    Ok(())
+}
+
+fn on_viewport_drag_end(
+    _: On<Pointer<DragEnd>>,
+    mut camera: Single<&mut ViewportCamera>,
+    mut cursor_lock: ResMut<CursorLock>,
+) -> Result {
+    camera.movement = None;
+    cursor_lock.0 = false;
+    Ok(())
+}
+
+fn move_camera(
+    camera: Single<(Entity, &ViewportCamera)>,
+    global_transforms: Query<&GlobalTransform>,
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    time: Res<Time>,
+    mut transforms: Query<&mut Transform>,
+) -> Result {
+    let (camera_entity, camera) = *camera;
+
+    let Some(movement) = &camera.movement else {
+        return Ok(());
+    };
+
+    if !matches!(movement, ViewportCameraMovement::Fly) {
+        return Ok(());
+    }
+
+    let camera_global_transform = global_transforms.get(camera_entity)?;
+    let mut origin_transform = transforms.get_mut(camera.origin)?;
+
+    let forward = camera_global_transform.forward().as_vec3();
+    let right = camera_global_transform.right().as_vec3();
+    let up = camera_global_transform.up().as_vec3();
+
+    if keyboard_input.pressed(KeyCode::KeyW) {
+        origin_transform.translation += forward * camera.fly_speed * time.delta_secs();
+    } else if keyboard_input.pressed(KeyCode::KeyS) {
+        origin_transform.translation -= forward * camera.fly_speed * time.delta_secs();
+    }
+
+    if keyboard_input.pressed(KeyCode::KeyD) {
+        origin_transform.translation += right * camera.fly_speed * time.delta_secs();
+    } else if keyboard_input.pressed(KeyCode::KeyA) {
+        origin_transform.translation -= right * camera.fly_speed * time.delta_secs();
+    }
+
+    if keyboard_input.pressed(KeyCode::KeyE) {
+        origin_transform.translation += up * camera.fly_speed * time.delta_secs();
+    } else if keyboard_input.pressed(KeyCode::KeyQ) {
+        origin_transform.translation -= up * camera.fly_speed * time.delta_secs();
+    }
+
+    Ok(())
 }
 
 fn viewport_picking(
@@ -300,6 +440,7 @@ impl Plugin for ViewportPlugin {
             .register_pane(ViewportPane)
             .add_systems(Startup, setup)
             .add_systems(First, viewport_picking.in_set(PickingSystems::PostInput))
+            .add_systems(Update, move_camera)
             .add_observer(on_pick_mesh)
             .add_observer(on_select)
             .add_observer(on_deselect);

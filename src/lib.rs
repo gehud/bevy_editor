@@ -1,3 +1,4 @@
+mod cursor;
 mod dock;
 pub mod inspection;
 pub mod pane;
@@ -13,14 +14,16 @@ use std::env;
 
 use bevy::{
     DefaultPlugins,
-    app::{App, Plugin, Startup},
+    app::{App, Plugin, PluginGroup, Startup},
     camera::Camera2d,
     ecs::{
         error::Result,
-        system::{Commands, Local, ResMut, SystemState},
+        query::With,
+        system::{Commands, Local, ResMut, Single, SystemState},
         world::{DeferredWorld, Mut, World},
     },
     utils::default,
+    window::{PrimaryWindow, Window, WindowPlugin},
 };
 use bevy_egui::{
     EguiContexts, EguiGlobalSettings, EguiPlugin, EguiPrimaryContextPass, PrimaryEguiContext,
@@ -32,6 +35,7 @@ use egui::{
 };
 
 use crate::{
+    cursor::CursorLockPlugin,
     dock::{DockArea, DockState},
     inspection::{DefaultInspectorConfigPlugin, quick::WorldInspectorPlugin},
     pane::{PaneDocking, PanePlugin, PaneRegistry, PaneViewer},
@@ -61,25 +65,33 @@ pub struct EditorPlugin;
 
 impl Plugin for EditorPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(DefaultPlugins)
-            .add_plugins(EguiPlugin::default())
-            .add_plugins(DefaultInspectorConfigPlugin)
-            .add_plugins(PanePlugin)
-            .add_plugins(SelectionPlugin)
-            .add_plugins(ViewportPlugin)
-            .add_plugins(SceneTreePlugin)
-            .add_plugins(PropertiesPlugin)
-            .insert_resource(EguiGlobalSettings {
-                auto_create_primary_context: false,
+        app.add_plugins(DefaultPlugins.set(WindowPlugin {
+            primary_window: Some(Window {
+                title: "Bevy Editor".into(),
                 ..default()
-            })
-            .add_systems(Startup, setup)
-            .add_systems(EguiPrimaryContextPass, ui);
+            }),
+            ..default()
+        }))
+        .add_plugins(CursorLockPlugin)
+        .add_plugins(EguiPlugin::default())
+        .add_plugins(DefaultInspectorConfigPlugin)
+        .add_plugins(PanePlugin)
+        .add_plugins(SelectionPlugin)
+        .add_plugins(ViewportPlugin)
+        .add_plugins(SceneTreePlugin)
+        .add_plugins(PropertiesPlugin)
+        .insert_resource(EguiGlobalSettings {
+            auto_create_primary_context: false,
+            ..default()
+        })
+        .add_systems(Startup, setup)
+        .add_systems(EguiPrimaryContextPass, ui);
     }
 }
 
-fn setup(mut commands: Commands) {
+fn setup(mut commands: Commands, mut primary_window: Single<&mut Window, With<PrimaryWindow>>) {
     commands.spawn((Camera2d, PrimaryEguiContext));
+    primary_window.set_maximized(true);
 }
 
 fn ui(world: &mut World, state: &mut SystemState<(EguiContexts, Local<bool>)>) -> Result {
