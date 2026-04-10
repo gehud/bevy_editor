@@ -1,6 +1,8 @@
 mod dock;
 pub mod pane;
+mod properties;
 mod scene_tree;
+pub mod selection;
 mod style;
 mod viewport;
 
@@ -31,7 +33,9 @@ use egui::{
 use crate::{
     dock::{DockArea, DockState},
     pane::{PaneDocking, PanePlugin, PaneRegistry, PaneViewer},
+    properties::PropertiesPlugin,
     scene_tree::SceneTreePlugin,
+    selection::SelectionPlugin,
     style::{IntoDockStyle, set_dark_style},
     viewport::ViewportPlugin,
 };
@@ -58,8 +62,10 @@ impl Plugin for EditorPlugin {
         app.add_plugins(DefaultPlugins)
             .add_plugins(EguiPlugin::default())
             .add_plugins(PanePlugin)
+            .add_plugins(SelectionPlugin)
             .add_plugins(ViewportPlugin)
             .add_plugins(SceneTreePlugin)
+            .add_plugins(PropertiesPlugin)
             .insert_resource(EguiGlobalSettings {
                 auto_create_primary_context: false,
                 ..default()
