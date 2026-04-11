@@ -1,15 +1,21 @@
 mod grid;
 
-use std::{f32::consts::PI, ops::DerefMut};
+use std::{
+    f32::consts::PI,
+    ops::{Deref, DerefMut},
+};
 
 use bevy::{
     app::{App, First, Plugin, PostUpdate, PreUpdate, Startup, Update},
     asset::{Assets, Handle, RenderAssetUsages, uuid::Uuid},
     camera::{
-        Camera, Camera3d, ClearColorConfig, NormalizedRenderTarget, RenderTarget,
+        Camera, Camera3d, ClearColorConfig, NormalizedRenderTarget, Projection, RenderTarget,
         visibility::InheritedVisibility,
     },
-    color::Color,
+    color::{
+        Color,
+        palettes::tailwind::{PINK_100, RED_500},
+    },
     ecs::{
         component::Component,
         entity::Entity,
@@ -25,6 +31,7 @@ use bevy::{
         system::{Commands, In, Local, Query, Res, ResMut, Single},
         world::World,
     },
+    gizmos::gizmos::Gizmos,
     image::{BevyDefault, Image},
     input::{ButtonInput, keyboard::KeyCode, mouse::AccumulatedMouseMotion},
     log::info,
@@ -34,8 +41,10 @@ use bevy::{
         Pickable, PickingSystems,
         events::{Click, Drag, DragEnd, DragStart, Move, Pointer, PointerState},
         hover::HoverMap,
-        mesh_picking::MeshPickingPlugin,
-        pointer::{Location, PointerButton, PointerId, PointerInput, PointerLocation},
+        mesh_picking::{MeshPickingPlugin, MeshPickingSettings, ray_cast::RayCastVisibility},
+        pointer::{
+            Location, PointerButton, PointerId, PointerInput, PointerInteraction, PointerLocation,
+        },
     },
     platform::collections::HashMap,
     render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages},
@@ -47,10 +56,10 @@ use bevy::{
 };
 use bevy_egui::{EguiContexts, EguiTextureHandle, EguiUserTextures};
 use bevy_mod_outline::{OutlineMode, OutlinePlugin, OutlineVolume};
-use egui::{Frame, InnerResponse, Margin, Sense, TextureId, Ui, load::SizedTexture};
+use egui::{Color32, Frame, InnerResponse, Margin, Sense, TextureId, Ui, load::SizedTexture};
 use transform_gizmo_bevy::{
-    Color32, GizmoCamera, GizmoHotkeys, GizmoMode, GizmoOptions, GizmoOrientation, GizmoTarget,
-    GizmoVisuals, TransformGizmoPlugin,
+    GizmoCamera, GizmoHotkeys, GizmoOptions, GizmoOrientation, GizmoTarget, GizmoVisuals,
+    TransformGizmoPlugin,
 };
 
 use crate::{
@@ -68,7 +77,6 @@ impl Pane for ViewportPane {
     }
 
     fn ui(&mut self, ui: &mut Ui, world: &mut World) -> Result {
-
         let texture_id = world.run_system_cached(get_viewport_texture_id)?;
 
         let size = ui.available_size();
@@ -77,12 +85,10 @@ impl Pane for ViewportPane {
             .image(SizedTexture::new(texture_id, size))
             .interact(Sense::click_and_drag());
 
-
-        info!("{}", response.has_focus());
-
         let viewport = world
             .query_filtered::<Entity, With<ViewportCamera>>()
             .single(world)?;
+
         world.entity_mut(viewport).insert(ViewportPicking {
             rect: Rect::from_corners(
                 Vec2::new(response.rect.min.x, response.rect.min.y),
@@ -184,6 +190,7 @@ fn setup(
 
     let viewport_camera = commands
         .spawn((
+            Pickable::IGNORE,
             ChildOf(camera_origin),
             ViewportCamera {
                 movement: None,
@@ -362,8 +369,8 @@ fn viewport_picking(
         &RenderTarget,
         &mut PointerLocation,
     )>,
-    mut pointer_inputs: MessageReader<PointerInput>,
     mut gizmo_options: ResMut<GizmoOptions>,
+    mut pointer_inputs: MessageReader<PointerInput>,
     mut commands: Commands,
 ) {
     let (viewport_pointer_id, picking, render_target, pointer_location) =
@@ -445,8 +452,8 @@ fn on_select(trigger: On<Select>, mut commands: Commands) {
 fn on_deselect(trigger: On<Deselect>, mut commands: Commands) {
     commands
         .entity(trigger.event_target())
-        .remove::<OutlineVolume>()
-        .remove::<GizmoTarget>();
+        .remove::<GizmoTarget>()
+        .remove::<OutlineVolume>();
 }
 
 fn deselect_all(

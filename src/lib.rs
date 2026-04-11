@@ -17,7 +17,7 @@ use std::env;
 use bevy::{
     DefaultPlugins,
     app::{App, Plugin, PluginGroup, Startup},
-    camera::Camera2d,
+    camera::{Camera, Camera2d, visibility::RenderLayers},
     ecs::{
         error::Result,
         observer::On,
@@ -116,7 +116,15 @@ fn on_save(_: On<Save>, mut contexts: EguiContexts, mut egui_memory: ResMut<Egui
 }
 
 fn setup(mut commands: Commands, mut primary_window: Single<&mut Window, With<PrimaryWindow>>) {
-    commands.spawn((Camera2d, PrimaryEguiContext));
+    commands.spawn((
+        Pickable::IGNORE,
+        Camera {
+            order: 1,
+            ..default()
+        },
+        Camera2d,
+        PrimaryEguiContext,
+    ));
     primary_window.set_maximized(true);
 }
 
@@ -132,7 +140,7 @@ fn ui(
 ) -> Result {
     let (mut contexts, loaded_memory, pane_registry, mut pane_docking, mut is_intialized) =
         state.get_mut(world);
-    let mut ctx = contexts.ctx_mut()?.clone();
+    let ctx = contexts.ctx_mut()?.clone();
 
     if !*is_intialized {
         ctx.all_styles_mut(|style| set_dark_style(style));
@@ -169,9 +177,17 @@ fn ui(
                     ui.menu_button("View", |ui| {
                         for name in pane_registry.names() {
                             if ui.button(name).clicked() {
-                                if let Some((surface_index, node_index, tab_index)) = pane_docking.0.find_tab(name) {
-                                    pane_docking.0.set_focused_node_and_surface((surface_index, node_index));
-                                    pane_docking.0.set_active_tab((surface_index, node_index, tab_index));
+                                if let Some((surface_index, node_index, tab_index)) =
+                                    pane_docking.0.find_tab(name)
+                                {
+                                    pane_docking
+                                        .0
+                                        .set_focused_node_and_surface((surface_index, node_index));
+                                    pane_docking.0.set_active_tab((
+                                        surface_index,
+                                        node_index,
+                                        tab_index,
+                                    ));
                                 } else {
                                     pane_docking.0.add_window(vec![name.clone()]);
                                 }
