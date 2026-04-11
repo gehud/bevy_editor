@@ -48,6 +48,7 @@ use bevy::{
 use bevy_egui::{EguiContexts, EguiTextureHandle, EguiUserTextures};
 use bevy_mod_outline::{OutlineMode, OutlinePlugin, OutlineVolume};
 use egui::{Sense, TextureId, Ui, load::SizedTexture};
+use transform_gizmo_bevy::{GizmoCamera, GizmoOptions, GizmoTarget, TransformGizmoPlugin};
 
 use crate::{
     cursor::CursorLock,
@@ -75,7 +76,10 @@ impl Pane for ViewportPane {
             .query_filtered::<Entity, With<ViewportCamera>>()
             .single(world)?;
         world.entity_mut(viewport).insert(ViewportPicking {
-            min: Vec2::new(response.rect.min.x, response.rect.min.y),
+            rect: Rect::from_corners(
+                Vec2::new(response.rect.min.x, response.rect.min.y),
+                Vec2::new(response.rect.max.x, response.rect.max.y),
+            ),
             interact_pos: response
                 .interact_pointer_pos()
                 .map(|position| Vec2::new(position.x, position.y)),
@@ -131,7 +135,7 @@ struct ViewportRenderTarget(Handle<Image>);
 
 #[derive(Default, Debug, Component)]
 struct ViewportPicking {
-    min: Vec2,
+    rect: Rect,
     interact_pos: Option<Vec2>,
     hover_pos: Option<Vec2>,
 }
@@ -140,7 +144,7 @@ impl ViewportPicking {
     fn position(&self) -> Option<Vec2> {
         self.hover_pos
             .or_else(|| self.interact_pos)
-            .map(|position| position - self.min)
+            .map(|position| position - self.rect.min)
     }
 }
 
@@ -180,6 +184,7 @@ fn setup(
                 pane_sensitivity: 0.15,
                 fly_speed: 5.0,
             },
+            GizmoCamera,
             ViewportPicking::default(),
             Camera3d::default(),
             Camera {
@@ -350,12 +355,15 @@ fn viewport_picking(
         &mut PointerLocation,
     )>,
     mut pointer_inputs: MessageReader<PointerInput>,
+    mut gizmo_options: ResMut<GizmoOptions>,
     mut commands: Commands,
 ) {
-    let (viewport_pointer_id, interaction, render_target, pointer_location) =
+    let (viewport_pointer_id, picking, render_target, pointer_location) =
         viewport_camera.deref_mut();
 
-    let Some(position) = interaction.position() else {
+    gizmo_options.viewport_rect = Some(picking.rect);
+
+    let Some(position) = picking.position() else {
         pointer_location.location = None;
         return;
     };
@@ -416,6 +424,7 @@ fn on_pick_mesh(
 fn on_select(trigger: On<Select>, mut commands: Commands) {
     commands
         .entity(trigger.event_target())
+        .insert(GizmoTarget::default())
         .insert(OutlineMode::FloodFlat)
         .insert(OutlineVolume {
             visible: true,
@@ -428,7 +437,8 @@ fn on_select(trigger: On<Select>, mut commands: Commands) {
 fn on_deselect(trigger: On<Deselect>, mut commands: Commands) {
     commands
         .entity(trigger.event_target())
-        .remove::<OutlineVolume>();
+        .remove::<OutlineVolume>()
+        .remove::<GizmoTarget>();
 }
 
 fn deselect_all(
@@ -457,6 +467,7 @@ impl Plugin for ViewportPlugin {
         app.add_plugins(InfiniteGridPlugin)
             .add_plugins(MeshPickingPlugin)
             .add_plugins(OutlinePlugin)
+            .add_plugins(TransformGizmoPlugin)
             .register_pane(ViewportPane)
             .add_systems(Startup, setup)
             .add_systems(First, viewport_picking.in_set(PickingSystems::PostInput))
