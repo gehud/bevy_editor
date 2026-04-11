@@ -5,12 +5,13 @@ use bevy::{
     platform::collections::HashMap,
     utils::default,
 };
-use egui::{RichText, Sense, Ui, WidgetText};
+use egui::{LayerId, RichText, Sense, Ui, UiBuilder, WidgetText};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     dock::{DockState, NodeIndex, TabViewer},
-    prefs::RegisterPref, selection::SelectionMap,
+    prefs::RegisterPref,
+    selection::SelectionMap,
 };
 
 pub trait Pane: Send + Sync + 'static {
@@ -27,6 +28,10 @@ pub(crate) struct PaneRegistry {
 impl PaneRegistry {
     pub fn get_pane_mut(&mut self, name: &str) -> Option<&mut dyn Pane> {
         self.panes.get_mut(name).map(|pane| pane.as_mut())
+    }
+
+    pub fn names(&self) -> impl ExactSizeIterator<Item = &String> {
+        self.panes.keys()
     }
 }
 
@@ -75,10 +80,6 @@ impl TabViewer for PaneViewer<'_> {
             self.result = pane.ui(ui, self.world);
         } else {
             ui.label("Missing");
-        }
-
-        if ui.response().interact(Sense::click()).clicked() {
-            self.world.resource_mut::<SelectionMap>().clear();
         }
     }
 }

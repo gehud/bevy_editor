@@ -39,7 +39,8 @@ use bevy_egui::{
     egui::CentralPanel,
 };
 use egui::{
-    FontData, FontFamily, Frame, InnerResponse, Memory, MenuBar, TopBottomPanel, WidgetText,
+    FontData, FontFamily, Frame, Id, InnerResponse, LayerId, Memory, MenuBar, Sense,
+    TopBottomPanel, Ui, UiBuilder, WidgetText,
     epaint::text::{FontInsert, FontPriority, InsertFontFamily},
 };
 
@@ -51,7 +52,7 @@ use crate::{
     prefs::{Load, PrefsPlugin, RegisterPref, Save},
     properties::PropertiesPlugin,
     scene_tree::SceneTreePlugin,
-    selection::SelectionPlugin,
+    selection::{SelectionMap, SelectionPlugin},
     style::{IntoDockStyle, set_dark_style},
     viewport::ViewportPlugin,
 };
@@ -121,9 +122,16 @@ fn setup(mut commands: Commands, mut primary_window: Single<&mut Window, With<Pr
 
 fn ui(
     world: &mut World,
-    state: &mut SystemState<(EguiContexts, Res<EguiMemory>, Local<bool>)>,
+    state: &mut SystemState<(
+        EguiContexts,
+        Res<EguiMemory>,
+        Res<PaneRegistry>,
+        ResMut<PaneDocking>,
+        Local<bool>,
+    )>,
 ) -> Result {
-    let (mut contexts, loaded_memory, mut is_intialized) = state.get_mut(world);
+    let (mut contexts, loaded_memory, pane_registry, mut pane_docking, mut is_intialized) =
+        state.get_mut(world);
     let mut ctx = contexts.ctx_mut()?.clone();
 
     if !*is_intialized {
@@ -144,13 +152,32 @@ fn ui(
         *is_intialized = true;
     }
 
+    let mut ui = Ui::new(
+        ctx.clone(),
+        ctx.viewport_id().into(),
+        UiBuilder::new().layer_id(LayerId::background()),
+    );
+
     TopBottomPanel::top("header")
         .show_separator_line(false)
         .exact_height(34.0)
-        .show(&mut ctx, |ui| {
+        .show_inside(&mut ui, |ui| {
             ui.horizontal_centered(|ui| {
                 MenuBar::new().ui(ui, |ui| {
                     ui.menu_button("File", |ui| if ui.button("Open").clicked() {});
+
+                    ui.menu_button("View", |ui| {
+                        for name in pane_registry.names() {
+                            if ui.button(name).clicked() {
+                                if let Some((surface_index, node_index, tab_index)) = pane_docking.0.find_tab(name) {
+                                    pane_docking.0.set_focused_node_and_surface((surface_index, node_index));
+                                    pane_docking.0.set_active_tab((surface_index, node_index, tab_index));
+                                } else {
+                                    pane_docking.0.add_window(vec![name.clone()]);
+                                }
+                            }
+                        }
+                    })
                 });
             });
         });
@@ -158,7 +185,7 @@ fn ui(
     TopBottomPanel::bottom("footer")
         .show_separator_line(false)
         .exact_height(24.0)
-        .show(&mut ctx, |ui| {
+        .show_inside(&mut ui, |ui| {
             ui.vertical_centered(|ui| {
                 ui.label(WidgetText::from("bevy-editor").weak());
             });
@@ -170,7 +197,7 @@ fn ui(
                 .inner_margin(0)
                 .outer_margin(0),
         )
-        .show(&mut ctx, |ui| {
+        .show_inside(&mut ui, |ui| {
             world.resource_scope(|world, mut registry: Mut<PaneRegistry>| {
                 world.resource_scope(|world, mut docking: Mut<PaneDocking>| {
                     let style = ui.style().into_dock_style();
@@ -193,6 +220,10 @@ fn ui(
         });
 
     inner?;
+
+    if ui.response().interact(Sense::click()).clicked() {
+        world.resource_mut::<SelectionMap>().clear();
+    }
 
     Ok(())
 }

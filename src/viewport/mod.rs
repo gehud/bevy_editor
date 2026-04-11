@@ -17,7 +17,7 @@ use bevy::{
         event::EntityEvent,
         hierarchy::ChildOf,
         lifecycle::{Add, Remove},
-        message::{MessageReader, MessageWriter},
+        message::{Message, MessageReader, MessageWriter},
         observer::On,
         query::{Or, With},
         resource::Resource,
@@ -47,8 +47,11 @@ use bevy::{
 };
 use bevy_egui::{EguiContexts, EguiTextureHandle, EguiUserTextures};
 use bevy_mod_outline::{OutlineMode, OutlinePlugin, OutlineVolume};
-use egui::{Sense, TextureId, Ui, load::SizedTexture};
-use transform_gizmo_bevy::{GizmoCamera, GizmoOptions, GizmoTarget, TransformGizmoPlugin};
+use egui::{Frame, InnerResponse, Margin, Sense, TextureId, Ui, load::SizedTexture};
+use transform_gizmo_bevy::{
+    Color32, GizmoCamera, GizmoHotkeys, GizmoMode, GizmoOptions, GizmoOrientation, GizmoTarget,
+    GizmoVisuals, TransformGizmoPlugin,
+};
 
 use crate::{
     cursor::CursorLock,
@@ -65,12 +68,17 @@ impl Pane for ViewportPane {
     }
 
     fn ui(&mut self, ui: &mut Ui, world: &mut World) -> Result {
+
         let texture_id = world.run_system_cached(get_viewport_texture_id)?;
 
         let size = ui.available_size();
+
         let response = ui
             .image(SizedTexture::new(texture_id, size))
             .interact(Sense::click_and_drag());
+
+
+        info!("{}", response.has_focus());
 
         let viewport = world
             .query_filtered::<Entity, With<ViewportCamera>>()
@@ -468,6 +476,20 @@ impl Plugin for ViewportPlugin {
             .add_plugins(MeshPickingPlugin)
             .add_plugins(OutlinePlugin)
             .add_plugins(TransformGizmoPlugin)
+            .insert_resource(GizmoOptions {
+                visuals: GizmoVisuals {
+                    gizmo_size: 100.0,
+                    x_color: Color32::from_rgb(171, 64, 81),
+                    y_color: Color32::from_rgb(93, 141, 10),
+                    z_color: Color32::from_rgb(33, 96, 163),
+                    inactive_alpha: 0.9,
+                    stroke_width: 8.0,
+                    ..default()
+                },
+                hotkeys: Some(GizmoHotkeys::default()),
+                gizmo_orientation: GizmoOrientation::Local,
+                ..default()
+            })
             .register_pane(ViewportPane)
             .add_systems(Startup, setup)
             .add_systems(First, viewport_picking.in_set(PickingSystems::PostInput))

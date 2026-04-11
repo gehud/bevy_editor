@@ -8,6 +8,7 @@
             "program": "${workspaceFolder}/target/debug/Simple",
             "cwd": "${workspaceFolder}/samples/simple",
             "env": {
+                "RUST_BACKTRACE": "full",
                 "BEVY_ASSET_ROOT": "${workspaceFolder}/samples/simple"
             },
             "preLaunchTask": "rust: cargo build"
