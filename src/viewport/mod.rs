@@ -57,10 +57,6 @@ use bevy::{
 use bevy_egui::{EguiContexts, EguiTextureHandle, EguiUserTextures};
 use bevy_mod_outline::{OutlineMode, OutlinePlugin, OutlineVolume};
 use egui::{Color32, Frame, InnerResponse, Margin, Sense, TextureId, Ui, load::SizedTexture};
-use transform_gizmo_bevy::{
-    GizmoCamera, GizmoHotkeys, GizmoOptions, GizmoOrientation, GizmoTarget, GizmoVisuals,
-    TransformGizmoPlugin,
-};
 
 use crate::{
     cursor::CursorLock,
@@ -199,7 +195,6 @@ fn setup(
                 pane_sensitivity: 0.15,
                 fly_speed: 5.0,
             },
-            GizmoCamera,
             ViewportPicking::default(),
             Camera3d::default(),
             Camera {
@@ -369,14 +364,11 @@ fn viewport_picking(
         &RenderTarget,
         &mut PointerLocation,
     )>,
-    mut gizmo_options: ResMut<GizmoOptions>,
     mut pointer_inputs: MessageReader<PointerInput>,
     mut commands: Commands,
 ) {
     let (viewport_pointer_id, picking, render_target, pointer_location) =
         viewport_camera.deref_mut();
-
-    gizmo_options.viewport_rect = Some(picking.rect);
 
     let Some(position) = picking.position() else {
         pointer_location.location = None;
@@ -439,7 +431,6 @@ fn on_pick_mesh(
 fn on_select(trigger: On<Select>, mut commands: Commands) {
     commands
         .entity(trigger.event_target())
-        .insert(GizmoTarget::default())
         .insert(OutlineMode::FloodFlat)
         .insert(OutlineVolume {
             visible: true,
@@ -452,7 +443,6 @@ fn on_select(trigger: On<Select>, mut commands: Commands) {
 fn on_deselect(trigger: On<Deselect>, mut commands: Commands) {
     commands
         .entity(trigger.event_target())
-        .remove::<GizmoTarget>()
         .remove::<OutlineVolume>();
 }
 
@@ -482,21 +472,6 @@ impl Plugin for ViewportPlugin {
         app.add_plugins(InfiniteGridPlugin)
             .add_plugins(MeshPickingPlugin)
             .add_plugins(OutlinePlugin)
-            .add_plugins(TransformGizmoPlugin)
-            .insert_resource(GizmoOptions {
-                visuals: GizmoVisuals {
-                    gizmo_size: 100.0,
-                    x_color: Color32::from_rgb(171, 64, 81),
-                    y_color: Color32::from_rgb(93, 141, 10),
-                    z_color: Color32::from_rgb(33, 96, 163),
-                    inactive_alpha: 0.9,
-                    stroke_width: 8.0,
-                    ..default()
-                },
-                hotkeys: Some(GizmoHotkeys::default()),
-                gizmo_orientation: GizmoOrientation::Local,
-                ..default()
-            })
             .register_pane(ViewportPane)
             .add_systems(Startup, setup)
             .add_systems(First, viewport_picking.in_set(PickingSystems::PostInput))

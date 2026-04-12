@@ -16,12 +16,8 @@ bevy = { git = "https://github.com/gehud/bevy.git", branch = "editor", features 
     "debug",
     "track_location",
 ] }
-bevy_math = { git = "https://github.com/gehud/bevy.git", branch = "editor", features = [
-    "mint",
-] }
 bevy_egui = { git = "https://github.com/gehud/bevy_egui.git" }
 bevy_mod_outline = { git = "https://github.com/gehud/bevy_mod_outline.git" }
-transform-gizmo-bevy = { git = "https://github.com/gehud/transform-gizmo.git" }
 rusqlite = { version = "0.39.0", features = ["bundled", "chrono"] }
 egui = { version = "0.34.1", features = ["serde", "persistence"] }
 chrono = "0.4.44"
