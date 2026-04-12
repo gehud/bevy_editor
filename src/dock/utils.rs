@@ -50,7 +50,6 @@ pub(super) fn fade_dock_style(style: &mut Style, factor: f32) {
 }
 
 fn fade_tab_bar_style(style: &mut TabBarStyle, factor: f32) {
-    style.hline_color = style.hline_color.linear_multiply(factor);
     style.bg_fill = style.bg_fill.linear_multiply(factor);
 }
 

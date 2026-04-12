@@ -1,12 +1,11 @@
 use egui::{
-    vec2, Align, Color32, CornerRadius, CursorIcon, Frame, Layout, Rect, Response, RichText, Sense,
-    Shape, Stroke, Ui, UiBuilder, Vec2, WidgetText,
+    Align, Color32, CornerRadius, CursorIcon, Frame, Layout, Rect, Response, RichText, Sense, Shape, Stroke, StrokeKind, Ui, UiBuilder, Vec2, WidgetText, vec2
 };
 
 use crate::dock::{
+    DockArea, NodeIndex, Style, SurfaceIndex, TabViewer,
     dock_area::{state::State, tab_removal::TabRemoval},
     utils::{fade_visuals, rect_set_size_centered},
-    DockArea, NodeIndex, Style, SurfaceIndex, TabViewer,
 };
 
 impl<Tab> DockArea<'_, Tab> {
@@ -137,6 +136,12 @@ impl<Tab> DockArea<'_, Tab> {
                 tabbar_outer_rect,
                 style.tab_bar.corner_radius,
                 style.tab_bar.bg_fill,
+            );
+            ui.painter().rect_stroke(
+                tabbar_outer_rect,
+                style.tab_bar.corner_radius,
+                style.tab_bar.stroke,
+                StrokeKind::Inside,
             );
             self.window_expand(ui, surface_index, tabbar_outer_rect, fade_style);
             ui.label(title);

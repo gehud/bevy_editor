@@ -1,8 +1,7 @@
-use egui::{ecolor::*, CornerRadius, Margin, Stroke};
+use egui::{CornerRadius, Margin, Stroke, ecolor::*};
 
 /// Left or right alignment for tab add button.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Deserialize, serde::Serialize)]
 #[allow(missing_docs)]
 pub enum TabAddAlign {
     Left,
@@ -46,8 +45,7 @@ pub enum TabAddAlign {
 /// # });
 /// #
 /// ```
-#[derive(Clone, Debug)]
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 #[allow(missing_docs)]
 pub struct Style {
     /// Sets padding to indent from the edges of the window. By `Default` it's `None`.
@@ -64,8 +62,7 @@ pub struct Style {
 }
 
 /// Specifies the look and feel of buttons.
-#[derive(Clone, Debug)]
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 pub struct ButtonsStyle {
     /// Color of the close tab button.
     pub close_tab_color: Color32,
@@ -132,8 +129,7 @@ pub struct ButtonsStyle {
 }
 
 /// Specifies the look and feel of node separators.
-#[derive(Clone, Debug)]
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 pub struct SeparatorStyle {
     /// Width of the rectangle separator between nodes. By `Default` it's `1.0`.
     pub width: f32,
@@ -157,8 +153,7 @@ pub struct SeparatorStyle {
 }
 
 /// Specifies the look and feel of tab bars.
-#[derive(Clone, Debug)]
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 pub struct TabBarStyle {
     /// Background color of tab bar. By `Default` it's [`Color32::WHITE`].
     pub bg_fill: Color32,
@@ -175,9 +170,8 @@ pub struct TabBarStyle {
     /// Tab corner_radius. By `Default` it's [`CornerRadius::default`].
     pub corner_radius: CornerRadius,
 
-    /// Color of the line separating the tab name area from the tab content area.
-    /// By `Default` it's [`Color32::BLACK`].
-    pub hline_color: Color32,
+    /// Background color of tab bar. By `Default` it's [`Stroke::NONE`].
+    pub stroke: Stroke,
 
     /// Whether tab titles expand to fill the width of their tab bars.
     /// By `Default` it's `false`.
@@ -185,8 +179,7 @@ pub struct TabBarStyle {
 }
 
 /// Specifies the look and feel of an individual tab.
-#[derive(Clone, Debug)]
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 pub struct TabStyle {
     /// Style of the tab when it is active.
     pub active: TabInteractionStyle,
@@ -228,11 +221,13 @@ pub struct TabStyle {
 }
 
 /// Specifies the look and feel of individual tabs while they are being interacted with.
-#[derive(Clone, Debug)]
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 pub struct TabInteractionStyle {
     /// Color of the outline around tabs. By `Default` it's [`Color32::BLACK`].
     pub outline_color: Color32,
+
+    /// Marker color of the tabs. By 'Default' it's [`Color32::BLACK`].
+    pub marker_color: Color32,
 
     /// Tab corner radius. By `Default` it's [`CornerRadius::default`].
     pub corner_radius: CornerRadius,
@@ -245,8 +240,7 @@ pub struct TabInteractionStyle {
 }
 
 /// Specifies the look and feel of the tab body.
-#[derive(Clone, Debug)]
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 pub struct TabBodyStyle {
     /// Inner margin of tab body. By `Default` it's `Margin::same(4.0)`.
     pub inner_margin: Margin,
@@ -262,8 +256,7 @@ pub struct TabBodyStyle {
 }
 
 /// Specifies the look and feel of the tab drop overlay.
-#[derive(Clone, Debug)]
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 pub struct OverlayStyle {
     /// Sets selection color for the placing area of the tab where this tab targeted on it.
     /// By `Default` it's `(0, 191, 255)` (light blue) with `0.5` capacity.
@@ -300,8 +293,7 @@ pub struct OverlayStyle {
 }
 
 /// Specifies the feel of the tab drop overlay, i.e anything non visual about the overlay.
-#[derive(Clone, Debug)]
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 pub struct OverlayFeel {
     /// range is `0.0..=1.0`.
     pub window_drop_coverage: f32,
@@ -320,8 +312,7 @@ pub struct OverlayFeel {
 }
 
 /// Specifies the type of overlay used.
-#[derive(Copy, Clone, Debug, PartialEq)]
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(Copy, Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
 pub enum OverlayType {
     /// Shows highlighted areas predicting where a dropped tab would land were it to be dropped this frame.
     ///
@@ -335,8 +326,7 @@ pub enum OverlayType {
 }
 
 /// Highlighting on the currently hovered leaf.
-#[derive(Clone, Debug)]
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 pub struct LeafHighlighting {
     /// Fill color.
     pub color: Color32,
@@ -419,7 +409,7 @@ impl Default for TabBarStyle {
             inner_margin: Margin::ZERO,
             show_scroll_bar_on_overflow: true,
             corner_radius: CornerRadius::default(),
-            hline_color: Color32::BLACK,
+            stroke: Stroke::NONE,
             fill_tab_bar: false,
         }
     }
@@ -462,6 +452,7 @@ impl Default for TabInteractionStyle {
     fn default() -> Self {
         Self {
             bg_fill: Color32::WHITE,
+            marker_color: Color32::BLACK,
             outline_color: Color32::BLACK,
             corner_radius: CornerRadius::default(),
             text_color: Color32::DARK_GRAY,
@@ -636,7 +627,6 @@ impl TabBarStyle {
                 sw: 0,
                 se: 0,
             },
-            hline_color: style.visuals.widgets.noninteractive.bg_stroke.color,
             ..TabBarStyle::default()
         }
     }
@@ -672,6 +662,7 @@ impl TabInteractionStyle {
     pub fn from_egui_active(style: &egui::Style) -> Self {
         Self {
             outline_color: style.visuals.widgets.noninteractive.bg_stroke.color,
+            marker_color: style.visuals.widgets.active.bg_stroke.color,
             bg_fill: style.visuals.window_fill(),
             text_color: style.visuals.text_color(),
             corner_radius: CornerRadius {

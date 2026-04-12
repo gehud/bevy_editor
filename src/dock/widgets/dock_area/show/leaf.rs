@@ -1,24 +1,25 @@
 use std::ops::RangeInclusive;
 
+use egui::Shadow;
 use egui::{
-    emath::TSTransform, epaint::TextShape, lerp, pos2, vec2, Align, Align2, Button, Color32,
-    CornerRadius, CursorIcon, Frame, Id, Key, LayerId, Layout, NumExt, Order, Popup,
-    PopupCloseBehavior, Rect, Response, ScrollArea, Sense, Shape, Stroke, StrokeKind, TextStyle,
-    Ui, UiBuilder, Vec2, WidgetText,
+    Align, Align2, Button, Color32, CornerRadius, CursorIcon, Frame, Id, Key, LayerId, Layout,
+    NumExt, Order, Popup, PopupCloseBehavior, Rect, Response, ScrollArea, Sense, Shape, Stroke,
+    StrokeKind, TextStyle, Ui, UiBuilder, Vec2, WidgetText, emath::TSTransform, epaint::TextShape,
+    lerp, pos2, vec2,
 };
 
 use crate::dock::dock_area::tab_removal::{ForcedRemoval, TabRemoval};
 use crate::dock::node::LeafNode;
 use crate::dock::tab_viewer::OnCloseResponse;
-use crate::dock::NodePath;
 use crate::dock::{
+    DockArea, Node, NodeIndex, Style, SurfaceIndex, TabAddAlign, TabIndex, TabStyle, TabViewer,
     dock_area::{
         drag_and_drop::{DragData, DragDropState, HoverData, TreeComponent},
         state::State,
     },
     utils::{fade_visuals, rect_set_size_centered, rect_stroke_box},
-    DockArea, Node, NodeIndex, Style, SurfaceIndex, TabAddAlign, TabIndex, TabStyle, TabViewer,
 };
+use crate::dock::{NodePath, TabBarStyle};
 
 impl<Tab> DockArea<'_, Tab> {
     pub(super) fn show_leaf(
@@ -106,7 +107,14 @@ impl<Tab> DockArea<'_, Tab> {
             style.tab_bar.corner_radius,
             style.tab_bar.bg_fill,
         );
+        ui.painter().rect_stroke(
+            tabbar_outer_rect,
+            style.tab_bar.corner_radius,
+            style.tab_bar.stroke,
+            StrokeKind::Inside,
+        );
 
+        let tabbar_outer_rect = tabbar_outer_rect.shrink(style.tab_bar.stroke.width);
         let tabbar_outer_rect = tabbar_outer_rect - style.tab_bar.inner_margin;
 
         let mut available_width = tabbar_outer_rect.width();
@@ -182,12 +190,6 @@ impl<Tab> DockArea<'_, Tab> {
             // Draw hline from tab end to edge of tab bar.
             let px = ui.ctx().pixels_per_point().recip();
             let style = fade_style.unwrap_or_else(|| self.style.as_ref().unwrap());
-
-            ui.painter().hline(
-                tabs_ui.min_rect().right().min(clip_rect.right())..=tabbar_outer_rect.right(),
-                tabbar_outer_rect.bottom() - px,
-                (px, style.tab_bar.hline_color),
-            );
 
             // Add button at the ends of the tab bar.
             if self.show_add_buttons {
@@ -446,15 +448,6 @@ impl<Tab> DockArea<'_, Tab> {
             let style = fade.unwrap_or_else(|| self.style.as_ref().unwrap());
             let tab_style = tab_viewer.tab_style_override(tab, &style.tab);
             let tab_style = tab_style.as_ref().unwrap_or(&style.tab);
-
-            if !is_active || tab_style.hline_below_active_tab_name {
-                let px = tabs_ui.ctx().pixels_per_point().recip();
-                tabs_ui.painter().hline(
-                    response.rect.x_range(),
-                    tabbar_outer_rect.bottom() - px,
-                    (px, style.tab_bar.hline_color),
-                );
-            }
 
             if response.clicked()
                 || (tabs_ui.memory(|m| m.has_focus(title_id))
@@ -960,7 +953,7 @@ impl<Tab> DockArea<'_, Tab> {
             .at_least(text_width + close_button_size);
         let tab_width = preferred_width.unwrap_or(0.0).at_least(minimum_width);
 
-        let (_, tab_rect) = ui.allocate_space(vec2(tab_width, ui.available_height()));
+        let (_, mut tab_rect) = ui.allocate_space(vec2(tab_width, ui.available_height()));
         let mut response = ui.interact(tab_rect, id, Sense::click_and_drag());
         if ui.ctx().dragged_id().is_none() && self.draggable_tabs {
             response = response.on_hover_cursor(CursorIcon::Grab);
@@ -986,10 +979,18 @@ impl<Tab> DockArea<'_, Tab> {
             &tab_style.inactive
         };
 
+        let marker_size = 2.0;
+
+        ui.painter()
+            .rect_filled(tab_rect, tab_style.corner_radius, tab_style.marker_color);
+
+        tab_rect.min.y += marker_size;
+
         // Draw the full tab first and then the stroke on top to avoid the stroke
         // mixing with the background color.
         ui.painter()
             .rect_filled(tab_rect, tab_style.corner_radius, tab_style.bg_fill);
+
         let stroke_rect = rect_stroke_box(tab_rect, 1.0);
         ui.painter().rect_stroke(
             stroke_rect,
@@ -997,6 +998,7 @@ impl<Tab> DockArea<'_, Tab> {
             Stroke::new(1.0, tab_style.outline_color),
             StrokeKind::Inside,
         );
+
         if !is_being_dragged {
             // Make the tab name area connect with the tab ui area.
             ui.painter().hline(
