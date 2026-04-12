@@ -56,7 +56,10 @@ use bevy::{
 };
 use bevy_egui::{EguiContexts, EguiTextureHandle, EguiUserTextures};
 use bevy_mod_outline::{OutlineMode, OutlinePlugin, OutlineVolume};
-use egui::{Color32, Frame, InnerResponse, Margin, Sense, TextureId, Ui, load::SizedTexture};
+use egui::{
+    Color32, CornerRadius, Frame, InnerResponse, Margin, Sense, TextureId, Ui, Widget,
+    load::SizedTexture,
+};
 
 use crate::{
     cursor::CursorLock,
@@ -72,13 +75,22 @@ impl Pane for ViewportPane {
         "Viewport"
     }
 
+    fn padding(&self) -> Option<Margin> {
+        Some(Margin::ZERO)
+    }
+
     fn ui(&mut self, ui: &mut Ui, world: &mut World) -> Result {
         let texture_id = world.run_system_cached(get_viewport_texture_id)?;
 
         let size = ui.available_size();
 
-        let response = ui
-            .image(SizedTexture::new(texture_id, size))
+        let response = egui::Image::new(SizedTexture::new(texture_id, size))
+            .corner_radius(CornerRadius {
+                sw: ui.style().visuals.window_corner_radius.sw,
+                se: ui.style().visuals.window_corner_radius.se,
+                ..default()
+            })
+            .ui(ui)
             .interact(Sense::click_and_drag());
 
         let viewport = world

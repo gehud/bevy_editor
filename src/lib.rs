@@ -1,4 +1,5 @@
 pub mod asset;
+mod asset_browser;
 mod cursor;
 mod dock;
 pub mod inspection;
@@ -48,6 +49,7 @@ use egui::{
 
 use crate::{
     asset::AssetDatabasePlugin,
+    asset_browser::AssetBrowserPlugin,
     cursor::CursorLockPlugin,
     dock::{DockArea, DockState},
     inspection::{DefaultInspectorConfigPlugin, quick::WorldInspectorPlugin},
@@ -100,6 +102,7 @@ impl Plugin for EditorPlugin {
             .add_plugins(ViewportPlugin)
             .add_plugins(SceneTreePlugin)
             .add_plugins(PropertiesPlugin)
+            .add_plugins(AssetBrowserPlugin)
             .register_pref::<EguiMemory>()
             .insert_resource(EguiGlobalSettings {
                 auto_create_primary_context: false,

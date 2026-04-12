@@ -45,7 +45,11 @@ impl IntoDockStyle for Style {
     fn into_dock_style(&self) -> DockStyle {
         let mut style = DockStyle::from_egui(self);
 
-        style.dock_area_padding = Some(Margin::same(6));
+        style.dock_area_padding = Some(Margin {
+            left: 4,
+            right: 4,
+            ..default()
+        });
 
         style.separator.width = 4.0;
         style.separator.color_idle = self.visuals.window_fill;
@@ -72,11 +76,12 @@ impl IntoDockStyle for Style {
             ..default()
         };
 
+        style.tab.tab_body.inner_margin = Margin::same(6);
         style.tab.tab_body.bg_fill = pane_bg_color;
         style.tab.tab_body.stroke = Stroke::NONE;
         style.tab.tab_body.corner_radius = CornerRadius {
-            sw: 6,
-            se: 6,
+            sw: self.visuals.window_corner_radius.sw,
+            se: self.visuals.window_corner_radius.se,
             ..default()
         };
 

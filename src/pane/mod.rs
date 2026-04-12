@@ -5,17 +5,21 @@ use bevy::{
     platform::collections::HashMap,
     utils::default,
 };
-use egui::{LayerId, RichText, Sense, Ui, UiBuilder, WidgetText};
+use egui::{LayerId, Margin, RichText, Sense, Ui, UiBuilder, WidgetText};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    dock::{DockState, NodeIndex, TabViewer},
+    dock::{DockState, NodeIndex, TabStyle, TabViewer},
     prefs::RegisterPref,
     selection::SelectionMap,
 };
 
 pub trait Pane: Send + Sync + 'static {
     fn name(&self) -> &str;
+
+    fn padding(&self) -> Option<Margin> {
+        None
+    }
 
     fn ui(&mut self, ui: &mut Ui, world: &mut World) -> Result;
 }
@@ -28,6 +32,10 @@ pub(crate) struct PaneRegistry {
 impl PaneRegistry {
     pub fn get_pane_mut(&mut self, name: &str) -> Option<&mut dyn Pane> {
         self.panes.get_mut(name).map(|pane| pane.as_mut())
+    }
+
+    pub fn get_pane(&self, name: &str) -> Option<&dyn Pane> {
+        self.panes.get(name).map(|pane| pane.as_ref())
     }
 
     pub fn names(&self) -> impl ExactSizeIterator<Item = &String> {
@@ -82,6 +90,14 @@ impl TabViewer for PaneViewer<'_> {
             ui.label("Missing");
         }
     }
+
+    fn tab_style_override(&self, tab: &Self::Tab, global_style: &TabStyle) -> Option<TabStyle> {
+        let pane = self.registry.get_pane(tab)?;
+        let custom_padding = pane.padding()?;
+        let mut style_override = global_style.clone();
+        style_override.tab_body.inner_margin = custom_padding;
+        Some(style_override)
+    }
 }
 
 #[derive(Resource, Serialize, Deserialize)]
@@ -102,7 +118,7 @@ impl Default for PaneDocking {
         let [_viewport_node, _explorer_node] = surface.split_below(
             viewport_node,
             0.75,
-            vec!["Asset Browser".into(), "Output".into()],
+            vec!["Asset Browser".into()],
         );
 
         Self(dock_state)
