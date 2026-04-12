@@ -1,3 +1,4 @@
+pub mod asset;
 mod cursor;
 mod dock;
 pub mod inspection;
@@ -17,6 +18,7 @@ use std::env;
 use bevy::{
     DefaultPlugins,
     app::{App, Plugin, PluginGroup, Startup},
+    asset::AssetPlugin,
     camera::{Camera, Camera2d, visibility::RenderLayers},
     ecs::{
         error::Result,
@@ -45,6 +47,7 @@ use egui::{
 };
 
 use crate::{
+    asset::AssetDatabasePlugin,
     cursor::CursorLockPlugin,
     dock::{DockArea, DockState},
     inspection::{DefaultInspectorConfigPlugin, quick::WorldInspectorPlugin},
@@ -76,30 +79,35 @@ pub struct EditorPlugin;
 
 impl Plugin for EditorPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                title: "Bevy Editor".into(),
+        app.add_plugins(AssetDatabasePlugin)
+            .add_plugins(
+                DefaultPlugins
+                    .set(WindowPlugin {
+                        primary_window: Some(Window {
+                            title: "Bevy Editor".into(),
+                            ..default()
+                        }),
+                        ..default()
+                    })
+                    .disable::<AssetPlugin>(),
+            )
+            .add_plugins(PrefsPlugin)
+            .add_plugins(CursorLockPlugin)
+            .add_plugins(EguiPlugin::default())
+            .add_plugins(DefaultInspectorConfigPlugin)
+            .add_plugins(PanePlugin)
+            .add_plugins(SelectionPlugin)
+            .add_plugins(ViewportPlugin)
+            .add_plugins(SceneTreePlugin)
+            .add_plugins(PropertiesPlugin)
+            .register_pref::<EguiMemory>()
+            .insert_resource(EguiGlobalSettings {
+                auto_create_primary_context: false,
                 ..default()
-            }),
-            ..default()
-        }))
-        .add_plugins(PrefsPlugin)
-        .add_plugins(CursorLockPlugin)
-        .add_plugins(EguiPlugin::default())
-        .add_plugins(DefaultInspectorConfigPlugin)
-        .add_plugins(PanePlugin)
-        .add_plugins(SelectionPlugin)
-        .add_plugins(ViewportPlugin)
-        .add_plugins(SceneTreePlugin)
-        .add_plugins(PropertiesPlugin)
-        .register_pref::<EguiMemory>()
-        .insert_resource(EguiGlobalSettings {
-            auto_create_primary_context: false,
-            ..default()
-        })
-        .add_systems(Startup, setup)
-        .add_systems(EguiPrimaryContextPass, ui)
-        .add_observer(on_save);
+            })
+            .add_systems(Startup, setup)
+            .add_systems(EguiPrimaryContextPass, ui)
+            .add_observer(on_save);
     }
 }
 
