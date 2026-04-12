@@ -143,6 +143,7 @@ fn ui(
     let ctx = contexts.ctx_mut()?.clone();
 
     if !*is_intialized {
+        ctx.memory_mut(|memory| *memory = loaded_memory.0.clone());
         ctx.all_styles_mut(|style| set_dark_style(style));
         ctx.add_font(FontInsert::new(
             "fira",
@@ -154,8 +155,6 @@ fn ui(
                 priority: FontPriority::Highest,
             }],
         ));
-
-        ctx.memory_mut(|memory| *memory = loaded_memory.0.clone());
 
         *is_intialized = true;
     }

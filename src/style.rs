@@ -1,7 +1,7 @@
 use crate::dock::Style as DockStyle;
 
 use bevy::utils::default;
-use egui::{Color32, CornerRadius, FontFamily, FontId, Margin, Stroke, Style, TextStyle};
+use egui::{Color32, CornerRadius, FontFamily, FontId, Margin, Shadow, Stroke, Style, TextStyle};
 
 pub fn set_dark_style(style: &mut Style) {
     style.text_styles = [
@@ -25,7 +25,16 @@ pub fn set_dark_style(style: &mut Style) {
     ]
     .into();
 
+    style.visuals.window_fill = Color32::from_rgb(23, 23, 23);
+    style.visuals.panel_fill = Color32::from_rgb(23, 23, 23);
     style.visuals.window_corner_radius = CornerRadius::same(6);
+
+    style.visuals.popup_shadow = Shadow {
+        blur: 8,
+        spread: 6,
+        color: Color32::from_black_alpha(96),
+        ..default()
+    };
 }
 
 pub trait IntoDockStyle {
@@ -43,7 +52,7 @@ impl IntoDockStyle for Style {
         style.separator.color_dragged = self.visuals.window_fill;
         style.separator.color_hovered = self.visuals.window_fill;
 
-        let pane_bg_color = self.visuals.window_fill.linear_multiply(1.5);
+        let pane_bg_color = Color32::from_rgb(42, 42, 42);
 
         style.tab_bar.bg_fill = self.visuals.window_fill;
         style.tab_bar.stroke = Stroke {
@@ -52,6 +61,7 @@ impl IntoDockStyle for Style {
         };
         style.tab_bar.height = 30.0;
         style.tab_bar.inner_margin = Margin {
+            top: 1,
             left: 8,
             right: 8,
             ..default()
