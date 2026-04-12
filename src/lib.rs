@@ -1,5 +1,6 @@
 pub mod asset;
 mod asset_browser;
+pub mod assets;
 mod cursor;
 mod dock;
 pub mod inspection;
@@ -22,11 +23,13 @@ use bevy::{
     asset::AssetPlugin,
     camera::{Camera, Camera2d, visibility::RenderLayers},
     ecs::{
+        entity::Entity,
         error::Result,
+        event::EntityEvent,
         observer::On,
         query::With,
         resource::Resource,
-        system::{Commands, Local, Res, ResMut, Single, SystemState},
+        system::{Commands, Local, Query, Res, ResMut, Single, SystemState},
         world::{DeferredWorld, Mut, World},
     },
     picking::{
@@ -50,6 +53,7 @@ use egui::{
 use crate::{
     asset::AssetDatabasePlugin,
     asset_browser::AssetBrowserPlugin,
+    assets::AssetsPlugin,
     cursor::CursorLockPlugin,
     dock::{DockArea, DockState},
     inspection::{DefaultInspectorConfigPlugin, quick::WorldInspectorPlugin},
@@ -96,6 +100,7 @@ impl Plugin for EditorPlugin {
             .add_plugins(PrefsPlugin)
             .add_plugins(CursorLockPlugin)
             .add_plugins(EguiPlugin::default())
+            .add_plugins(AssetsPlugin)
             .add_plugins(DefaultInspectorConfigPlugin)
             .add_plugins(PanePlugin)
             .add_plugins(SelectionPlugin)
@@ -109,9 +114,15 @@ impl Plugin for EditorPlugin {
                 ..default()
             })
             .add_systems(Startup, setup)
+            .add_observer(setup_context)
             .add_systems(EguiPrimaryContextPass, ui)
             .add_observer(on_save);
     }
+}
+
+#[derive(EntityEvent)]
+pub(crate) struct PrimaryEguiContextConfigured {
+    pub entity: Entity,
 }
 
 #[derive(Resource, Default, Serialize, Deserialize)]
@@ -126,49 +137,50 @@ fn on_save(_: On<Save>, mut contexts: EguiContexts, mut egui_memory: ResMut<Egui
     Ok(())
 }
 
-fn setup(mut commands: Commands, mut primary_window: Single<&mut Window, With<PrimaryWindow>>) {
-    commands.spawn((
-        Pickable::IGNORE,
-        Camera {
-            order: 1,
-            ..default()
-        },
-        Camera2d,
-        PrimaryEguiContext,
-    ));
+fn setup(world: &mut World) -> Result {
+    let entity = world
+        .spawn((
+            Pickable::IGNORE,
+            Camera {
+                order: 1,
+                ..default()
+            },
+            Camera2d,
+            PrimaryEguiContext,
+        ))
+        .id();
+
+    world.trigger(PrimaryEguiContextConfigured { entity });
+
+    let mut primary_window = world
+        .query_filtered::<&mut Window, With<PrimaryWindow>>()
+        .single_mut(world)?;
     primary_window.set_maximized(true);
+
+    Ok(())
+}
+
+fn setup_context(
+    trigger: On<PrimaryEguiContextConfigured>,
+    loaded_memory: Res<EguiMemory>,
+    mut contexts: EguiContexts,
+) -> Result {
+    let ctx = contexts.ctx_for_entity_mut(trigger.event_target())?;
+
+    ctx.memory_mut(|memory| *memory = loaded_memory.0.clone());
+    ctx.all_styles_mut(|style| set_dark_style(style));
+
+
+    Ok(())
 }
 
 fn ui(
     world: &mut World,
-    state: &mut SystemState<(
-        EguiContexts,
-        Res<EguiMemory>,
-        Res<PaneRegistry>,
-        ResMut<PaneDocking>,
-        Local<bool>,
-    )>,
+    state: &mut SystemState<(EguiContexts, Res<PaneRegistry>, ResMut<PaneDocking>)>,
 ) -> Result {
-    let (mut contexts, loaded_memory, pane_registry, mut pane_docking, mut is_intialized) =
-        state.get_mut(world);
+    let (mut contexts, pane_registry, mut pane_docking) = state.get_mut(world);
+
     let ctx = contexts.ctx_mut()?.clone();
-
-    if !*is_intialized {
-        ctx.memory_mut(|memory| *memory = loaded_memory.0.clone());
-        ctx.all_styles_mut(|style| set_dark_style(style));
-        ctx.add_font(FontInsert::new(
-            "fira",
-            FontData::from_static(include_bytes!(
-                "assets/fonts/fira_sans/FiraSans-Regular.ttf"
-            )),
-            vec![InsertFontFamily {
-                family: FontFamily::Proportional,
-                priority: FontPriority::Highest,
-            }],
-        ));
-
-        *is_intialized = true;
-    }
 
     let mut ui = Ui::new(
         ctx.clone(),
