@@ -1,6 +1,6 @@
 use egui::Rect;
 
-///the inner data of a [``Node::Horizontal``](crate::Node)/[``Node::Vertical``](crate::Node), which splits into two further nodes.
+///the inner data of a [``Node::Horizontal``](crate::dock::Node)/[``Node::Vertical``](crate::dock::Node), which splits into two further nodes.
 #[derive(Clone, Debug)]
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct SplitNode {

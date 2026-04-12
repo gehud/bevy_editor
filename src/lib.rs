@@ -39,7 +39,9 @@ use bevy_egui::{
     egui::CentralPanel,
 };
 use egui::{
-    FontData, FontFamily, Frame, Id, InnerResponse, LayerId, Memory, MenuBar, Panel, Sense, TopBottomPanel, Ui, UiBuilder, WidgetText, epaint::text::{FontInsert, FontPriority, InsertFontFamily}
+    FontData, FontFamily, Frame, Id, InnerResponse, LayerId, Memory, MenuBar, Panel, Sense,
+    TopBottomPanel, Ui, UiBuilder, WidgetText,
+    epaint::text::{FontInsert, FontPriority, InsertFontFamily},
 };
 
 use crate::{
@@ -175,17 +177,11 @@ fn ui(
                     ui.menu_button("View", |ui| {
                         for name in pane_registry.names() {
                             if ui.button(name).clicked() {
-                                if let Some((surface_index, node_index, tab_index)) =
-                                    pane_docking.0.find_tab(name)
-                                {
+                                if let Some(tab_path) = pane_docking.0.find_tab(name) {
                                     pane_docking
                                         .0
-                                        .set_focused_node_and_surface((surface_index, node_index));
-                                    pane_docking.0.set_active_tab((
-                                        surface_index,
-                                        node_index,
-                                        tab_index,
-                                    ));
+                                        .set_focused_node_and_surface(tab_path.node_path());
+                                    pane_docking.0.set_active_tab(tab_path);
                                 } else {
                                     pane_docking.0.add_window(vec![name.clone()]);
                                 }

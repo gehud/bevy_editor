@@ -1,4 +1,4 @@
-/// Groups together labels from different elements of the [`DockArea`](crate::DockArea).
+/// Groups together labels from different elements of the [`DockArea`](crate::dock::DockArea).
 #[derive(Clone, Debug)]
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct Translations {

@@ -1,8 +1,8 @@
-use egui::{Response, Id, Ui, WidgetText};
+use egui::{Id, Ui, WidgetText};
 
-use crate::dock::{NodeIndex, SurfaceIndex, TabStyle};
+use crate::dock::{NodePath, TabStyle};
 
-/// Defines how a tab should behave and be rendered inside a [`Tree`](crate::Tree).
+/// Defines how a tab should behave and be rendered inside a [`Tree`](crate::dock::Tree).
 pub trait TabViewer {
     /// The type of tab in which you can store state to be drawn in your tabs.
     type Tab;
@@ -15,16 +15,9 @@ pub trait TabViewer {
 
     /// Content inside the context menu shown when the tab is right-clicked.
     ///
-    /// `_surface` and `_node` specify which [`Surface`](crate::Surface) and [`Node`](crate::Node)
+    /// `_path` specifies which [`Surface`](crate::dock::Surface) and [`Node`](crate::dock::Node)
     /// that this particular context menu belongs to.
-    fn context_menu(
-        &mut self,
-        _ui: &mut Ui,
-        _tab: &mut Self::Tab,
-        _surface: SurfaceIndex,
-        _node: NodeIndex,
-    ) {
-    }
+    fn context_menu(&mut self, _ui: &mut Ui, _tab: &mut Self::Tab, _path: NodePath) {}
 
     /// Unique ID for this tab.
     ///
@@ -34,7 +27,7 @@ pub trait TabViewer {
     }
 
     /// Called after each tab button is shown, so you can add a tooltip, check for clicks, etc.
-    fn on_tab_button(&mut self, _tab: &mut Self::Tab, _response: &Response) {}
+    fn on_tab_button(&mut self, _tab: &mut Self::Tab, _response: &egui::Response) {}
 
     /// This is called when the `_tab` gets closed by the user.
     ///
@@ -69,9 +62,9 @@ pub trait TabViewer {
 
     /// This is called when the add button is pressed.
     ///
-    /// `_surface` and `_node` specify which [`Surface`](crate::Surface) and on which
-    /// [`Node`](crate::Node) this particular add button was pressed.
-    fn on_add(&mut self, _surface: SurfaceIndex, _node: NodeIndex) {}
+    /// `_path` specifies which [`Surface`](crate::dock::Surface) and on which
+    /// [`Node`](crate::dock::Node) this particular add button was pressed.
+    fn on_add(&mut self, _path: NodePath) {}
 
     /// Called when the rectangle of the tab content changes.
     ///
@@ -85,9 +78,9 @@ pub trait TabViewer {
 
     /// Content of the popup under the add button. Useful for selecting what type of tab to add.
     ///
-    /// This requires that [`DockArea::show_add_buttons`](crate::DockArea::show_add_buttons) and
-    /// [`DockArea::show_add_popup`](crate::DockArea::show_add_popup) are set to `true`.
-    fn add_popup(&mut self, _ui: &mut Ui, _surface: SurfaceIndex, _node: NodeIndex) {}
+    /// This requires that [`DockArea::show_add_buttons`](crate::dock::DockArea::show_add_buttons) and
+    /// [`DockArea::show_add_popup`](crate::dock::DockArea::show_add_popup) are set to `true`.
+    fn add_popup(&mut self, _ui: &mut Ui, _path: NodePath) {}
 
     /// Sets custom style for given tab.
     fn tab_style_override(&self, _tab: &Self::Tab, _global_style: &TabStyle) -> Option<TabStyle> {
@@ -102,7 +95,7 @@ pub trait TabViewer {
     }
 
     /// Whether the tab body will be cleared with the color specified in
-    /// [`TabBarStyle::bg_fill`](crate::TabBarStyle::bg_fill).
+    /// [`TabBarStyle::bg_fill`](crate::dock::TabBarStyle::bg_fill).
     fn clear_background(&self, _tab: &Self::Tab) -> bool {
         true
     }

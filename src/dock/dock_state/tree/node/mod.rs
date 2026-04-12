@@ -1,12 +1,13 @@
-use super::{Split, TabIndex};
 use egui::Rect;
+
+use crate::dock::{Split, TabIndex};
 
 mod leaf;
 mod split;
 pub use leaf::LeafNode;
 pub use split::SplitNode;
 
-/// Represents an abstract node of a [`Tree`](crate::Tree).
+/// Represents an abstract node of a [`Tree`](crate::dock::Tree).
 #[derive(Clone, Debug)]
 #[derive(serde::Deserialize, serde::Serialize)]
 pub enum Node<Tab> {
@@ -219,6 +220,13 @@ impl<Tab> Node<Tab> {
         }
     }
 
+    /// Returns an [`Iterator`] of tabs in this node with their corresponding [`TabIndex`].
+    pub fn iter_tabs_indexed(&self) -> impl Iterator<Item = (TabIndex, &Tab)> {
+        self.iter_tabs()
+            .enumerate()
+            .map(|(index, tab)| (TabIndex(index), tab))
+    }
+
     /// Returns a mutable [`Iterator`] of tabs in this node.
     ///
     /// If this node is not a [`Leaf`](Self::Leaf), then the returned [`Iterator`] will be empty.
@@ -228,6 +236,13 @@ impl<Tab> Node<Tab> {
             Some(tabs) => tabs.iter_mut(),
             None => core::slice::IterMut::default(),
         }
+    }
+
+    /// Returns a mutable [`Iterator`] of tabs in this node with their corresponding [`TabIndex`].
+    pub fn iter_tabs_mut_indexed(&mut self) -> impl Iterator<Item = (TabIndex, &mut Tab)> {
+        self.iter_tabs_mut()
+            .enumerate()
+            .map(|(index, tab)| (TabIndex(index), tab))
     }
 
     /// Adds `tab` to the node and sets it as the active tab.

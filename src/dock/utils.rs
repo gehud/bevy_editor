@@ -1,12 +1,8 @@
-use crate::{
-    dock::{
-        ButtonsStyle, SeparatorStyle, Style, TabBarStyle, TabBodyStyle, TabInteractionStyle,
-        TabStyle,
-    },
-    egui::{
-        emath::*,
-        style::{Visuals, WidgetVisuals, Widgets},
-    },
+use egui::emath::*;
+use egui::style::{Visuals, WidgetVisuals, Widgets};
+
+use crate::dock::{
+    ButtonsStyle, SeparatorStyle, Style, TabBarStyle, TabBodyStyle, TabInteractionStyle, TabStyle,
 };
 
 #[inline(always)]

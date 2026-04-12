@@ -1,4 +1,4 @@
-/// Wrapper around indices to the collection of Surfaces inside a [`DockState`](crate::DockState).
+/// Wrapper around indices to the collection of Surfaces inside a [`DockState`](crate::dock::DockState).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct SurfaceIndex(pub usize);

@@ -15,7 +15,7 @@ use bevy::{
     reflect::TypeRegistry,
 };
 use egui::{
-    Color32, Frame, InnerResponse, TextEdit, TextureId, Ui, Vec2, Window,
+    Color32, Frame, Id, InnerResponse, TextEdit, TextureId, Ui, Vec2, Window,
     collapsing_header::{CollapsingState, paint_default_icon},
 };
 
@@ -106,7 +106,6 @@ fn ui_for_entity(ui: &mut Ui, world: &mut World, entity: Entity) {
         Some(&mut queue),
         entity,
         ui,
-        egui::Id::new(entity),
         &type_registry,
     );
 
@@ -206,7 +205,6 @@ fn ui_for_entity_components(
     mut queue: Option<&mut CommandQueue>,
     entity: Entity,
     ui: &mut egui::Ui,
-    id: egui::Id,
     type_registry: &TypeRegistry,
 ) {
     let Ok(components) = components_of_entity(world, entity) else {
@@ -214,139 +212,144 @@ fn ui_for_entity_components(
         return;
     };
 
-    for (name, component_id, component_type_id, size) in components {
-        let id = id.with(component_id);
+    ui.push_id(Id::new(entity), |ui| {
+        for (name, component_id, component_type_id, size) in components {
+            let id = Id::new(component_id);
 
-        let mut collapsing_state = CollapsingState::load_with_default_open(ui.ctx(), id, true);
+            #[cfg(feature = "documentation")]
+            let type_docs = type_registry
+                .get_type_info(component_type_id)
+                .and_then(|info| info.docs());
 
-        #[cfg(feature = "documentation")]
-        let type_docs = type_registry
-            .get_type_info(component_type_id)
-            .and_then(|info| info.docs());
-
-        if size == 0 {
-            ui.indent(id, |ui| {
-                let _response = ui.label(&name);
-                #[cfg(feature = "documentation")]
-                crate::inspection::egui_utils::show_docs(_response, type_docs);
-            });
-            continue;
-        }
-
-        // create a context with access to the world except for the currently viewed component
-        let (mut component_view, world) = world.split_off_component((entity, component_type_id));
-        let mut cx = Context {
-            world: Some(world),
-            #[allow(clippy::needless_option_as_deref)]
-            queue: queue.as_deref_mut(),
-        };
-
-        let value = match component_view.get_entity_component_reflect(
-            entity,
-            component_type_id,
-            type_registry,
-        ) {
-            Ok(value) => value,
-            Err(e) => {
+            if size == 0 {
                 ui.indent(id, |ui| {
-                    let response = ui.label(egui::RichText::new(&name).underline());
-                    response.on_hover_ui(|ui| errors::no_access(e, ui, &name));
+                    let _response = ui.label(&name);
+                    #[cfg(feature = "documentation")]
+                    crate::inspection::egui_utils::show_docs(_response, type_docs);
                 });
                 continue;
             }
-        };
 
-        let changed_by = match &value {
-            ReflectBorrow::Mutable(val) => val.changed_by().into_option(),
-            ReflectBorrow::Immutable(_) => None,
-        };
+            let mut collapsing_state = CollapsingState::load_with_default_open(ui.ctx(), id, true);
 
-        let InnerResponse {
-            inner: header_response,
-            ..
-        } = Frame::new()
-            .stroke(ui.style().visuals.widgets.open.bg_stroke)
-            .corner_radius(ui.style().visuals.widgets.active.corner_radius)
-            .show(ui, |ui| {
-                let InnerResponse {
-                    response: header_response,
-                    ..
-                } = Frame::new()
-                    .fill(ui.style().visuals.widgets.active.bg_fill)
-                    .inner_margin(ui.style().spacing.button_padding)
-                    .show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            collapsing_state.show_toggle_button(ui, paint_default_icon);
-                            ui.vertical_centered(|ui| {
-                                ui.label(name);
-                            });
-                        });
+            // create a context with access to the world except for the currently viewed component
+            let (mut component_view, world) =
+                world.split_off_component((entity, component_type_id));
+            let mut cx = Context {
+                world: Some(world),
+                #[allow(clippy::needless_option_as_deref)]
+                queue: queue.as_deref_mut(),
+            };
+
+            let value = match component_view.get_entity_component_reflect(
+                entity,
+                component_type_id,
+                type_registry,
+            ) {
+                Ok(value) => value,
+                Err(e) => {
+                    ui.indent(id, |ui| {
+                        let response = ui.label(egui::RichText::new(&name).underline());
+                        response.on_hover_ui(|ui| errors::no_access(e, ui, &name));
                     });
+                    continue;
+                }
+            };
 
-                collapsing_state.show_body_unindented(ui, |ui| {
-                    Frame::new()
+            let changed_by = match &value {
+                ReflectBorrow::Mutable(val) => val.changed_by().into_option(),
+                ReflectBorrow::Immutable(_) => None,
+            };
+
+            let InnerResponse {
+                inner: header_response,
+                ..
+            } = Frame::new()
+                .stroke(ui.style().visuals.widgets.open.bg_stroke)
+                .corner_radius(ui.style().visuals.widgets.active.corner_radius)
+                .show(ui, |ui| {
+                    let InnerResponse {
+                        response: header_response,
+                        ..
+                    } = Frame::new()
+                        .fill(ui.style().visuals.widgets.active.bg_fill)
                         .inner_margin(ui.style().spacing.button_padding)
                         .show(ui, |ui| {
-                            let mut env = InspectorUi::for_bevy(type_registry, &mut cx);
-                            let id = id.with(component_id);
-                            let options = &();
-
-                            match value {
-                                ReflectBorrow::Mutable(mut value) => {
-                                    let changed = env.ui_for_reflect_with_options(
-                                        value.bypass_change_detection().as_partial_reflect_mut(),
-                                        ui,
-                                        id,
-                                        options,
-                                    );
-
-                                    if changed {
-                                        value.set_changed();
-                                    }
-                                }
-                                ReflectBorrow::Immutable(value) => env
-                                    .ui_for_reflect_readonly_with_options(
-                                        value.as_partial_reflect(),
-                                        ui,
-                                        id,
-                                        options,
-                                    ),
-                            };
+                            ui.horizontal(|ui| {
+                                collapsing_state.show_toggle_button(ui, paint_default_icon);
+                                ui.vertical_centered(|ui| {
+                                    ui.label(name);
+                                });
+                            });
                         });
+
+                    collapsing_state.show_body_unindented(ui, |ui| {
+                        Frame::new()
+                            .inner_margin(ui.style().spacing.button_padding)
+                            .show(ui, |ui| {
+                                let mut env = InspectorUi::for_bevy(type_registry, &mut cx);
+                                let id = id.with(component_id);
+                                let options = &();
+
+                                match value {
+                                    ReflectBorrow::Mutable(mut value) => {
+                                        let changed = env.ui_for_reflect_with_options(
+                                            value
+                                                .bypass_change_detection()
+                                                .as_partial_reflect_mut(),
+                                            ui,
+                                            id,
+                                            options,
+                                        );
+
+                                        if changed {
+                                            value.set_changed();
+                                        }
+                                    }
+                                    ReflectBorrow::Immutable(value) => env
+                                        .ui_for_reflect_readonly_with_options(
+                                            value.as_partial_reflect(),
+                                            ui,
+                                            id,
+                                            options,
+                                        ),
+                                };
+                            });
+                    });
+
+                    header_response
                 });
 
-                header_response
-            });
+            let response = header_response;
 
-        let response = header_response;
+            if let Some(location) = changed_by {
+                response.context_menu(|ui| {
+                    ui.label("Last change:");
+                    let path = Path::new(location.file());
+                    let pretty = utils::trim_cargo_registry_path(path);
 
-        if let Some(location) = changed_by {
-            response.context_menu(|ui| {
-                ui.label("Last change:");
-                let path = Path::new(location.file());
-                let pretty = utils::trim_cargo_registry_path(path);
-
-                if ui
-                    .button(format!(
-                        "{}:{}:{}",
-                        pretty.as_deref().unwrap_or(path).display(),
-                        location.line(),
-                        location.column()
-                    ))
-                    .clicked()
-                {
-                    if let Err(e) = utils::open_file_at(location) {
-                        bevy::log::error!("Failed to open last change location: {}", e);
-                    } else {
-                        bevy::log::info!("Successfully opened {location}");
+                    if ui
+                        .button(format!(
+                            "{}:{}:{}",
+                            pretty.as_deref().unwrap_or(path).display(),
+                            location.line(),
+                            location.column()
+                        ))
+                        .clicked()
+                    {
+                        if let Err(e) = utils::open_file_at(location) {
+                            bevy::log::error!("Failed to open last change location: {}", e);
+                        } else {
+                            bevy::log::info!("Successfully opened {location}");
+                        }
                     }
-                }
-            });
-        }
+                });
+            }
 
-        #[cfg(feature = "documentation")]
-        crate::inspection::egui_utils::show_docs(response, type_docs);
-    }
+            #[cfg(feature = "documentation")]
+            crate::inspection::egui_utils::show_docs(response, type_docs);
+        }
+    });
 }
 
 fn components_of_entity(

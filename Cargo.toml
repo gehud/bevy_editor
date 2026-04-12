@@ -32,6 +32,7 @@ bytemuck = "1.25.0"
 image = "0.25.10"
 platform-dirs = "0.3.0"
 ron = "0.12.1"
+thiserror = "2.0.18"
 
 [patch.crates-io]
 bevy = { git = "https://github.com/gehud/bevy.git", branch = "editor" }

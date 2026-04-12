@@ -1,4 +1,4 @@
-﻿use super::Tree;
+﻿use crate::dock::Tree;
 
 /// Iterates over all tabs in a [`Tree`].
 pub struct TabIter<'a, Tab> {

@@ -1,4 +1,4 @@
-use egui::{self, ecolor::*, CornerRadius, Margin, Stroke};
+use egui::{ecolor::*, CornerRadius, Margin, Stroke};
 
 /// Left or right alignment for tab add button.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -9,7 +9,7 @@ pub enum TabAddAlign {
     Right,
 }
 
-/// Lets you change how tabs and the [`DockArea`](crate::DockArea) should look and feel.
+/// Lets you change how tabs and the [`DockArea`](crate::dock::DockArea) should look and feel.
 /// [`Style`] is divided into several, more specialized structs that handle individual
 /// elements of the UI.
 ///
@@ -28,6 +28,7 @@ pub enum TabAddAlign {
 /// #     fn ui(&mut self, ui: &mut Ui, tab: &mut Self::Tab) {}
 /// # }
 /// # egui::__run_test_ctx(|ctx| {
+/// # #[allow(deprecated)]
 /// # egui::CentralPanel::default().show(ctx, |ui| {
 /// # let mut dock_state = DockState::new(vec![]);
 /// // Inherit the look and feel from egui.
@@ -161,9 +162,6 @@ pub struct SeparatorStyle {
 pub struct TabBarStyle {
     /// Background color of tab bar. By `Default` it's [`Color32::WHITE`].
     pub bg_fill: Color32,
-
-    /// The stroke of the tab bar border. By `Default` it's ['Stroke::default'].
-    pub stroke: Stroke,
 
     /// Height of the tab bar. By `Default` it's `24.0`.
     pub height: f32,
@@ -417,7 +415,6 @@ impl Default for TabBarStyle {
     fn default() -> Self {
         Self {
             bg_fill: Color32::WHITE,
-            stroke: Stroke::default(),
             height: 24.0,
             inner_margin: Margin::ZERO,
             show_scroll_bar_on_overflow: true,
@@ -633,7 +630,6 @@ impl TabBarStyle {
     pub fn from_egui(style: &egui::Style) -> Self {
         Self {
             bg_fill: style.visuals.extreme_bg_color,
-            stroke: style.visuals.widgets.noninteractive.bg_stroke,
             corner_radius: CornerRadius {
                 nw: style.visuals.widgets.inactive.corner_radius.nw + 2,
                 ne: style.visuals.widgets.inactive.corner_radius.ne + 2,

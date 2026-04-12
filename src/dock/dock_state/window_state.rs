@@ -1,6 +1,6 @@
 use egui::{Id, Pos2, Rect, Vec2};
 
-/// The state of a [`Surface::Window`](crate::Surface::Window).
+/// The state of a [`Surface::Window`](crate::dock::Surface::Window).
 ///
 /// Doubles as a handle for the surface, allowing the user to set its size and position.
 #[derive(Clone, Debug)]
