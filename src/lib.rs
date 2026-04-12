@@ -39,9 +39,7 @@ use bevy_egui::{
     egui::CentralPanel,
 };
 use egui::{
-    FontData, FontFamily, Frame, Id, InnerResponse, LayerId, Memory, MenuBar, Sense,
-    TopBottomPanel, Ui, UiBuilder, WidgetText,
-    epaint::text::{FontInsert, FontPriority, InsertFontFamily},
+    FontData, FontFamily, Frame, Id, InnerResponse, LayerId, Memory, MenuBar, Panel, Sense, TopBottomPanel, Ui, UiBuilder, WidgetText, epaint::text::{FontInsert, FontPriority, InsertFontFamily}
 };
 
 use crate::{
@@ -166,9 +164,9 @@ fn ui(
         UiBuilder::new().layer_id(LayerId::background()),
     );
 
-    TopBottomPanel::top("header")
+    Panel::top("header")
         .show_separator_line(false)
-        .exact_height(34.0)
+        .exact_size(34.0)
         .show_inside(&mut ui, |ui| {
             ui.horizontal_centered(|ui| {
                 MenuBar::new().ui(ui, |ui| {
@@ -198,9 +196,9 @@ fn ui(
             });
         });
 
-    TopBottomPanel::bottom("footer")
+    Panel::bottom("footer")
         .show_separator_line(false)
-        .exact_height(24.0)
+        .exact_size(24.0)
         .show_inside(&mut ui, |ui| {
             ui.vertical_centered(|ui| {
                 ui.label(WidgetText::from("bevy-editor").weak());

@@ -10,9 +10,9 @@ use super::{drag_and_drop::TreeComponent, state::State, tab_removal::TabRemoval}
 use crate::dock::dock_area::tab_removal::ForcedRemoval;
 use crate::dock::tab_viewer::OnCloseResponse;
 use crate::dock::{
-    utils::{expand_to_pixel, fade_dock_style, map_to_pixel},
     AllowedSplits, DockArea, Node, NodeIndex, OverlayType, Style, SurfaceIndex, TabDestination,
     TabViewer,
+    utils::{expand_to_pixel, fade_dock_style, map_to_pixel},
 };
 
 mod leaf;
@@ -35,27 +35,27 @@ impl<Tab> DockArea<'_, Tab> {
     /// # }
     /// # let mut tree: DockState<String> = DockState::new(vec![]);
     /// # let mut tab_viewer = TabViewer {};
-    /// # egui::__run_test_ctx(|ctx| {
+    /// # egui::__run_test_ui(|ui| {
     /// CentralPanel::default()
-    ///     .frame(Frame::central_panel(&ctx.style()).inner_margin(0.))
-    ///     .show(ctx, |ui| {
+    ///     .frame(Frame::central_panel(ui.style()).inner_margin(0.))
+    ///     .show_inside(ui, |ui| {
     ///         DockArea::new(&mut tree).show_inside(ui, &mut tab_viewer);
     ///     });
     /// # });
     /// ```
     ///
-    /// So you can't use the [`CentralPanel::show`] when using `DockArea`'s one.
+    /// So you can't use the [`CentralPanel::show_inside`] when using `DockArea`'s one.
     ///
     /// See also [`show_inside`](Self::show_inside).
     #[inline]
-    pub fn show(self, ctx: &Context, tab_viewer: &mut impl TabViewer<Tab = Tab>) {
+    pub fn show(self, ui: &mut Ui, tab_viewer: &mut impl TabViewer<Tab = Tab>) {
         CentralPanel::default()
             .frame(
-                Frame::central_panel(&ctx.style())
+                Frame::central_panel(ui.style())
                     .inner_margin(0.)
                     .fill(Color32::TRANSPARENT),
             )
-            .show(ctx, |ui| {
+            .show_inside(ui, |ui| {
                 self.show_inside(ui, tab_viewer);
             });
     }
