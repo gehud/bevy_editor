@@ -25,8 +25,6 @@ pub fn set_dark_style(style: &mut Style) {
     ]
     .into();
 
-    style.spacing.icon_width_inner = 15.0;
-
     style.visuals.widgets.active.fg_stroke.color = Color32::from_rgb(242, 242, 242);
     style.visuals.widgets.inactive.fg_stroke.color = Color32::from_rgb(242, 242, 242);
     style.visuals.widgets.hovered.fg_stroke.color = Color32::from_rgb(242, 242, 242);

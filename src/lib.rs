@@ -1,7 +1,6 @@
 pub mod asset;
 mod asset_browser;
 pub mod assets;
-mod cursor;
 mod dock;
 pub mod inspection;
 pub mod pane;
@@ -47,8 +46,8 @@ use bevy_egui::{
     egui::CentralPanel,
 };
 use egui::{
-    FontData, FontFamily, Frame, Id, InnerResponse, LayerId, Memory, MenuBar, Panel, Sense,
-    TopBottomPanel, Ui, UiBuilder, WidgetText,
+    FontData, FontFamily, Frame, Id, InnerResponse, LayerId, Memory, MenuBar, Panel, Sense, Ui,
+    UiBuilder, WidgetText,
     epaint::text::{FontInsert, FontPriority, InsertFontFamily},
 };
 
@@ -56,7 +55,6 @@ use crate::{
     asset::AssetDatabasePlugin,
     asset_browser::AssetBrowserPlugin,
     assets::{AssetsPlugin, LUCIDE_FONT_FAMILY},
-    cursor::CursorLockPlugin,
     dock::{DockArea, DockState},
     inspection::{DefaultInspectorConfigPlugin, quick::WorldInspectorPlugin},
     pane::{PaneDocking, PanePlugin, PaneRegistry, PaneViewer},
@@ -100,7 +98,6 @@ impl Plugin for EditorPlugin {
                     .disable::<AssetPlugin>(),
             )
             .add_plugins(PrefsPlugin)
-            .add_plugins(CursorLockPlugin)
             .add_plugins(EguiPlugin::default())
             .add_plugins(AssetsPlugin)
             .add_plugins(DefaultInspectorConfigPlugin)
