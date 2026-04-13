@@ -1,5 +1,6 @@
 use std::{any::TypeId, borrow::Cow, ops::AddAssign, path::PathBuf};
 
+use bevy::ecs::error::Result;
 use bevy::platform::time::Instant;
 use bevy::reflect::{PartialReflect, Reflect, TypePath};
 use egui::{DragValue, RichText, TextBuffer};
@@ -29,26 +30,28 @@ impl_num!(f32, f64, i8, u8, i16, u16, i32, u32, i64, u64, isize, usize);
 
 impl<T: Reflect + Num> Inspector for T {
     fn ui(
-        &mut self,
         ui: &mut egui::Ui,
         options: &dyn Any,
-        _: egui::Id,
-        _: InspectorUi<'_, '_>,
-    ) -> bool {
+        _id: egui::Id,
+        _env: InspectorUi<'_, '_>,
+        value: &mut dyn PartialReflect,
+    ) -> Result<bool> {
+        let value = value.try_downcast_mut::<Self>().unwrap();
         let options = options
             .downcast_ref::<NumberOptions<T>>()
             .cloned()
             .unwrap_or_default();
-        display_number(self, &options, ui, 0.1)
+        Ok(display_number(value, &options, ui, 0.1))
     }
 
     fn ui_readonly(
-        &self,
         ui: &mut egui::Ui,
         options: &dyn Any,
-        _: egui::Id,
-        _: InspectorUi<'_, '_>,
-    ) {
+        _id: egui::Id,
+        _env: InspectorUi<'_, '_>,
+        value: &dyn PartialReflect,
+    ) -> Result {
+        let value = value.try_downcast_ref::<Self>().unwrap();
         let options = options
             .downcast_ref::<NumberOptions<T>>()
             .cloned()
@@ -59,7 +62,7 @@ impl<T: Reflect + Num> Inspector for T {
                 RichText::new(format!(
                     "{}{}{}",
                     options.prefix,
-                    egui::emath::format_with_decimals_in_range(self.to_f64(), decimal_range),
+                    egui::emath::format_with_decimals_in_range(value.to_f64(), decimal_range),
                     options.suffix
                 ))
                 .monospace(),
@@ -67,6 +70,8 @@ impl<T: Reflect + Num> Inspector for T {
             .truncate()
             .sense(egui::Sense::hover()),
         );
+
+        Ok(())
     }
 }
 
@@ -202,124 +207,181 @@ where
 }
 
 impl Inspector for bool {
-    fn ui(&mut self, ui: &mut egui::Ui, _: &dyn Any, _: egui::Id, _: InspectorUi<'_, '_>) -> bool {
-        ui.checkbox(self, "").changed()
+    fn ui(
+        ui: &mut egui::Ui,
+        _options: &dyn Any,
+        _id: egui::Id,
+        _env: InspectorUi<'_, '_>,
+        value: &mut dyn PartialReflect,
+    ) -> Result<bool> {
+        let value = value.try_downcast_mut::<Self>().unwrap();
+        Ok(ui.checkbox(value, "").changed())
     }
 
     fn ui_readonly(
-        &self,
         ui: &mut egui::Ui,
         options: &dyn Any,
         id: egui::Id,
         env: InspectorUi<'_, '_>,
-    ) {
-        let mut copy = *self;
+        value: &dyn PartialReflect,
+    ) -> Result {
+        let mut value = value.try_downcast_ref::<Self>().unwrap().clone();
         ui.add_enabled_ui(false, |ui| {
-            copy.ui(ui, options, id, env);
+            Self::ui(ui, options, id, env, &mut value);
         });
+        Ok(())
     }
 }
 
 impl Inspector for String {
-    fn ui(&mut self, ui: &mut egui::Ui, _: &dyn Any, _: egui::Id, _: InspectorUi<'_, '_>) -> bool {
-        if self.contains('\n') {
-            ui.text_edit_multiline(self).changed()
+    fn ui(
+        ui: &mut egui::Ui,
+        _options: &dyn Any,
+        _id: egui::Id,
+        _env: InspectorUi<'_, '_>,
+        value: &mut dyn PartialReflect,
+    ) -> Result<bool> {
+        let value = value.try_downcast_mut::<Self>().unwrap();
+
+        let result = if value.contains('\n') {
+            ui.text_edit_multiline(value).changed()
         } else {
-            ui.text_edit_singleline(self).changed()
-        }
+            ui.text_edit_singleline(value).changed()
+        };
+
+        Ok(result)
     }
 
-    fn ui_readonly(&self, ui: &mut egui::Ui, _: &dyn Any, _: egui::Id, _: InspectorUi<'_, '_>) {
-        if self.contains('\n') {
-            ui.text_edit_multiline(&mut self.as_str());
+    fn ui_readonly(
+        ui: &mut egui::Ui,
+        _options: &dyn Any,
+        _id: egui::Id,
+        _env: InspectorUi<'_, '_>,
+        value: &dyn PartialReflect,
+    ) -> Result {
+        let value = value.try_downcast_ref::<Self>().unwrap();
+
+        if value.contains('\n') {
+            ui.text_edit_multiline(&mut value.as_str());
         } else {
-            ui.text_edit_singleline(&mut self.as_str());
+            ui.text_edit_singleline(&mut value.as_str());
         }
+
+        Ok(())
     }
 }
 
 impl Inspector for Cow<'static, str> {
-    fn ui(&mut self, ui: &mut egui::Ui, _: &dyn Any, _: egui::Id, _: InspectorUi<'_, '_>) -> bool {
-        let mut clone = self.to_string();
-        let changed = if self.contains('\n') {
+    fn ui(
+        ui: &mut egui::Ui,
+        _options: &dyn Any,
+        _id: egui::Id,
+        _env: InspectorUi<'_, '_>,
+        value: &mut dyn PartialReflect,
+    ) -> Result<bool> {
+        let value = value.try_downcast_mut::<Self>().unwrap();
+
+        let mut clone = value.to_string();
+        let changed = if value.contains('\n') {
             ui.text_edit_multiline(&mut clone).changed()
         } else {
             ui.text_edit_singleline(&mut clone).changed()
         };
 
         if changed {
-            *self = Cow::Owned(clone);
+            *value = Cow::Owned(clone);
         }
 
-        changed
+        Ok(changed)
     }
 
-    fn ui_readonly(&self, ui: &mut egui::Ui, _: &dyn Any, _: egui::Id, _: InspectorUi<'_, '_>) {
-        if self.contains('\n') {
-            ui.text_edit_multiline(&mut self.as_str());
+    fn ui_readonly(
+        ui: &mut egui::Ui,
+        _options: &dyn Any,
+        _id: egui::Id,
+        _env: InspectorUi<'_, '_>,
+        value: &dyn PartialReflect,
+    ) -> Result {
+        let value = value.try_downcast_ref::<Self>().unwrap();
+        if value.contains('\n') {
+            ui.text_edit_multiline(&mut value.as_str());
         } else {
-            ui.text_edit_singleline(&mut self.as_str());
+            ui.text_edit_singleline(&mut value.as_str());
         }
+        Ok(())
     }
 }
 
 impl Inspector for Duration {
     fn ui(
-        &mut self,
         ui: &mut egui::Ui,
-        _: &dyn Any,
+        _options: &dyn Any,
         id: egui::Id,
         mut env: InspectorUi<'_, '_>,
-    ) -> bool {
-        let mut seconds = self.as_secs_f64();
+        value: &mut dyn PartialReflect,
+    ) -> Result<bool> {
+        let value = value.try_downcast_mut::<Self>().unwrap();
+
+        let mut seconds = value.as_secs_f64();
         let options = NumberOptions {
             min: Some(0.0f64),
             suffix: "s".to_string(),
             ..Default::default()
         };
 
-        let changed = env.ui_for_reflect_with_options(&mut seconds, ui, id, &options);
+        let changed = env.ui_for_reflect_with_options(&mut seconds, ui, id, &options)?;
         if changed {
-            *self = Duration::from_secs_f64(seconds);
+            *value = Duration::from_secs_f64(seconds);
         }
-        changed
+        Ok(changed)
     }
 
     fn ui_readonly(
-        &self,
         ui: &mut egui::Ui,
-        _: &dyn Any,
+        _options: &dyn Any,
         id: egui::Id,
         mut env: InspectorUi<'_, '_>,
-    ) {
-        let seconds = self.as_secs_f64();
+        value: &dyn PartialReflect,
+    ) -> Result {
+        let value = value.try_downcast_ref::<Self>().unwrap();
+        let seconds = value.as_secs_f64();
         let options = NumberOptions {
             min: Some(0.0f64),
             suffix: "s".to_string(),
             ..Default::default()
         };
         env.ui_for_reflect_readonly_with_options(&seconds, ui, id, &options);
+        Ok(())
     }
 }
 
 impl Inspector for Instant {
     fn ui(
-        &mut self,
         ui: &mut egui::Ui,
         options: &dyn Any,
         id: egui::Id,
         env: InspectorUi<'_, '_>,
-    ) -> bool {
-        self.ui_readonly(ui, options, id, env);
-        false
+        value: &mut dyn PartialReflect,
+    ) -> Result<bool> {
+        let value = value.try_downcast_mut::<Self>().unwrap();
+        Self::ui_readonly(ui, options, id, env, value)?;
+        Ok(false)
     }
 
-    fn ui_readonly(&self, ui: &mut egui::Ui, _: &dyn Any, _: egui::Id, _: InspectorUi<'_, '_>) {
-        let mut secs = self.elapsed().as_secs_f32();
+    fn ui_readonly(
+        ui: &mut egui::Ui,
+        _options: &dyn Any,
+        _id: egui::Id,
+        _env: InspectorUi<'_, '_>,
+        value: &dyn PartialReflect,
+    ) -> Result {
+        let value = value.try_downcast_ref::<Self>().unwrap();
+        let mut secs = value.elapsed().as_secs_f32();
         ui.horizontal(|ui| {
             ui.add_enabled(false, DragValue::new(&mut secs));
             ui.label("seconds ago");
         });
+        Ok(())
     }
 }
 
@@ -327,25 +389,36 @@ impl<T: Reflect + TypePath + egui::emath::Numeric + InspectorOptionsType> Inspec
     for std::ops::Range<T>
 {
     fn ui(
-        &mut self,
         ui: &mut egui::Ui,
         options: &dyn Any,
         id: egui::Id,
         env: InspectorUi<'_, '_>,
-    ) -> bool {
-        let std::ops::Range { start, end } = self;
-        display_range::<T>(ui, options, id, env, "..", Some(start), Some(end))
+        value: &mut dyn PartialReflect,
+    ) -> Result<bool> {
+        let value = value.try_downcast_mut::<Self>().unwrap();
+        let std::ops::Range { start, end } = value;
+        Ok(display_range::<T>(
+            ui,
+            options,
+            id,
+            env,
+            "..",
+            Some(start),
+            Some(end),
+        ))
     }
 
     fn ui_readonly(
-        &self,
         ui: &mut egui::Ui,
         options: &dyn Any,
         id: egui::Id,
         env: InspectorUi<'_, '_>,
-    ) {
-        let std::ops::Range { start, end } = self;
+        value: &dyn PartialReflect,
+    ) -> Result {
+        let value = value.try_downcast_ref::<Self>().unwrap();
+        let std::ops::Range { start, end } = value;
         display_range_readonly::<T>(ui, options, id, env, "..", Some(start), Some(end));
+        Ok(())
     }
 }
 fn display_range<T: egui::emath::Numeric + InspectorOptionsType>(
@@ -354,7 +427,7 @@ fn display_range<T: egui::emath::Numeric + InspectorOptionsType>(
     id: egui::Id,
     mut env: InspectorUi<'_, '_>,
 
-    // this is made to be generic but I'm currently just using it for a..b, not a..=b, ..a, a.., .., etc., because these types don't hand out mutable references
+    // value is made to be generic but I'm currently just using it for a..b, not a..=b, ..a, a.., .., etc., because these types don't hand out mutable references
     symbol: &'static str,
     start: Option<&mut T>,
     end: Option<&mut T>,
@@ -408,14 +481,15 @@ impl<T: Reflect + TypePath + egui::emath::Numeric + InspectorOptionsType> Inspec
     for std::ops::RangeInclusive<T>
 {
     fn ui(
-        &mut self,
         ui: &mut egui::Ui,
         options: &dyn Any,
         id: egui::Id,
         env: InspectorUi<'_, '_>,
-    ) -> bool {
-        let mut start = *self.start();
-        let mut end = *self.end();
+        value: &mut dyn PartialReflect,
+    ) -> Result<bool> {
+        let value = value.try_downcast_mut::<Self>().unwrap();
+        let mut start = *value.start();
+        let mut end = *value.end();
 
         let changed = display_range::<T>(
             ui,
@@ -428,62 +502,88 @@ impl<T: Reflect + TypePath + egui::emath::Numeric + InspectorOptionsType> Inspec
         );
 
         if changed {
-            *self = start..=end;
+            *value = start..=end;
         }
 
-        changed
+        Ok(changed)
     }
 
     fn ui_readonly(
-        &self,
         ui: &mut egui::Ui,
         options: &dyn Any,
         id: egui::Id,
         env: InspectorUi<'_, '_>,
-    ) {
+        value: &dyn PartialReflect,
+    ) -> Result {
+        let value = value.try_downcast_ref::<Self>().unwrap();
         display_range_readonly::<T>(
             ui,
             options,
             id,
             env,
             "..",
-            Some(self.start()),
-            Some(self.end()),
+            Some(value.start()),
+            Some(value.end()),
         );
+        Ok(())
     }
 }
 
 impl Inspector for PathBuf {
-    fn ui(&mut self, ui: &mut egui::Ui, _: &dyn Any, _: egui::Id, _: InspectorUi<'_, '_>) -> bool {
-        let mut str = self.to_string_lossy();
+    fn ui(
+        ui: &mut egui::Ui,
+        _options: &dyn Any,
+        _id: egui::Id,
+        _env: InspectorUi<'_, '_>,
+        value: &mut dyn PartialReflect,
+    ) -> Result<bool> {
+        let value = value.try_downcast_mut::<Self>().unwrap();
+        let mut str = value.to_string_lossy();
         let changed = ui.text_edit_singleline(&mut str).changed();
 
         if changed {
-            *self = PathBuf::from(str.as_str());
+            *value = PathBuf::from(str.as_str());
         }
 
-        changed
+        Ok(changed)
     }
 
-    fn ui_readonly(&self, ui: &mut egui::Ui, _: &dyn Any, _: egui::Id, _: InspectorUi<'_, '_>) {
-        ui.text_edit_singleline(&mut self.to_string_lossy());
+    fn ui_readonly(
+        ui: &mut egui::Ui,
+        _options: &dyn Any,
+        _id: egui::Id,
+        _env: InspectorUi<'_, '_>,
+        value: &dyn PartialReflect,
+    ) -> Result {
+        let value = value.try_downcast_ref::<Self>().unwrap();
+        ui.text_edit_singleline(&mut value.to_string_lossy());
+        Ok(())
     }
 }
 
 impl Inspector for TypeId {
     fn ui(
-        &mut self,
         ui: &mut egui::Ui,
         options: &dyn Any,
         id: egui::Id,
         env: InspectorUi<'_, '_>,
-    ) -> bool {
-        self.ui_readonly(ui, options, id, env);
-        false
+        value: &mut dyn PartialReflect,
+    ) -> Result<bool> {
+        let value = value.try_downcast_mut::<Self>().unwrap();
+        Self::ui_readonly(ui, options, id, env, value);
+        Ok(false)
     }
 
-    fn ui_readonly(&self, ui: &mut egui::Ui, _: &dyn Any, _: egui::Id, _: InspectorUi<'_, '_>) {
-        let str = format!("{:?}", self);
+    fn ui_readonly(
+        ui: &mut egui::Ui,
+        _options: &dyn Any,
+        _id: egui::Id,
+        _env: InspectorUi<'_, '_>,
+        value: &dyn PartialReflect,
+    ) -> Result {
+        let value = value.try_downcast_ref::<Self>().unwrap();
+        let str = format!("{:?}", value);
         ui.label(str);
+        Ok(())
     }
 }

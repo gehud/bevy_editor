@@ -31,8 +31,8 @@ impl Inspector for uuid::Uuid {
         _: InspectorUi<'_, '_>,
         value: &dyn PartialReflect,
     ) -> Result {
-        let this = value.try_downcast_ref::<Self>().unwrap();
-        ui.label(this.to_string());
+        let value = value.try_downcast_ref::<Self>().unwrap();
+        ui.label(value.to_string());
         Ok(())
     }
 }
@@ -56,8 +56,8 @@ impl Inspector for Entity {
         _: InspectorUi<'_, '_>,
         value: &dyn PartialReflect,
     ) -> Result {
-        let this = value.try_downcast_ref::<Self>().unwrap();
-        ui.label(format!("{this:?}"));
+        let value = value.try_downcast_ref::<Self>().unwrap();
+        ui.label(format!("{value:?}"));
         Ok(())
     }
 }
@@ -174,21 +174,21 @@ impl Inspector for Srgba {
         _: InspectorUi<'_, '_>,
         value: &mut dyn PartialReflect,
     ) -> Result<bool> {
-        let this = value.try_downcast_mut::<Self>().unwrap();
+        let value = value.try_downcast_mut::<Self>().unwrap();
 
         let mut color = Color32::from_rgba_unmultiplied(
-            (this.red * 255.) as u8,
-            (this.green * 255.) as u8,
-            (this.blue * 255.) as u8,
-            (this.alpha * 255.) as u8,
+            (value.red * 255.) as u8,
+            (value.green * 255.) as u8,
+            (value.blue * 255.) as u8,
+            (value.alpha * 255.) as u8,
         );
 
         if ui.color_edit_button_srgba(&mut color).changed() {
             let [r, g, b, a] = color.to_srgba_unmultiplied();
-            this.red = r as f32 / 255.;
-            this.green = g as f32 / 255.;
-            this.blue = b as f32 / 255.;
-            this.alpha = a as f32 / 255.;
+            value.red = r as f32 / 255.;
+            value.green = g as f32 / 255.;
+            value.blue = b as f32 / 255.;
+            value.alpha = a as f32 / 255.;
             return Ok(true);
         }
 
@@ -202,9 +202,9 @@ impl Inspector for Srgba {
         env: InspectorUi<'_, '_>,
         value: &dyn PartialReflect,
     ) -> Result {
-        let mut this = value.try_downcast_ref::<Self>().unwrap().clone();
+        let mut value = value.try_downcast_ref::<Self>().unwrap().clone();
         ui.add_enabled_ui(false, |ui| -> Result {
-            Self::ui(ui, options, id, env, &mut this)?;
+            Self::ui(ui, options, id, env, &mut value)?;
             Ok(())
         })
         .inner?;
@@ -244,9 +244,9 @@ impl Inspector for LinearRgba {
         env: InspectorUi<'_, '_>,
         value: &dyn PartialReflect,
     ) -> Result {
-        let mut this = value.try_downcast_ref::<Self>().unwrap().clone();
+        let mut value = value.try_downcast_ref::<Self>().unwrap().clone();
         ui.add_enabled_ui(false, |ui| -> Result {
-            Self::ui(ui, options, id, env, &mut this)?;
+            Self::ui(ui, options, id, env, &mut value)?;
             Ok(())
         })
         .inner?;
@@ -262,15 +262,15 @@ impl Inspector for Hsla {
         _env: InspectorUi<'_, '_>,
         value: &mut dyn PartialReflect,
     ) -> Result<bool> {
-        let this = value.try_downcast_mut::<Self>().unwrap();
+        let value = value.try_downcast_mut::<Self>().unwrap();
 
         let mut hsva =
-            egui::ecolor::Hsva::new(this.hue, this.saturation, this.lightness, this.alpha);
+            egui::ecolor::Hsva::new(value.hue, value.saturation, value.lightness, value.alpha);
         if ui.color_edit_button_hsva(&mut hsva).changed() {
-            this.hue = hsva.h;
-            this.saturation = hsva.s;
-            this.lightness = hsva.v;
-            this.alpha = hsva.a;
+            value.hue = hsva.h;
+            value.saturation = hsva.s;
+            value.lightness = hsva.v;
+            value.alpha = hsva.a;
             return Ok(true);
         }
 
@@ -284,9 +284,9 @@ impl Inspector for Hsla {
         env: InspectorUi<'_, '_>,
         value: &dyn PartialReflect,
     ) -> Result {
-        let mut this = value.try_downcast_ref::<Self>().unwrap().clone();
+        let mut value = value.try_downcast_ref::<Self>().unwrap().clone();
         ui.add_enabled_ui(false, |ui| -> Result {
-            Self::ui(ui, options, id, env, &mut this)?;
+            Self::ui(ui, options, id, env, &mut value)?;
             Ok(())
         });
         Ok(())
@@ -300,13 +300,13 @@ impl Inspector for Hsva {
         _env: InspectorUi<'_, '_>,
         value: &mut dyn PartialReflect,
     ) -> Result<bool> {
-        let this = value.try_downcast_mut::<Self>().unwrap();
-        let mut hsva = egui::ecolor::Hsva::new(this.hue, this.saturation, this.value, this.alpha);
+        let value = value.try_downcast_mut::<Self>().unwrap();
+        let mut hsva = egui::ecolor::Hsva::new(value.hue, value.saturation, value.value, value.alpha);
         if ui.color_edit_button_hsva(&mut hsva).changed() {
-            this.hue = hsva.h;
-            this.saturation = hsva.s;
-            this.value = hsva.v;
-            this.alpha = hsva.a;
+            value.hue = hsva.h;
+            value.saturation = hsva.s;
+            value.value = hsva.v;
+            value.alpha = hsva.a;
             return Ok(true);
         }
 
@@ -320,9 +320,9 @@ impl Inspector for Hsva {
         env: InspectorUi<'_, '_>,
         value: &dyn PartialReflect,
     ) -> Result {
-        let mut this = value.try_downcast_ref::<Self>().unwrap().clone();
+        let mut value = value.try_downcast_ref::<Self>().unwrap().clone();
         ui.add_enabled_ui(false, |ui| -> Result {
-            Self::ui(ui, options, id, env, &mut this)?;
+            Self::ui(ui, options, id, env, &mut value)?;
             Ok(())
         });
         Ok(())
@@ -337,9 +337,9 @@ impl Inspector for Color {
         env: InspectorUi<'_, '_>,
         value: &mut dyn PartialReflect,
     ) -> Result<bool> {
-        let this = value.try_downcast_mut::<Self>().unwrap();
+        let value = value.try_downcast_mut::<Self>().unwrap();
 
-        let changed = match this {
+        let changed = match value {
             Color::Srgba(color) => Srgba::ui(ui, options, id, env, color)?,
             Color::LinearRgba(color) => LinearRgba::ui(ui, options, id, env, color)?,
             Color::Hsla(color) => Hsla::ui(ui, options, id, env, color)?,
@@ -351,7 +351,7 @@ impl Inspector for Color {
             | Color::Oklcha(_)
             | Color::Xyza(_) => {
                 ui.label(format!(
-                    "Colorspace of {this:?} is not supported yet. PRs welcome"
+                    "Colorspace of {value:?} is not supported yet. PRs welcome"
                 ));
                 false
             }
@@ -367,9 +367,9 @@ impl Inspector for Color {
         env: InspectorUi<'_, '_>,
         value: &dyn PartialReflect,
     ) -> Result {
-        let mut this = value.try_downcast_ref::<Self>().unwrap().clone();
+        let mut value = value.try_downcast_ref::<Self>().unwrap().clone();
         ui.add_enabled_ui(false, |ui| -> Result {
-            Self::ui(ui, options, id, env, &mut this)?;
+            Self::ui(ui, options, id, env, &mut value)?;
             Ok(())
         });
         Ok(())
@@ -384,18 +384,18 @@ impl Inspector for RenderLayers {
         _env: InspectorUi<'_, '_>,
         value: &mut dyn PartialReflect,
     ) -> Result<bool> {
-        let this = value.try_downcast_mut::<Self>().unwrap();
+        let value = value.try_downcast_mut::<Self>().unwrap();
 
         let mut new_value = None;
         egui::Grid::new(id).num_columns(2).show(ui, |ui| {
-            for layer in this.iter() {
+            for layer in value.iter() {
                 let mut layer_copy = layer;
                 if ui.add(egui::DragValue::new(&mut layer_copy)).changed() {
-                    new_value = Some(this.clone().without(layer).with(layer_copy));
+                    new_value = Some(value.clone().without(layer).with(layer_copy));
                 }
 
                 if ui.button("-").clicked() {
-                    new_value = Some(this.clone().without(layer));
+                    new_value = Some(value.clone().without(layer));
                 }
                 ui.end_row();
             }
@@ -403,13 +403,13 @@ impl Inspector for RenderLayers {
 
         ui.horizontal(|ui| {
             if ui.button("Add").clicked() {
-                let new_layer = this.iter().last().map_or(0, |last| last + 1);
-                new_value = Some(this.clone().with(new_layer));
+                let new_layer = value.iter().last().map_or(0, |last| last + 1);
+                new_value = Some(value.clone().with(new_layer));
             }
         });
 
         if let Some(new_value) = new_value {
-            *this = new_value;
+            *value = new_value;
             Ok(true)
         } else {
             Ok(false)
@@ -423,8 +423,8 @@ impl Inspector for RenderLayers {
         _env: InspectorUi<'_, '_>,
         value: &dyn PartialReflect,
     ) -> Result {
-        let this = value.try_downcast_ref::<Self>().unwrap().clone();
-        for layer in this.iter() {
+        let value = value.try_downcast_ref::<Self>().unwrap().clone();
+        for layer in value.iter() {
             ui.label(format!("- {layer}"));
         }
         Ok(())
@@ -439,9 +439,9 @@ impl Inspector for bevy::gizmos::config::GizmoConfigStore {
         mut env: InspectorUi<'_, '_>,
         value: &mut dyn PartialReflect,
     ) -> Result<bool> {
-        let this = value.try_downcast_mut::<Self>().unwrap();
+        let value = value.try_downcast_mut::<Self>().unwrap();
 
-        for (ty, group, value) in this.iter_mut() {
+        for (ty, group, value) in value.iter_mut() {
             use egui::CollapsingHeader;
 
             let name = env
@@ -468,8 +468,8 @@ impl Inspector for bevy::gizmos::config::GizmoConfigStore {
         mut env: InspectorUi<'_, '_>,
         value: &dyn PartialReflect,
     ) -> Result {
-        let this = value.try_downcast_ref::<Self>().unwrap().clone();
-        for (ty, group, value) in this.iter() {
+        let value = value.try_downcast_ref::<Self>().unwrap().clone();
+        for (ty, group, value) in value.iter() {
             use egui::CollapsingHeader;
 
             let name = env

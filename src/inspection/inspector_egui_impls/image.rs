@@ -23,108 +23,108 @@ use super::Inspector;
 
 mod image_texture_conversion;
 
-impl Inspector for Handle<Image> {
-    fn ui(
-        &mut self,
-        ui: &mut egui::Ui,
-        _: &dyn Any,
-        id: egui::Id,
-        env: InspectorUi<'_, '_>,
-    ) -> bool {
-        let Some(world) = &mut env.context.world else {
-            let immutable_self: &Handle<Image> = self;
-            no_world_in_context(ui, immutable_self.reflect_short_type_path());
-            return false;
-        };
+// impl Inspector for Handle<Image> {
+//     fn ui(
+//         &mut self,
+//         ui: &mut egui::Ui,
+//         _: &dyn Any,
+//         id: egui::Id,
+//         env: InspectorUi<'_, '_>,
+//     ) -> bool {
+//         let Some(world) = &mut env.context.world else {
+//             let immutable_self: &Handle<Image> = self;
+//             no_world_in_context(ui, immutable_self.reflect_short_type_path());
+//             return false;
+//         };
 
-        update_and_show_image(self, world, ui);
-        let (asset_server, images) =
-            match world.get_two_resources_mut::<bevy::asset::AssetServer, Assets<Image>>() {
-                (Ok(a), Ok(b)) => (a, b),
-                (a, b) => {
-                    if let Err(e) = a {
-                        no_access(e, ui, &pretty_type_name::<bevy::asset::AssetServer>());
-                    }
-                    if let Err(e) = b {
-                        no_access(e, ui, &pretty_type_name::<Assets<Image>>());
-                    }
-                    return false;
-                }
-            };
+//         update_and_show_image(self, world, ui);
+//         let (asset_server, images) =
+//             match world.get_two_resources_mut::<bevy::asset::AssetServer, Assets<Image>>() {
+//                 (Ok(a), Ok(b)) => (a, b),
+//                 (a, b) => {
+//                     if let Err(e) = a {
+//                         no_access(e, ui, &pretty_type_name::<bevy::asset::AssetServer>());
+//                     }
+//                     if let Err(e) = b {
+//                         no_access(e, ui, &pretty_type_name::<Assets<Image>>());
+//                     }
+//                     return false;
+//                 }
+//             };
 
-        // get all loaded image paths
-        let mut image_paths = Vec::with_capacity(images.len());
-        let mut handles = HashMap::new();
-        for image in images.iter() {
-            if let Some(image_path) = asset_server.get_path(image.0) {
-                image_paths.push(image_path.to_string());
-                handles.insert(image_path.to_string(), image.0);
-            }
-        }
+//         // get all loaded image paths
+//         let mut image_paths = Vec::with_capacity(images.len());
+//         let mut handles = HashMap::new();
+//         for image in images.iter() {
+//             if let Some(image_path) = asset_server.get_path(image.0) {
+//                 image_paths.push(image_path.to_string());
+//                 handles.insert(image_path.to_string(), image.0);
+//             }
+//         }
 
-        // first, get the typed search text from a stored egui data value
-        let mut selected_path = None;
-        let mut image_picker_search_text = String::from("");
-        ui.data_mut(|data| {
-            image_picker_search_text.clone_from(
-                data.get_temp_mut_or_default::<String>(id.with("image_picker_search_text")),
-            );
-        });
+//         // first, get the typed search text from a stored egui data value
+//         let mut selected_path = None;
+//         let mut image_picker_search_text = String::from("");
+//         ui.data_mut(|data| {
+//             image_picker_search_text.clone_from(
+//                 data.get_temp_mut_or_default::<String>(id.with("image_picker_search_text")),
+//             );
+//         });
 
-        // build and show the dropdown
-        let dropdown = DropDownBox::from_iter(
-            image_paths.iter(),
-            id.with("image_picker"),
-            &mut image_picker_search_text,
-            |ui, path| {
-                let response = ui
-                    .selectable_label(
-                        self.path()
-                            .is_some_and(|p| p.path().as_os_str().to_string_lossy().eq(path)),
-                        path,
-                    )
-                    .on_hover_ui_at_pointer(|ui| {
-                        if let Some(id) = handles.get(path) {
-                            let s: Option<SizedTexture> =
-                                ui.data(|d| d.get_temp(format!("image:{}", id).into()));
-                            if let Some(id) = s {
-                                ui.image(id);
-                            }
-                        }
-                    });
-                if response.clicked() {
-                    selected_path = Some(path.to_string());
-                }
-                response
-            },
-        )
-        .hint_text("Select image asset");
-        ui.add_enabled(!image_paths.is_empty(), dropdown)
-            .on_disabled_hover_text("No image assets are available");
+//         // build and show the dropdown
+//         let dropdown = DropDownBox::from_iter(
+//             image_paths.iter(),
+//             id.with("image_picker"),
+//             &mut image_picker_search_text,
+//             |ui, path| {
+//                 let response = ui
+//                     .selectable_label(
+//                         self.path()
+//                             .is_some_and(|p| p.path().as_os_str().to_string_lossy().eq(path)),
+//                         path,
+//                     )
+//                     .on_hover_ui_at_pointer(|ui| {
+//                         if let Some(id) = handles.get(path) {
+//                             let s: Option<SizedTexture> =
+//                                 ui.data(|d| d.get_temp(format!("image:{}", id).into()));
+//                             if let Some(id) = s {
+//                                 ui.image(id);
+//                             }
+//                         }
+//                     });
+//                 if response.clicked() {
+//                     selected_path = Some(path.to_string());
+//                 }
+//                 response
+//             },
+//         )
+//         .hint_text("Select image asset");
+//         ui.add_enabled(!image_paths.is_empty(), dropdown)
+//             .on_disabled_hover_text("No image assets are available");
 
-        // update the typed search text
-        ui.data_mut(|data| {
-            *data.get_temp_mut_or_default::<String>(id.with("image_picker_search_text")) =
-                image_picker_search_text;
-        });
+//         // update the typed search text
+//         ui.data_mut(|data| {
+//             *data.get_temp_mut_or_default::<String>(id.with("image_picker_search_text")) =
+//                 image_picker_search_text;
+//         });
 
-        // if the user selected an option, update the image handle
-        if let Some(selected_path) = selected_path {
-            *self = asset_server.load(selected_path);
-        }
+//         // if the user selected an option, update the image handle
+//         if let Some(selected_path) = selected_path {
+//             *self = asset_server.load(selected_path);
+//         }
 
-        false
-    }
+//         false
+//     }
 
-    fn ui_readonly(&self, ui: &mut egui::Ui, _: &dyn Any, _: egui::Id, env: InspectorUi<'_, '_>) {
-        let Some(world) = &mut env.context.world else {
-            no_world_in_context(ui, self.reflect_short_type_path());
-            return;
-        };
+//     fn ui_readonly(&self, ui: &mut egui::Ui, _: &dyn Any, _: egui::Id, env: InspectorUi<'_, '_>) {
+//         let Some(world) = &mut env.context.world else {
+//             no_world_in_context(ui, self.reflect_short_type_path());
+//             return;
+//         };
 
-        update_and_show_image(self, world, ui);
-    }
-}
+//         update_and_show_image(self, world, ui);
+//     }
+// }
 
 static SCALED_DOWN_TEXTURES: LazyLock<Mutex<ScaledDownTextures>> = LazyLock::new(Default::default);
 
