@@ -39,11 +39,10 @@
 
 use std::any::TypeId;
 use std::marker::PhantomData;
-use std::path::Path;
 
-use crate::inspection::utils::{self, pretty_type_name, pretty_type_name_str};
+use crate::inspection::utils::{pretty_type_name, pretty_type_name_str};
 use bevy::asset::{Asset, AssetServer, Assets, ReflectAsset, UntypedAssetId};
-use bevy::ecs::query::{QueryFilter, WorldQuery};
+use bevy::ecs::query::QueryFilter;
 use bevy::ecs::world::CommandQueue;
 use bevy::ecs::{component::ComponentId, prelude::*};
 use bevy::reflect::{Reflect, TypeRegistry};
@@ -53,9 +52,6 @@ use fuzzy_matcher::skim::SkimMatcherV2;
 
 /// Helper functions for a consistent set of error messages.
 pub mod errors;
-
-/// UI for displaying the entity hierarchy
-pub mod hierarchy;
 
 use crate::inspection::reflect_inspector::{Context, InspectorUi};
 use crate::inspection::restricted_world_view::{ReflectBorrow, RestrictedWorldView};
@@ -67,7 +63,7 @@ use crate::inspection::restricted_world_view::{ReflectBorrow, RestrictedWorldVie
 ///
 /// If all you're displaying is a simple value without any references into the bevy world, consider just using
 /// [`reflect_inspector::ui_for_value`](crate::inspection::reflect_inspector::ui_for_value).
-pub fn ui_for_value(value: &mut dyn Reflect, ui: &mut egui::Ui, world: &mut World) -> bool {
+pub fn ui_for_value(value: &mut dyn Reflect, ui: &mut egui::Ui, world: &mut World) -> Result<bool> {
     let type_registry = world.resource::<AppTypeRegistry>().0.clone();
     let type_registry = type_registry.read();
 
@@ -76,25 +72,10 @@ pub fn ui_for_value(value: &mut dyn Reflect, ui: &mut egui::Ui, world: &mut Worl
         world: Some(RestrictedWorldView::new(world)),
         queue: Some(&mut queue),
     };
-    let mut env = InspectorUi::for_bevy(&type_registry, &mut cx);
-    let changed = env.ui_for_reflect(value.as_partial_reflect_mut(), ui);
+    let mut env = InspectorUi::new(&type_registry, &mut cx);
+    let changed = env.ui_for_reflect(value.as_partial_reflect_mut(), ui)?;
     queue.apply(world);
-    changed
-}
-
-/// Display `Entities`, `Resources` and `Assets` using their respective functions inside headers
-pub fn ui_for_world(world: &mut World, ui: &mut egui::Ui) {
-    egui::CollapsingHeader::new("Entities")
-        .default_open(true)
-        .show(ui, |ui| {
-            ui_for_entities(world, ui);
-        });
-    egui::CollapsingHeader::new("Resources").show(ui, |ui| {
-        ui_for_resources(world, ui);
-    });
-    egui::CollapsingHeader::new("Assets").show(ui, |ui| {
-        ui_for_all_assets(world, ui);
-    });
+    Ok(changed)
 }
 
 /// Display all reflectable resources in the world
@@ -121,7 +102,7 @@ pub fn ui_for_resources(world: &mut World, ui: &mut egui::Ui) {
 }
 
 /// Display the resource `R`
-pub fn ui_for_resource<R: Resource + Reflect>(world: &mut World, ui: &mut egui::Ui) {
+pub fn ui_for_resource<R: Resource + Reflect>(world: &mut World, ui: &mut egui::Ui) -> Result {
     let type_registry = world.resource::<AppTypeRegistry>().0.clone();
     let type_registry = type_registry.read();
 
@@ -130,20 +111,22 @@ pub fn ui_for_resource<R: Resource + Reflect>(world: &mut World, ui: &mut egui::
         RestrictedWorldView::new(world).split_off_resource_typed::<R>()
     else {
         errors::nonexistent_resource(ui, &pretty_type_name::<R>());
-        return;
+        return Ok(());
     };
     let mut queue = CommandQueue::default();
     let mut cx = Context {
         world: Some(world_view),
         queue: Some(&mut queue),
     };
-    let mut env = InspectorUi::for_bevy(&type_registry, &mut cx);
+    let mut env = InspectorUi::new(&type_registry, &mut cx);
 
-    if env.ui_for_reflect(resource.bypass_change_detection(), ui) {
+    if env.ui_for_reflect(resource.bypass_change_detection(), ui)? {
         resource.set_changed();
     }
 
     queue.apply(world);
+
+    Ok(())
 }
 
 /// Display all reflectable assets
@@ -170,7 +153,7 @@ pub fn ui_for_all_assets(world: &mut World, ui: &mut egui::Ui) {
 }
 
 /// Display all assets of the specified asset type `A`
-pub fn ui_for_assets<A: Asset + Reflect>(world: &mut World, ui: &mut egui::Ui) {
+pub fn ui_for_assets<A: Asset + Reflect>(world: &mut World, ui: &mut egui::Ui) -> Result {
     let asset_server = world.get_resource::<AssetServer>().cloned();
 
     let type_registry = world.resource::<AppTypeRegistry>().0.clone();
@@ -181,7 +164,7 @@ pub fn ui_for_assets<A: Asset + Reflect>(world: &mut World, ui: &mut egui::Ui) {
         RestrictedWorldView::new(world).split_off_resource_typed::<Assets<A>>()
     else {
         errors::nonexistent_resource(ui, &pretty_type_name::<Assets<A>>());
-        return;
+        return Ok(());
     };
 
     let mut queue = CommandQueue::default();
@@ -195,19 +178,31 @@ pub fn ui_for_assets<A: Asset + Reflect>(world: &mut World, ui: &mut egui::Ui) {
     for (handle_id, asset) in assets {
         let id = egui::Id::new(handle_id);
 
-        egui::CollapsingHeader::new(handle_name(handle_id.untyped(), asset_server.as_ref()))
-            .id_salt(id)
-            .show(ui, |ui| {
-                let mut env = InspectorUi::for_bevy(&type_registry, &mut cx);
-                env.ui_for_reflect_with_options(asset, ui, id, &());
-            });
+        let inner =
+            egui::CollapsingHeader::new(handle_name(handle_id.untyped(), asset_server.as_ref()))
+                .id_salt(id)
+                .show(ui, |ui| -> Result {
+                    let mut env = InspectorUi::new(&type_registry, &mut cx);
+                    env.ui_for_reflect_with_options(asset, ui, id, &())?;
+                    Ok(())
+                })
+                .body_returned;
+
+        if let Some(inner) = inner {
+            inner?;
+        }
     }
 
     queue.apply(world);
+
+    Ok(())
 }
 
 /// Display state `T` and change state on edit
-pub fn ui_for_state<T: FreelyMutableState + Reflect>(world: &mut World, ui: &mut egui::Ui) {
+pub fn ui_for_state<T: FreelyMutableState + Reflect>(
+    world: &mut World,
+    ui: &mut egui::Ui,
+) -> Result {
     let type_registry = world.resource::<AppTypeRegistry>().0.clone();
     let type_registry = type_registry.read();
 
@@ -216,106 +211,29 @@ pub fn ui_for_state<T: FreelyMutableState + Reflect>(world: &mut World, ui: &mut
         RestrictedWorldView::new(world).split_off_resource_typed::<State<T>>()
     else {
         errors::nonexistent_state(ui, &pretty_type_name::<T>());
-        return;
+        return Ok(());
     };
     let Some((mut next_state, world_view)) = world_view.split_off_resource_typed::<NextState<T>>()
     else {
         errors::nonexistent_state(ui, &pretty_type_name::<T>());
-        return;
+        return Ok(());
     };
     let mut queue = CommandQueue::default();
     let mut cx = Context {
         world: Some(world_view),
         queue: Some(&mut queue),
     };
-    let mut env = InspectorUi::for_bevy(&type_registry, &mut cx);
+    let mut env = InspectorUi::new(&type_registry, &mut cx);
 
     let mut current = state.get().clone();
-    let changed = env.ui_for_reflect(&mut current, ui);
+    let changed = env.ui_for_reflect(&mut current, ui)?;
 
     if changed {
         *next_state = NextState::Pending(current);
     }
     queue.apply(world);
-}
 
-/// Display all entities matching [`Without<Parent>`] and their components
-///
-/// Includes basic [`EntityFilter`]
-#[deprecated(since = "0.28.1", note = "use ui_for_entities instead")]
-pub fn ui_for_world_entities(world: &mut World, ui: &mut egui::Ui) {
-    ui_for_entities(world, ui);
-}
-/// Display all entities matching the static [`QueryFilter`]
-#[deprecated(since = "0.28.1", note = "use ui_for_entities_filtered instead")]
-pub fn ui_for_world_entities_filtered<QF: WorldQuery + QueryFilter>(
-    world: &mut World,
-    ui: &mut egui::Ui,
-    with_children: bool,
-) {
-    ui_for_entities_filtered(world, ui, with_children, &Filter::<QF>::all());
-}
-
-/// Display all root entities.
-pub fn ui_for_entities(world: &mut World, ui: &mut egui::Ui) {
-    let filter: Filter = Filter::from_ui_fuzzy(ui, egui::Id::new("default_world_entities_filter"));
-    ui_for_entities_filtered(world, ui, true, &filter);
-}
-
-/// Display all entities matching the given [`EntityFilter`].
-///
-/// You can use the [`Filter`] type to specify both a static filter as a generic parameter (default is `Without<Parent>`),
-/// and a word to match. [`Filter::from_ui`] will display a search box and fuzzy filter checkbox.
-pub fn ui_for_entities_filtered<F>(
-    world: &mut World,
-    ui: &mut egui::Ui,
-    with_children: bool,
-    filter: &F,
-) where
-    F: EntityFilter,
-{
-    let type_registry = world.resource::<AppTypeRegistry>().0.clone();
-    let type_registry = type_registry.read();
-
-    let mut root_entities = world.query_filtered::<Entity, F::StaticFilter>();
-    let mut entities = root_entities.iter(world).collect::<Vec<_>>();
-
-    filter.filter_entities(world, &mut entities);
-
-    entities.sort();
-
-    let id = egui::Id::new("world ui");
-    for entity in entities {
-        let id = id.with(entity);
-
-        let entity_name = guess_entity_name(world, entity);
-
-        egui::CollapsingHeader::new(&entity_name)
-            .id_salt(id)
-            .show(ui, |ui| {
-                if with_children {
-                    ui_for_entity_with_children_inner(
-                        world,
-                        entity,
-                        ui,
-                        id,
-                        &type_registry,
-                        filter,
-                    );
-                } else {
-                    let mut queue = CommandQueue::default();
-                    ui_for_entity_components(
-                        &mut world.into(),
-                        Some(&mut queue),
-                        entity,
-                        ui,
-                        id,
-                        &type_registry,
-                    );
-                    queue.apply(world);
-                }
-            });
-    }
+    Ok(())
 }
 
 pub trait EntityFilter {
@@ -482,218 +400,6 @@ fn self_or_children_satisfy_filter(
     }
 }
 
-/// Display the given entity with all its components and children
-pub fn ui_for_entity_with_children(world: &mut World, entity: Entity, ui: &mut egui::Ui) {
-    let type_registry = world.resource::<AppTypeRegistry>().0.clone();
-    let type_registry = type_registry.read();
-
-    let entity_name = guess_entity_name(world, entity);
-    ui.label(entity_name);
-
-    let filter: Filter = Filter::all();
-    ui_for_entity_with_children_inner(
-        world,
-        entity,
-        ui,
-        egui::Id::new(entity),
-        &type_registry,
-        &filter,
-    )
-}
-
-fn ui_for_entity_with_children_inner<F>(
-    world: &mut World,
-    entity: Entity,
-    ui: &mut egui::Ui,
-    id: egui::Id,
-    type_registry: &TypeRegistry,
-    filter: &F,
-) where
-    F: EntityFilter,
-{
-    let mut queue = CommandQueue::default();
-    ui_for_entity_components(
-        &mut world.into(),
-        Some(&mut queue),
-        entity,
-        ui,
-        id,
-        type_registry,
-    );
-
-    let children = world
-        .get::<Children>(entity)
-        .map(|children| children.iter().collect::<Vec<_>>());
-    if let Some(mut children) = children
-        && !children.is_empty()
-    {
-        filter.filter_entities(world, &mut children);
-        ui.label("Children");
-        for child in children {
-            let id = id.with(child);
-
-            let child_entity_name = guess_entity_name(world, child);
-            egui::CollapsingHeader::new(&child_entity_name)
-                .id_salt(id)
-                .show(ui, |ui| {
-                    ui.label(&child_entity_name);
-
-                    ui_for_entity_with_children_inner(world, child, ui, id, type_registry, filter);
-                });
-        }
-    }
-
-    queue.apply(world);
-}
-
-/// Display the components of the given entity
-pub fn ui_for_entity(world: &mut World, entity: Entity, ui: &mut egui::Ui) {
-    let type_registry = world.resource::<AppTypeRegistry>().0.clone();
-    let type_registry = type_registry.read();
-
-    let entity_name = guess_entity_name(world, entity);
-    ui.label(entity_name);
-
-    let mut queue = CommandQueue::default();
-    ui_for_entity_components(
-        &mut world.into(),
-        Some(&mut queue),
-        entity,
-        ui,
-        egui::Id::new(entity),
-        &type_registry,
-    );
-    queue.apply(world);
-}
-
-/// Display the components of the given entity
-pub(crate) fn ui_for_entity_components(
-    world: &mut RestrictedWorldView<'_>,
-    mut queue: Option<&mut CommandQueue>,
-    entity: Entity,
-    ui: &mut egui::Ui,
-    id: egui::Id,
-    type_registry: &TypeRegistry,
-) {
-    let Ok(components) = components_of_entity(world, entity) else {
-        errors::nonexistent_entity(ui, entity);
-        return;
-    };
-
-    for (name, component_id, component_type_id, size) in components {
-        let id = id.with(component_id);
-
-        let header = egui::CollapsingHeader::new(&name).id_salt(id);
-
-        let Some(component_type_id) = component_type_id else {
-            header.show(ui, |ui| errors::missing_type_id(ui, &name));
-            continue;
-        };
-
-        #[cfg(feature = "documentation")]
-        let type_docs = type_registry
-            .get_type_info(component_type_id)
-            .and_then(|info| info.docs());
-
-        if size == 0 {
-            ui.indent(id, |ui| {
-                let _response = ui.label(&name);
-                #[cfg(feature = "documentation")]
-                crate::inspection::egui_utils::show_docs(_response, type_docs);
-            });
-            continue;
-        }
-
-        // create a context with access to the world except for the currently viewed component
-        let (mut component_view, world) = world.split_off_component((entity, component_type_id));
-        let mut cx = Context {
-            world: Some(world),
-            #[allow(clippy::needless_option_as_deref)]
-            queue: queue.as_deref_mut(),
-        };
-
-        let value = match component_view.get_entity_component_reflect(
-            entity,
-            component_type_id,
-            type_registry,
-        ) {
-            Ok(value) => value,
-            Err(e) => {
-                ui.indent(id, |ui| {
-                    let response = ui.label(egui::RichText::new(&name).underline());
-                    response.on_hover_ui(|ui| errors::no_access(e, ui, &name));
-                });
-                continue;
-            }
-        };
-
-        let changed_by = match &value {
-            ReflectBorrow::Mutable(val) => val.changed_by().into_option(),
-            ReflectBorrow::Immutable(_) => None,
-        };
-
-        let _response = header.show(ui, |ui| {
-            ui.reset_style();
-
-            let mut env = InspectorUi::for_bevy(type_registry, &mut cx);
-            let id = id.with(component_id);
-            let options = &();
-
-            match value {
-                ReflectBorrow::Mutable(mut value) => {
-                    let changed = env.ui_for_reflect_with_options(
-                        value.bypass_change_detection().as_partial_reflect_mut(),
-                        ui,
-                        id,
-                        options,
-                    );
-
-                    if changed {
-                        value.set_changed();
-                    }
-                }
-                ReflectBorrow::Immutable(value) => env.ui_for_reflect_readonly_with_options(
-                    value.as_partial_reflect(),
-                    ui,
-                    id,
-                    options,
-                ),
-            };
-        });
-
-        let response = _response.header_response;
-
-        if let Some(location) = changed_by {
-            response.context_menu(|ui| {
-                ui.label("Last change:");
-                let path = Path::new(location.file());
-                let pretty = utils::trim_cargo_registry_path(path);
-
-                if ui
-                    .button(format!(
-                        "{}:{}:{}",
-                        pretty.as_deref().unwrap_or(path).display(),
-                        location.line(),
-                        location.column()
-                    ))
-                    .clicked()
-                {
-                    if let Err(e) = utils::open_file_at(location) {
-                        bevy::log::error!("Failed to open last change location: {}", e);
-                    } else {
-                        bevy::log::info!("Successfully opened {location}");
-                    }
-                }
-            });
-        }
-
-        #[cfg(feature = "documentation")]
-        crate::inspection::egui_utils::show_docs(response, type_docs);
-
-        ui.reset_style();
-    }
-}
-
 fn components_of_entity(
     world: &mut RestrictedWorldView<'_>,
     entity: Entity,
@@ -713,102 +419,6 @@ fn components_of_entity(
         .collect();
     components.sort_by(|(name_a, ..), (name_b, ..)| name_a.cmp(name_b));
     Ok(components)
-}
-
-/// Display the given entity with all its components and children
-pub fn ui_for_entities_shared_components(
-    world: &mut World,
-    entities: &[Entity],
-    ui: &mut egui::Ui,
-) {
-    let type_registry = world.resource::<AppTypeRegistry>().0.clone();
-    let type_registry = type_registry.read();
-
-    let Some(&first) = entities.first() else {
-        return;
-    };
-
-    let Ok(mut components) = components_of_entity(&mut world.into(), first) else {
-        return errors::nonexistent_entity(ui, first);
-    };
-
-    for &entity in entities.iter().skip(1) {
-        components.retain(|(_, id, _, _)| {
-            world
-                .get_entity(entity)
-                .map_or(true, |entity| entity.contains_id(*id))
-        })
-    }
-
-    let (resources_view, components_view) = RestrictedWorldView::resources_components(world);
-    let mut queue = CommandQueue::default();
-    let mut cx = Context {
-        world: Some(resources_view),
-        queue: Some(&mut queue),
-    };
-    let mut env = InspectorUi::for_bevy(&type_registry, &mut cx);
-
-    let id = egui::Id::NULL;
-    for (name, component_id, component_type_id, size) in components {
-        let id = id.with(component_id);
-        egui::CollapsingHeader::new(&name)
-            .id_salt(id)
-            .show(ui, |ui| {
-                if size == 0 {
-                    return;
-                }
-                let Some(component_type_id) = component_type_id else {
-                    return errors::missing_type_id(ui, &name);
-                };
-
-                let mut values = Vec::with_capacity(entities.len());
-
-                for (i, &entity) in entities.iter().enumerate() {
-                    // skip duplicate entities
-                    if entities[0..i].contains(&entity) {
-                        continue;
-                    };
-
-                    // SAFETY: entities are distinct, env has a context with just resources
-                    match unsafe {
-                        components_view.get_entity_component_reflect_unchecked(
-                            entity,
-                            component_type_id,
-                            &type_registry,
-                        )
-                    } {
-                        Ok(value) => {
-                            values.push(value);
-                        }
-                        Err(error) => {
-                            errors::no_access(error, ui, &name);
-                            return;
-                        }
-                    }
-                }
-
-                let mut values_reflect: Vec<_> = values
-                    .iter_mut()
-                    .map(|value| value.bypass_change_detection().as_partial_reflect_mut())
-                    .collect();
-                let changed = env.ui_for_reflect_many_with_options(
-                    component_type_id,
-                    &name,
-                    ui,
-                    id.with(component_id),
-                    &(),
-                    values_reflect.as_mut_slice(),
-                    &|a| a,
-                );
-                if changed {
-                    for value in values.iter_mut() {
-                        value.set_changed();
-                    }
-                }
-            });
-    }
-
-    queue.apply(world);
 }
 
 pub mod by_type_id {
@@ -835,7 +445,7 @@ pub mod by_type_id {
         ui: &mut egui::Ui,
         name_of_type: &str,
         type_registry: &TypeRegistry,
-    ) {
+    ) -> Result {
         let mut queue = CommandQueue::default();
 
         {
@@ -846,25 +456,29 @@ pub mod by_type_id {
                 world: Some(world_view),
                 queue: Some(&mut queue),
             };
-            let mut env = InspectorUi::for_bevy(type_registry, &mut cx);
+            let mut env = InspectorUi::new(type_registry, &mut cx);
 
             let mut resource = match resource_view
                 .get_resource_reflect_mut_by_id(resource_type_id, type_registry)
             {
                 Ok(resource) => resource,
-                Err(err) => return errors::no_access(err, ui, name_of_type),
+                Err(err) => {
+                    errors::no_access(err, ui, name_of_type);
+                    return Ok(());
+                }
             };
 
             let changed = env.ui_for_reflect(
                 resource.bypass_change_detection().as_partial_reflect_mut(),
                 ui,
-            );
+            )?;
             if changed {
                 resource.set_changed();
             }
         }
 
         queue.apply(world);
+        Ok(())
     }
 
     /// Display all assets of the given asset [`TypeId`]
@@ -873,30 +487,36 @@ pub mod by_type_id {
         asset_type_id: TypeId,
         ui: &mut egui::Ui,
         type_registry: &TypeRegistry,
-    ) {
+    ) -> Result {
         let asset_server = world.get_resource::<AssetServer>().cloned();
 
         let Some(registration) = type_registry.get(asset_type_id) else {
-            return crate::inspection::reflect_inspector::errors::not_in_type_registry(
+            crate::inspection::reflect_inspector::errors::not_in_type_registry(
                 ui,
                 &typeid_name(asset_type_id, type_registry),
             );
+
+            return Ok(());
         };
         let Some(reflect_asset) = registration.data::<ReflectAsset>() else {
-            return errors::missing_typedata(
+            errors::missing_typedata(
                 ui,
                 &typeid_name(asset_type_id, type_registry),
                 "ReflectAsset",
             );
+
+            return Ok(());
         };
         let Some(reflect_handle) =
             type_registry.get_type_data::<ReflectHandle>(reflect_asset.handle_type_id())
         else {
-            return errors::missing_typedata(
+            errors::missing_typedata(
                 ui,
                 &typeid_name(reflect_asset.handle_type_id(), type_registry),
                 "ReflectHandle",
             );
+
+            return Ok(());
         };
 
         let ids: Vec<_> = reflect_asset.ids(world).collect();
@@ -922,7 +542,7 @@ pub mod by_type_id {
                 egui::CollapsingHeader::new(handle_name(handle_id, asset_server.as_ref()))
                     .id_salt(id)
                     .show(ui, |ui| {
-                        let mut env = InspectorUi::for_bevy(type_registry, &mut cx);
+                        let mut env = InspectorUi::new(type_registry, &mut cx);
                         env.ui_for_reflect_with_options(&mut *handle, ui, id, &());
                     });
 
@@ -954,11 +574,13 @@ pub mod by_type_id {
                 egui::CollapsingHeader::new(handle_name(handle_id, asset_server.as_ref()))
                     .id_salt(id)
                     .show(ui, |ui| {
-                        let mut env = InspectorUi::for_bevy(type_registry, &mut cx);
+                        let mut env = InspectorUi::new(type_registry, &mut cx);
                         env.ui_for_reflect_with_options(data, ui, id, &());
                     });
             }
         }
+
+        Ok(())
     }
 
     /// Display a given asset by handle and asset [`TypeId`]
@@ -968,13 +590,13 @@ pub mod by_type_id {
         handle: UntypedAssetId,
         ui: &mut egui::Ui,
         type_registry: &TypeRegistry,
-    ) -> bool {
+    ) -> Result<bool> {
         let Some(registration) = type_registry.get(asset_type_id) else {
             crate::inspection::reflect_inspector::errors::not_in_type_registry(
                 ui,
                 &typeid_name(asset_type_id, type_registry),
             );
-            return false;
+            return Ok(false);
         };
         let Some(reflect_asset) = registration.data::<ReflectAsset>() else {
             errors::missing_typedata(
@@ -982,7 +604,7 @@ pub mod by_type_id {
                 &typeid_name(asset_type_id, type_registry),
                 "ReflectAsset",
             );
-            return false;
+            return Ok(false);
         };
         let Some(reflect_handle) =
             type_registry.get_type_data::<ReflectHandle>(reflect_asset.handle_type_id())
@@ -992,7 +614,7 @@ pub mod by_type_id {
                 &typeid_name(reflect_asset.handle_type_id(), type_registry),
                 "ReflectHandle",
             );
-            return false;
+            return Ok(false);
         };
 
         let _: Vec<_> = reflect_asset.ids(world).collect();
@@ -1013,14 +635,14 @@ pub mod by_type_id {
                 .typed(UntypedHandle::Uuid { uuid, type_id })
                 .into_partial_reflect();
 
-            let mut env = InspectorUi::for_bevy(type_registry, &mut cx);
-            let changed = env.ui_for_reflect_with_options(&mut *handle, ui, id, &());
+            let mut env = InspectorUi::new(type_registry, &mut cx);
+            let changed = env.ui_for_reflect_with_options(&mut *handle, ui, id, &())?;
 
             queue.apply(world);
 
-            changed
+            Ok(changed)
         } else {
-            false
+            Ok(false)
         }
     }
 }
@@ -1040,294 +662,6 @@ fn handle_name(handle: UntypedAssetId, asset_server: Option<&AssetServer>) -> St
         UntypedAssetId::Uuid { uuid, .. } => {
             format!("{uuid}")
         }
-    }
-}
-
-impl<'a, 'c> InspectorUi<'a, 'c> {
-    /// [`InspectorUi`] with short circuiting methods able to display `bevy::asset` [`Handle`](bevy::asset::Handle)s
-    pub fn for_bevy(
-        type_registry: &'a TypeRegistry,
-        context: &'a mut Context<'c>,
-    ) -> InspectorUi<'a, 'c> {
-        InspectorUi::new(
-            type_registry,
-            context,
-            Some(short_circuit::short_circuit),
-            Some(short_circuit::short_circuit_readonly),
-            Some(short_circuit::short_circuit_many),
-        )
-    }
-}
-
-/// Short circuiting methods for the [`InspectorUi`] to enable it to display [`Handle`](bevy::asset::Handle)s
-pub mod short_circuit {
-    use std::any::{Any, TypeId};
-
-    use bevy::asset::ReflectAsset;
-    use bevy::reflect::PartialReflect;
-
-    use crate::inspection::reflect_inspector::{Context, InspectorUi, ProjectorReflect};
-
-    use super::errors::{self, typeid_name};
-
-    pub fn short_circuit(
-        env: &mut InspectorUi,
-        value: &mut dyn PartialReflect,
-        ui: &mut egui::Ui,
-        id: egui::Id,
-        options: &dyn Any,
-    ) -> Option<bool> {
-        let value = value.try_as_reflect()?;
-
-        if let Some(reflect_handle) = env
-            .type_registry
-            .get_type_data::<bevy::asset::ReflectHandle>(value.type_id())
-        {
-            let handle = reflect_handle
-                .downcast_handle_untyped(value.as_any())
-                .unwrap();
-            let handle_id = handle.id();
-            let Some(reflect_asset) = env
-                .type_registry
-                .get_type_data::<ReflectAsset>(reflect_handle.asset_type_id())
-            else {
-                errors::missing_typedata(
-                    ui,
-                    &typeid_name(reflect_handle.asset_type_id(), env.type_registry),
-                    "ReflectAsset",
-                );
-                return Some(false);
-            };
-
-            let Context {
-                world: Some(world),
-                queue,
-            } = &mut env.context
-            else {
-                errors::no_world_in_context(ui, value.reflect_short_type_path());
-                return Some(false);
-            };
-
-            let (assets_view, world) =
-                world.split_off_resource(reflect_asset.assets_resource_type_id());
-
-            let asset_value = {
-                assert!(
-                    assets_view.allows_access_to_resource(reflect_asset.assets_resource_type_id())
-                );
-                let asset_value =
-                // SAFETY: the world allows mutable access to `Assets<T>`
-                unsafe { reflect_asset.get_unchecked_mut(world.world(), &handle) };
-                match asset_value {
-                    Some(value) => value,
-                    None => {
-                        errors::nonexistent_asset_handle(ui, handle_id);
-                        return Some(false);
-                    }
-                }
-            };
-
-            let mut restricted_env = InspectorUi {
-                type_registry: env.type_registry,
-                context: &mut Context {
-                    world: Some(world),
-                    queue: queue.as_deref_mut(),
-                },
-                short_circuit: env.short_circuit,
-                short_circuit_readonly: env.short_circuit_readonly,
-                short_circuit_many: env.short_circuit_many,
-            };
-            return Some(restricted_env.ui_for_reflect_with_options(
-                asset_value.as_partial_reflect_mut(),
-                ui,
-                id.with("asset"),
-                options,
-            ));
-        }
-
-        None
-    }
-
-    pub fn short_circuit_many(
-        env: &mut InspectorUi,
-        type_id: TypeId,
-        type_name: &str,
-        ui: &mut egui::Ui,
-        id: egui::Id,
-        options: &dyn Any,
-        values: &mut [&mut dyn PartialReflect],
-        projector: &dyn ProjectorReflect,
-    ) -> Option<bool> {
-        if let Some(reflect_handle) = env
-            .type_registry
-            .get_type_data::<bevy::asset::ReflectHandle>(type_id)
-        {
-            let Some(reflect_asset) = env
-                .type_registry
-                .get_type_data::<ReflectAsset>(reflect_handle.asset_type_id())
-            else {
-                errors::missing_typedata(
-                    ui,
-                    &typeid_name(reflect_handle.asset_type_id(), env.type_registry),
-                    "ReflectAsset",
-                );
-                return Some(false);
-            };
-
-            let Context {
-                world: Some(world),
-                queue,
-            } = &mut env.context
-            else {
-                errors::no_world_in_context(ui, type_name);
-                return Some(false);
-            };
-
-            let (assets_view, world) =
-                world.split_off_resource(reflect_asset.assets_resource_type_id());
-
-            let mut new_values = Vec::with_capacity(values.len());
-            let mut used_handles = Vec::with_capacity(values.len());
-
-            for value in values {
-                let handle = projector(*value);
-                let Some(handle) = handle.try_as_reflect() else {
-                    // Edge case, continue as normal:
-                    // this for loop should only work if we're multi-editing a bunch of Handles
-                    return None;
-                };
-                let handle = reflect_handle
-                    .downcast_handle_untyped(handle.as_any())
-                    .unwrap();
-                let handle_id = handle.id();
-
-                if used_handles.contains(&handle_id) {
-                    continue;
-                };
-                used_handles.push(handle_id);
-
-                let asset_value = {
-                    assert!(
-                        assets_view
-                            .allows_access_to_resource(reflect_asset.assets_resource_type_id())
-                    );
-                    let asset_value =
-                        // SAFETY: the world allows mutable access to `Assets<T>`
-                        unsafe { reflect_asset.get_unchecked_mut(world.world(), &handle) };
-                    match asset_value {
-                        Some(value) => value,
-                        None => {
-                            errors::nonexistent_asset_handle(ui, handle_id);
-                            return Some(false);
-                        }
-                    }
-                };
-
-                new_values.push(asset_value.as_partial_reflect_mut());
-            }
-
-            let mut restricted_env = InspectorUi {
-                type_registry: env.type_registry,
-                context: &mut Context {
-                    world: Some(world),
-                    queue: queue.as_deref_mut(),
-                },
-                short_circuit: env.short_circuit,
-                short_circuit_readonly: env.short_circuit_readonly,
-                short_circuit_many: env.short_circuit_many,
-            };
-            return Some(restricted_env.ui_for_reflect_many_with_options(
-                reflect_handle.asset_type_id(),
-                "",
-                ui,
-                id.with("asset"),
-                options,
-                new_values.as_mut_slice(),
-                &|a| a,
-            ));
-        }
-
-        None
-    }
-
-    pub fn short_circuit_readonly(
-        env: &mut InspectorUi,
-        value: &dyn PartialReflect,
-        ui: &mut egui::Ui,
-        id: egui::Id,
-        options: &dyn Any,
-    ) -> Option<()> {
-        let value = value.try_as_reflect()?;
-
-        if let Some(reflect_handle) = env
-            .type_registry
-            .get_type_data::<bevy::asset::ReflectHandle>(value.type_id())
-        {
-            let handle = reflect_handle
-                .downcast_handle_untyped(value.as_any())
-                .unwrap();
-            let handle_id = handle.id();
-            let Some(reflect_asset) = env
-                .type_registry
-                .get_type_data::<ReflectAsset>(reflect_handle.asset_type_id())
-            else {
-                errors::missing_typedata(
-                    ui,
-                    &typeid_name(reflect_handle.asset_type_id(), env.type_registry),
-                    "ReflectAsset",
-                );
-                return Some(());
-            };
-
-            let Context {
-                world: Some(world),
-                queue,
-            } = &mut env.context
-            else {
-                errors::no_world_in_context(ui, value.reflect_short_type_path());
-                return Some(());
-            };
-
-            let (assets_view, world) =
-                world.split_off_resource(reflect_asset.assets_resource_type_id());
-
-            let asset_value = {
-                // SAFETY: the following code only accesses a resources it has access to, `Assets<T>`
-                let interior_mutable_world = unsafe { assets_view.world().world() };
-                assert!(
-                    assets_view.allows_access_to_resource(reflect_asset.assets_resource_type_id())
-                );
-                let asset_value = reflect_asset.get(interior_mutable_world, &handle);
-                match asset_value {
-                    Some(value) => value,
-                    None => {
-                        errors::nonexistent_asset_handle(ui, handle_id);
-                        return Some(());
-                    }
-                }
-            }
-            .as_partial_reflect();
-
-            let mut restricted_env = InspectorUi {
-                type_registry: env.type_registry,
-                context: &mut Context {
-                    world: Some(world),
-                    queue: queue.as_deref_mut(),
-                },
-                short_circuit: env.short_circuit,
-                short_circuit_readonly: env.short_circuit_readonly,
-                short_circuit_many: env.short_circuit_many,
-            };
-            restricted_env.ui_for_reflect_readonly_with_options(
-                asset_value,
-                ui,
-                id.with("asset"),
-                options,
-            );
-            return Some(());
-        }
-
-        None
     }
 }
 

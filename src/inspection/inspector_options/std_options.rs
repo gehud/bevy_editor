@@ -1,4 +1,3 @@
-use bevy::ecs::entity::Entity;
 use std::collections::VecDeque;
 
 use crate::inspection::InspectorOptions;
@@ -196,32 +195,6 @@ pub enum QuatDisplay {
 }
 
 impl_options!(bevy::math::Quat => QuatOptions);
-
-#[derive(Clone)]
-#[non_exhaustive]
-pub struct EntityOptions {
-    pub display: EntityDisplay,
-    pub despawnable: bool,
-}
-
-impl Default for EntityOptions {
-    fn default() -> Self {
-        Self {
-            display: EntityDisplay::default(),
-            despawnable: true,
-        }
-    }
-}
-
-#[derive(Copy, Clone, Default)]
-#[non_exhaustive]
-pub enum EntityDisplay {
-    Id,
-    #[default]
-    Components,
-}
-
-impl_options!(Entity => EntityOptions);
 
 impl<T: InspectorOptionsType> InspectorOptionsType for Option<T> {
     type DeriveOptions = T::DeriveOptions;

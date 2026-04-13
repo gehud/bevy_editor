@@ -147,7 +147,7 @@ fn ui_for_entities_shared_components(
         world: Some(resources_view),
         queue: Some(&mut queue),
     };
-    let mut env = InspectorUi::for_bevy(&type_registry, &mut cx);
+    let mut env = InspectorUi::new(&type_registry, &mut cx);
 
     let id = egui::Id::NULL;
     for (name, component_id, component_type_id, size) in components {
@@ -304,7 +304,7 @@ fn ui_for_entity_components(
                         Frame::new()
                             .inner_margin(ui.style().spacing.button_padding)
                             .show(ui, |ui| -> Result {
-                                let mut env = InspectorUi::for_bevy(type_registry, &mut cx);
+                                let mut env = InspectorUi::new(type_registry, &mut cx);
                                 let id = id.with(component_id);
                                 let options = &();
 

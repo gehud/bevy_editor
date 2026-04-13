@@ -185,10 +185,13 @@ pub mod quat {
 
     use bevy::math::prelude::*;
 
-    use crate::{inspection::{
-        inspector_options::std_options::{QuatDisplay, QuatOptions},
-        reflect_inspector::InspectorUi,
-    }, many_ui};
+    use crate::{
+        inspection::{
+            inspector_options::std_options::{QuatDisplay, QuatOptions},
+            reflect_inspector::InspectorUi,
+        },
+        many_ui,
+    };
 
     #[derive(Clone, Copy)]
     struct Euler(Vec3);

@@ -55,8 +55,6 @@ mod std_impls;
 /// ```
 #[allow(unused)]
 pub trait Inspector: Reflect {
-    const MULTISELECTION: bool = false;
-
     fn ui(
         ui: &mut egui::Ui,
         options: &dyn Any,
@@ -64,11 +62,7 @@ pub trait Inspector: Reflect {
         env: InspectorUi<'_, '_>,
         value: &mut dyn PartialReflect,
     ) -> Result<bool> {
-        if Self::MULTISELECTION {
-            Self::ui_many(ui, options, id, env, &mut [value])
-        } else {
-            Ok(false)
-        }
+        Ok(false)
     }
 
     fn ui_readonly(
@@ -78,11 +72,7 @@ pub trait Inspector: Reflect {
         env: InspectorUi<'_, '_>,
         value: &dyn PartialReflect,
     ) -> Result {
-        if Self::MULTISELECTION {
-            Self::ui_many_readonly(ui, options, id, env, &[value])
-        } else {
-            Ok(())
-        }
+        Ok(())
     }
 
     fn ui_many(
@@ -96,6 +86,7 @@ pub trait Inspector: Reflect {
             "{}, doesn't support multi-editing",
             ShortName::of::<Self>()
         ));
+
         Ok(false)
     }
 
