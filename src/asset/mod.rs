@@ -50,9 +50,10 @@ fn refresh(
 
     requests.clear();
 
-    database
-        .connection()
-        .execute("update assets set deleted = true", params![])?;
+    database.connection().execute(
+        "update assets set deleted = true where label is null",
+        params![],
+    )?;
 
     refresh_recurse("assets", &assets, &database)?;
 
@@ -98,23 +99,28 @@ fn refresh_recurse(
                 Ok(mut modified_at) => {
                     if modified_at > last_modified_at {
                         modified_at = last_modified_at;
-                    }
 
-                    let _ = block_on(assets.load_untyped_async(&path))?;
+                        database.connection().execute(
+                            "update assets set deleted = true where path = ?1",
+                            params![path],
+                        )?;
+
+                        let _ = block_on(assets.load_untyped_async(&path))?;
+
+                        if let Some(labels) = assets.get_living_labeled_assets(&path) {
+                            for label in labels {
+                                database.connection().execute(
+                                "update assets set deleted = false, modified_at = ?1 where path = ?2 and label = ?3",
+                                params![modified_at, path, label],
+                            )?;
+                            }
+                        }
+                    }
 
                     database.connection().execute(
                         "update assets set deleted = false, modified_at = ?1 where path = ?2 and label is null",
                         params![modified_at, path],
                     )?;
-
-                    if let Some(labels) = assets.get_living_labeled_assets(&path) {
-                        for label in labels {
-                            database.connection().execute(
-                                "update assets set deleted = false, modified_at = ?1 where path = ?2 and label = ?3",
-                                params![modified_at, path, label],
-                            )?;
-                        }
-                    }
                 }
                 Err(error) => match error {
                     SqliteError::QueryReturnedNoRows => {

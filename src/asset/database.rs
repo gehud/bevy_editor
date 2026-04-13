@@ -8,8 +8,9 @@ use std::{
 use bevy::{
     asset::{AssetPath, uuid::Uuid},
     ecs::{error::Result, resource::Resource},
+    utils::default,
 };
-use rusqlite::{Connection, params};
+use rusqlite::{Connection, Error as SqliteError, ToSql, params, types::Null};
 
 #[derive(Resource)]
 pub(crate) struct AssetDatabase(Mutex<Connection>);
@@ -54,39 +55,48 @@ impl AssetDatabase {
         Ok(())
     }
 
-    pub fn get_asset_uuid<'a>(&self, path: impl Into<AssetPath<'a>>) -> Result<Uuid> {
-        let path = path.into();
+    pub fn get_asset_uuid<'a>(&self, path: impl Into<AssetPath<'a>>) -> Result<Option<Uuid>> {
+        let mut path = path.into();
 
-        let uuid = if let Some(label) = path.label() {
-            let path = Self::normalize_path(path.path());
-            self.connection().query_one(
-                "select uuid from assets where not deleted and path = ?1 and label = ?2",
-                params![path, label],
-                |row| {
-                    let uuid: String = row.get(0)?;
-                    Ok(Uuid::from_str(&uuid))
-                },
-            )?
+        let label_query = if let Some(label) = path.take_label() {
+            format!("label = '{}'", label)
         } else {
-            let path = Self::normalize_path(path.path());
-            self.connection().query_one(
-                "select uuid from assets where not deleted and path = ?1 and label is null",
-                params![path],
-                |row| {
-                    let uuid: String = row.get(0)?;
-                    Ok(Uuid::from_str(&uuid))
-                },
-            )?
-        }?;
+            "label is null".into()
+        };
 
-        Ok(uuid)
+        let path = Self::normalize_path(path.path());
+
+        match self.connection().query_one(
+            &format!(
+                "select uuid from assets where not deleted and path = ?1 and {}",
+                label_query
+            ),
+            params![path],
+            |row| {
+                let uuid: String = row.get(0)?;
+                Ok(Uuid::from_str(&uuid))
+            },
+        ) {
+            Ok(uuid) => Ok(Some(uuid?)),
+            Err(err) => match err {
+                SqliteError::QueryReturnedNoRows => Ok(None),
+                err => Err(err.into()),
+            },
+        }
     }
 
-    pub fn get_asset_labeled_uuids<'a>(&self, path: impl Into<AssetPath<'a>>) -> Result<Vec<Uuid>> {
+    pub fn get_asset_labeled_uuids<'a>(
+        &self,
+        path: impl Into<AssetPath<'a>>,
+    ) -> Result<Option<Vec<Uuid>>> {
         let path = path.into();
 
         if path.label().is_some() {
             return Err("'AssetPath' without label expected.".into());
+        }
+
+        if self.get_asset_uuid(&path)?.is_none() {
+            return Ok(None);
         }
 
         let path = Self::normalize_path(path.path());
@@ -108,7 +118,7 @@ impl AssetDatabase {
             uuids.push(uuid??);
         }
 
-        Ok(uuids)
+        Ok(Some(uuids))
     }
 
     pub fn get_path_by_uuid<'a>(&self, uuid: &Uuid) -> Result<AssetPath<'_>> {

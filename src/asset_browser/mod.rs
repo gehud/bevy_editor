@@ -155,7 +155,8 @@ fn ui_for_file(ui: &mut Ui, world: &mut World, file_name: String, path: PathBuf)
     let asset_path = path.strip_prefix("assets")?.to_path_buf();
     let labeled_uuids = world
         .resource::<AssetDatabase>()
-        .get_asset_labeled_uuids(asset_path.clone())?;
+        .get_asset_labeled_uuids(asset_path.clone())?
+        .unwrap_or_default();
     let has_labeled_assets = !labeled_uuids.is_empty();
 
     let response = ui
