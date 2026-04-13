@@ -15,7 +15,7 @@ use bevy::{
     reflect::TypeRegistry,
 };
 use egui::{
-    Color32, Frame, Id, InnerResponse, TextEdit, TextureId, Ui, Vec2, Window,
+    Color32, Frame, Id, InnerResponse, Response, TextEdit, TextureId, Ui, Vec2, Window,
     collapsing_header::{CollapsingState, paint_default_icon},
 };
 
@@ -55,8 +55,8 @@ impl Pane for PropertiesPane {
                 .map(|selected| selected.map(|item| item.entity).collect::<Vec<_>>())
             {
                 match selected.as_slice() {
-                    &[entity] => ui_for_entity(ui, world, entity),
-                    entities => ui_for_entities_shared_components(ui, world, entities),
+                    &[entity] => ui_for_entity(ui, world, entity)?,
+                    entities => ui_for_entities_shared_components(ui, world, entities)?,
                 }
             }
         }
@@ -65,7 +65,7 @@ impl Pane for PropertiesPane {
     }
 }
 
-fn ui_for_entity_name(ui: &mut Ui, world: &mut World, entity: Entity) {
+fn ui_for_entity_name(ui: &mut Ui, world: &mut World, entity: Entity) -> Result {
     ui.horizontal(|ui| {
         let mut entity_mut = world.entity_mut(entity);
 
@@ -91,13 +91,15 @@ fn ui_for_entity_name(ui: &mut Ui, world: &mut World, entity: Entity) {
             ui.label("Entity");
         }
     });
+
+    Ok(())
 }
 
-fn ui_for_entity(ui: &mut Ui, world: &mut World, entity: Entity) {
+fn ui_for_entity(ui: &mut Ui, world: &mut World, entity: Entity) -> Result {
     let type_registry = world.resource::<AppTypeRegistry>().0.clone();
     let type_registry = type_registry.read();
 
-    ui_for_entity_name(ui, world, entity);
+    ui_for_entity_name(ui, world, entity)?;
     ui.separator();
 
     let mut queue = CommandQueue::default();
@@ -107,21 +109,28 @@ fn ui_for_entity(ui: &mut Ui, world: &mut World, entity: Entity) {
         entity,
         ui,
         &type_registry,
-    );
+    )?;
 
     queue.apply(world);
+
+    Ok(())
 }
 
-fn ui_for_entities_shared_components(ui: &mut Ui, world: &mut World, entities: &[Entity]) {
+fn ui_for_entities_shared_components(
+    ui: &mut Ui,
+    world: &mut World,
+    entities: &[Entity],
+) -> Result {
     let type_registry = world.resource::<AppTypeRegistry>().0.clone();
     let type_registry = type_registry.read();
 
     let Some(&first) = entities.first() else {
-        return;
+        return Ok(());
     };
 
     let Ok(mut components) = components_of_entity(&mut world.into(), first) else {
-        return errors::nonexistent_entity(ui, first);
+        errors::nonexistent_entity(ui, first);
+        return Ok(());
     };
 
     for &entity in entities.iter().skip(1) {
@@ -143,11 +152,11 @@ fn ui_for_entities_shared_components(ui: &mut Ui, world: &mut World, entities: &
     let id = egui::Id::NULL;
     for (name, component_id, component_type_id, size) in components {
         let id = id.with(component_id);
-        egui::CollapsingHeader::new(&name)
+        let inner = egui::CollapsingHeader::new(&name)
             .id_salt(id)
-            .show(ui, |ui| {
+            .show(ui, |ui| -> Result {
                 if size == 0 {
-                    return;
+                    return Ok(());
                 }
 
                 let mut values = Vec::with_capacity(entities.len());
@@ -171,7 +180,7 @@ fn ui_for_entities_shared_components(ui: &mut Ui, world: &mut World, entities: &
                         }
                         Err(error) => {
                             errors::no_access(error, ui, &name);
-                            return;
+                            return Ok(());
                         }
                     }
                 }
@@ -187,17 +196,25 @@ fn ui_for_entities_shared_components(ui: &mut Ui, world: &mut World, entities: &
                     id.with(component_id),
                     &(),
                     values_reflect.as_mut_slice(),
-                    &|a| a,
-                );
+                )?;
                 if changed {
                     for value in values.iter_mut() {
                         value.set_changed();
                     }
                 }
-            });
+
+                Ok(())
+            })
+            .body_returned;
+
+        if let Some(inner) = inner {
+            inner?;
+        }
     }
 
     queue.apply(world);
+
+    Ok(())
 }
 
 fn ui_for_entity_components(
@@ -206,13 +223,13 @@ fn ui_for_entity_components(
     entity: Entity,
     ui: &mut egui::Ui,
     type_registry: &TypeRegistry,
-) {
+) -> Result {
     let Ok(components) = components_of_entity(world, entity) else {
         errors::nonexistent_entity(ui, entity);
-        return;
+        return Ok(());
     };
 
-    ui.push_id(Id::new(entity), |ui| {
+    ui.push_id(Id::new(entity), |ui| -> Result {
         for (name, component_id, component_type_id, size) in components {
             let id = Id::new(component_id);
 
@@ -267,7 +284,7 @@ fn ui_for_entity_components(
             } = Frame::new()
                 .stroke(ui.style().visuals.widgets.open.bg_stroke)
                 .corner_radius(ui.style().visuals.widgets.active.corner_radius)
-                .show(ui, |ui| {
+                .show(ui, |ui| -> Result<Response> {
                     let InnerResponse {
                         response: header_response,
                         ..
@@ -283,10 +300,10 @@ fn ui_for_entity_components(
                             });
                         });
 
-                    collapsing_state.show_body_unindented(ui, |ui| {
+                    let inner = collapsing_state.show_body_unindented(ui, |ui| -> Result {
                         Frame::new()
                             .inner_margin(ui.style().spacing.button_padding)
-                            .show(ui, |ui| {
+                            .show(ui, |ui| -> Result {
                                 let mut env = InspectorUi::for_bevy(type_registry, &mut cx);
                                 let id = id.with(component_id);
                                 let options = &();
@@ -300,7 +317,7 @@ fn ui_for_entity_components(
                                             ui,
                                             id,
                                             options,
-                                        );
+                                        )?;
 
                                         if changed {
                                             value.set_changed();
@@ -312,15 +329,22 @@ fn ui_for_entity_components(
                                             ui,
                                             id,
                                             options,
-                                        ),
+                                        )?,
                                 };
-                            });
+
+                                Ok(())
+                            })
+                            .inner
                     });
 
-                    header_response
+                    if let Some(inner) = inner {
+                        inner.inner?;
+                    }
+
+                    Ok(header_response)
                 });
 
-            let response = header_response;
+            let response = header_response?;
 
             if let Some(location) = changed_by {
                 response.context_menu(|ui| {
@@ -349,7 +373,10 @@ fn ui_for_entity_components(
             #[cfg(feature = "documentation")]
             crate::inspection::egui_utils::show_docs(response, type_docs);
         }
-    });
+
+        Ok(())
+    })
+    .inner
 }
 
 fn components_of_entity(
