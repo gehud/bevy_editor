@@ -121,8 +121,8 @@ impl AssetDatabase {
         Ok(Some(uuids))
     }
 
-    pub fn get_path_by_uuid<'a>(&self, uuid: &Uuid) -> Result<AssetPath<'_>> {
-        let (path, label) = self.connection().query_one(
+    pub fn get_path_by_uuid<'a>(&self, uuid: &Uuid) -> Result<Option<AssetPath<'_>>> {
+        let (path, label) = match self.connection().query_one(
             "select path, label from assets where uuid = ?1",
             params![uuid.to_string()],
             |row| {
@@ -130,7 +130,15 @@ impl AssetDatabase {
                 let label: Option<String> = row.get(1).ok();
                 Ok((path, label))
             },
-        )?;
+        ) {
+            Ok(value) => value,
+            Err(err) => match err {
+                SqliteError::QueryReturnedNoRows => {
+                    return Ok(None);
+                }
+                err => return Err(err.into()),
+            },
+        };
 
         let mut path = AssetPath::from(path);
 
@@ -138,6 +146,6 @@ impl AssetDatabase {
             path = path.with_label(label);
         }
 
-        Ok(path)
+        Ok(Some(path))
     }
 }
