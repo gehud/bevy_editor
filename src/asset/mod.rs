@@ -50,6 +50,10 @@ fn refresh(
 
     requests.clear();
 
+    database
+        .connection()
+        .execute("update assets set deleted = true", params![])?;
+
     refresh_recurse("assets", &assets, &database)?;
 
     commands.write_message(DatabaseRefresed);
@@ -62,10 +66,6 @@ fn refresh_recurse(
     assets: &AssetServer,
     database: &AssetDatabase,
 ) -> Result {
-    database
-        .connection()
-        .execute("update assets set deleted = true", params![])?;
-
     for entry in read_dir(path)? {
         let path = entry?.path();
 
@@ -93,17 +93,17 @@ fn refresh_recurse(
                 },
             );
 
+            let last_modified_at = DateTime::<Utc>::from(metadata.modified()?);
             match row {
                 Ok(mut modified_at) => {
-                    let last_modified_at = DateTime::<Utc>::from(metadata.modified()?);
-
                     if modified_at > last_modified_at {
                         modified_at = last_modified_at;
                     }
 
                     let _ = block_on(assets.load_untyped_async(&path))?;
+
                     database.connection().execute(
-                        "update assets set deleted = false, modified_at = ?1 where path = ?2",
+                        "update assets set deleted = false, modified_at = ?1 where path = ?2 and label is null",
                         params![modified_at, path],
                     )?;
 
@@ -121,14 +121,14 @@ fn refresh_recurse(
                         let _ = block_on(assets.load_untyped_async(&path))?;
                         database.connection().execute(
                             "insert into assets (uuid, path, modified_at) values (?1, ?2, ?3)",
-                            params![Uuid::new_v4().to_string(), path, Utc::now()],
+                            params![Uuid::new_v4().to_string(), path, last_modified_at],
                         )?;
 
                         if let Some(labels) = assets.get_living_labeled_assets(&path) {
                             for label in labels {
                                 database.connection().execute(
-                                    "insert into assets (uuid, path, label, modified_at)  values (?1, ?2, ?3, ?4)",
-                                    params![Uuid::new_v4().to_string(), path, label, Utc::now()],
+                                    "insert into assets (uuid, path, label, modified_at) values (?1, ?2, ?3, ?4)",
+                                    params![Uuid::new_v4().to_string(), path, label, last_modified_at],
                                 )?;
                             }
                         }

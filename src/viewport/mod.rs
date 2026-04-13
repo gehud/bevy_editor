@@ -40,7 +40,7 @@ use bevy::{
         mouse::{AccumulatedMouseMotion, MouseButton},
     },
     log::info,
-    math::{EulerRot, Quat, Rect, Vec2, Vec3},
+    math::{EulerRot, Quat, Rect, Vec2, Vec3, VectorSpace},
     mesh::{Mesh2d, Mesh3d},
     picking::{
         Pickable, PickingSystems,
@@ -196,7 +196,7 @@ fn setup(
             ..default()
         },
         RenderTarget::Image(viewport_target_handle.clone().into()),
-        Transform::from_xyz(0.0, 1.0, 0.0).looking_to(Vec3::X, Vec3::Y),
+        Transform::from_xyz(3.0, 3.0, 3.0).looking_at(Vec3::ZERO, Vec3::Y),
         PointerId::Custom(Uuid::new_v4()),
     ));
 

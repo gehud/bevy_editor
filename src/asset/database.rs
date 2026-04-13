@@ -70,7 +70,7 @@ impl AssetDatabase {
         } else {
             let path = Self::normalize_path(path.path());
             self.connection().query_one(
-                "select uuid from assets where not deleted and path = ?1 and label = null",
+                "select uuid from assets where not deleted and path = ?1 and label is null",
                 params![path],
                 |row| {
                     let uuid: String = row.get(0)?;
@@ -94,7 +94,7 @@ impl AssetDatabase {
         let connection = self.connection();
 
         let mut stmt = connection.prepare(
-            "select uuid from assets where not deleted and label not null and path = ?1",
+            "select uuid from assets where not deleted and label is not null and path = ?1",
         )?;
 
         let iter = stmt.query_map(params![path], |row| {
