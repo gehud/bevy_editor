@@ -242,8 +242,6 @@ pub fn register_default_options(type_registry: &mut TypeRegistry) {
         ],
     );
 
-    type_registry.register::<bevy::time::Virtual>();
-
     insert_options_struct::<bevy::time::Virtual>(
         type_registry,
         &[

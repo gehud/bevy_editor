@@ -146,54 +146,13 @@ pub mod dropdown;
 pub mod egui_utils;
 pub mod utils;
 
-use std::any::TypeId;
-
 /// [`bevy::app::Plugin`] used to register default [`struct@InspectorOptions`] and [`InspectorEguiImpl`](crate::inspection::inspector_egui_impls::InspectorEguiImpl)s
 pub struct DefaultInspectorConfigPlugin;
 impl bevy::app::Plugin for DefaultInspectorConfigPlugin {
-    fn build(&self, app: &mut bevy::app::App) {
-        if app.is_plugin_added::<Self>() {
-            return;
-        }
-
-        // Defensively register stuff since bevy only registers glam, color types used by other structs internally
-        app.register_type::<bevy::math::IVec2>()
-            .register_type::<bevy::math::IVec3>()
-            .register_type::<bevy::math::IVec4>()
-            .register_type::<bevy::math::UVec2>()
-            .register_type::<bevy::math::UVec3>()
-            .register_type::<bevy::math::UVec4>()
-            .register_type::<bevy::math::DVec2>()
-            .register_type::<bevy::math::DVec3>()
-            .register_type::<bevy::math::DVec4>()
-            .register_type::<bevy::math::BVec2>()
-            .register_type::<bevy::math::BVec3>()
-            .register_type::<bevy::math::BVec3A>()
-            .register_type::<bevy::math::BVec4>()
-            .register_type::<bevy::math::BVec4A>()
-            .register_type::<bevy::math::Vec2>()
-            .register_type::<bevy::math::Vec3>()
-            .register_type::<bevy::math::Vec3A>()
-            .register_type::<bevy::math::Vec4>()
-            .register_type::<bevy::math::DAffine2>()
-            .register_type::<bevy::math::DAffine3>()
-            .register_type::<bevy::math::Affine2>()
-            .register_type::<bevy::math::Affine3A>()
-            .register_type::<bevy::math::DMat2>()
-            .register_type::<bevy::math::DMat3>()
-            .register_type::<bevy::math::DMat4>()
-            .register_type::<bevy::math::Mat2>()
-            .register_type::<bevy::math::Mat3>()
-            .register_type::<bevy::math::Mat3A>()
-            .register_type::<bevy::math::Mat4>()
-            .register_type::<bevy::math::DQuat>()
-            .register_type::<bevy::math::Quat>()
-            .register_type::<bevy::math::Rect>()
-            .register_type::<bevy::color::Color>()
-            .register_type::<core::ops::Range<f32>>()
-            .register_type::<TypeId>();
-
-        let type_registry = app.world().resource::<bevy::ecs::prelude::AppTypeRegistry>();
+    fn build(&self, app: &mut App) {
+        let type_registry = app
+            .world()
+            .resource::<bevy::ecs::prelude::AppTypeRegistry>();
         let mut type_registry = type_registry.write();
 
         inspector_options::default_options::register_default_options(&mut type_registry);
@@ -203,6 +162,7 @@ impl bevy::app::Plugin for DefaultInspectorConfigPlugin {
     }
 }
 
+use bevy::app::App;
 #[doc(inline)]
 pub use inspector_options::InspectorOptions;
 
