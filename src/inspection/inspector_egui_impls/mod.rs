@@ -4,27 +4,18 @@ use crate::inspection::{
     reflect_inspector::{InspectorUi, ProjectorReflect, errors::no_multiedit},
     utils::pretty_type_name,
 };
-use bevy::reflect::{FromType, PartialReflect, Reflect, TypePath, TypeRegistry};
 use bevy::{asset::uuid, platform::time::Instant};
+use bevy::{
+    ecs::error::Result,
+    reflect::{FromType, PartialReflect, Reflect, TypePath, TypeRegistry},
+};
+use disqualified::ShortName;
 use std::any::{Any, TypeId};
 
 mod bevy_impls;
 mod glam_impls;
 mod image;
 mod std_impls;
-
-type InspectorEguiImplFn =
-    fn(&mut dyn Any, &mut egui::Ui, &dyn Any, egui::Id, InspectorUi<'_, '_>) -> bool;
-type InspectorEguiImplFnReadonly =
-    fn(&dyn Any, &mut egui::Ui, &dyn Any, egui::Id, InspectorUi<'_, '_>);
-type InspectorEguiImplFnMany = for<'a> fn(
-    &mut egui::Ui,
-    &dyn Any,
-    egui::Id,
-    InspectorUi<'_, '_>,
-    &mut [&mut dyn PartialReflect],
-    &dyn ProjectorReflect,
-) -> bool;
 
 /// Custom UI implementation for a concrete type.
 ///
@@ -64,75 +55,63 @@ type InspectorEguiImplFnMany = for<'a> fn(
 /// ```
 #[allow(unused)]
 pub trait Inspector: Reflect {
+    const MULTISELECTION: bool = false;
+
     fn ui(
-        &mut self,
         ui: &mut egui::Ui,
         options: &dyn Any,
         id: egui::Id,
         env: InspectorUi<'_, '_>,
-    ) -> bool {
-        false
+        value: &mut dyn PartialReflect,
+    ) -> Result<bool> {
+        if Self::MULTISELECTION {
+            Self::ui_many(ui, options, id, env, &mut [value])
+        } else {
+            Ok(false)
+        }
     }
 
     fn ui_readonly(
-        &self,
         ui: &mut egui::Ui,
         options: &dyn Any,
         id: egui::Id,
         env: InspectorUi<'_, '_>,
-    ) {
-    }
-}
-
-fn ui_many_vtable<T: Reflect + PartialEq + Clone + Default + Inspector>(
-    ui: &mut egui::Ui,
-    options: &dyn Any,
-    id: egui::Id,
-    env: InspectorUi<'_, '_>,
-    values: &mut [&mut dyn bevy::reflect::PartialReflect],
-    projector: &dyn ProjectorReflect,
-) -> bool {
-    let same =
-        crate::inspection::inspector_egui_impls::iter_all_eq(values.iter_mut().map(|value| {
-            projector(*value)
-                .try_downcast_mut::<T>()
-                .expect("non-fully-reflected value passed to ui_many_vtable")
-        }));
-
-    let mut temp = same.cloned().unwrap_or_default();
-    if T::ui(&mut temp, ui, options, id, env) {
-        for value in values.iter_mut() {
-            let value = projector(*value)
-                .try_downcast_mut::<T>()
-                .expect("non-fully-reflected value passed to ui_many_vtable");
-            *value = temp.clone();
+        value: &dyn PartialReflect,
+    ) -> Result {
+        if Self::MULTISELECTION {
+            Self::ui_many_readonly(ui, options, id, env, &[value])
+        } else {
+            Ok(())
         }
-
-        return true;
     }
-    false
-}
 
-fn ui_vtable<T: Inspector>(
-    val: &mut dyn Any,
-    ui: &mut egui::Ui,
-    options: &dyn Any,
-    id: egui::Id,
-    env: InspectorUi<'_, '_>,
-) -> bool {
-    let val = val.downcast_mut::<T>().unwrap();
-    T::ui(val, ui, options, id, env)
-}
+    fn ui_many(
+        ui: &mut egui::Ui,
+        options: &dyn Any,
+        id: egui::Id,
+        env: InspectorUi<'_, '_>,
+        values: &mut [&mut dyn PartialReflect],
+    ) -> Result<bool> {
+        ui.label(format!(
+            "{}, doesn't support multi-editing",
+            ShortName::of::<Self>()
+        ));
+        Ok(false)
+    }
 
-fn ui_readonly_vtable<T: Inspector>(
-    val: &dyn Any,
-    ui: &mut egui::Ui,
-    options: &dyn Any,
-    id: egui::Id,
-    env: InspectorUi<'_, '_>,
-) {
-    let val = val.downcast_ref::<T>().unwrap();
-    T::ui_readonly(val, ui, options, id, env)
+    fn ui_many_readonly(
+        ui: &mut egui::Ui,
+        options: &dyn Any,
+        id: egui::Id,
+        env: InspectorUi<'_, '_>,
+        values: &[&dyn PartialReflect],
+    ) -> Result {
+        ui.label(format!(
+            "{}, doesn't support multi-inspection",
+            ShortName::of::<Self>()
+        ));
+        Ok(())
+    }
 }
 
 /// Function pointers for displaying a concrete type, to be registered in the [`TypeRegistry`].
@@ -141,114 +120,93 @@ fn ui_readonly_vtable<T: Inspector>(
 /// to display a certain type. You can use [`Inspector`] to avoid manually writing the function pointers with correct downcasting.
 #[derive(Clone)]
 pub struct ReflectInspector {
-    fn_mut: InspectorEguiImplFn,
-    fn_readonly: InspectorEguiImplFnReadonly,
-    fn_many: InspectorEguiImplFnMany,
+    fn_ui: fn(
+        &mut egui::Ui,
+        &dyn Any,
+        egui::Id,
+        InspectorUi<'_, '_>,
+        &mut dyn PartialReflect,
+    ) -> Result<bool>,
+
+    fn_ui_readonly:
+        fn(&mut egui::Ui, &dyn Any, egui::Id, InspectorUi<'_, '_>, &dyn PartialReflect) -> Result,
+
+    fn_ui_many: fn(
+        &mut egui::Ui,
+        &dyn Any,
+        egui::Id,
+        InspectorUi<'_, '_>,
+        &mut [&mut dyn PartialReflect],
+    ) -> Result<bool>,
+
+    fn_ui_many_readonly: fn(
+        &mut egui::Ui,
+        &dyn Any,
+        egui::Id,
+        InspectorUi<'_, '_>,
+        &[&dyn PartialReflect],
+    ) -> Result,
 }
 
 impl<T: Inspector> FromType<T> for ReflectInspector {
     fn from_type() -> Self {
-        ReflectInspector::of_with_many::<T>(many_unimplemented::<T>)
+        ReflectInspector::of::<T>()
     }
 }
 
 impl ReflectInspector {
-    pub fn of<T: Inspector + PartialEq + Clone + Default>() -> Self {
+    pub fn of<T: Inspector>() -> Self {
         ReflectInspector {
-            fn_mut: ui_vtable::<T>,
-            fn_readonly: ui_readonly_vtable::<T>,
-            fn_many: ui_many_vtable::<T>,
-        }
-    }
-    pub fn of_with_many<T: Inspector>(fn_many: InspectorEguiImplFnMany) -> Self {
-        ReflectInspector {
-            fn_mut: ui_vtable::<T>,
-            fn_readonly: ui_readonly_vtable::<T>,
-            fn_many,
+            fn_ui: T::ui,
+            fn_ui_readonly: T::ui_readonly,
+            fn_ui_many: T::ui_many,
+            fn_ui_many_readonly: T::ui_many_readonly,
         }
     }
 
-    /// Create a new [`InspectorEguiImpl`] from functions displaying a type
-    pub fn new(
-        fn_mut: InspectorEguiImplFn,
-        fn_readonly: InspectorEguiImplFnReadonly,
-        fn_many: InspectorEguiImplFnMany,
-    ) -> Self {
-        ReflectInspector {
-            fn_mut,
-            fn_readonly,
-            fn_many,
-        }
-    }
-
-    pub fn execute<'a, 'c: 'a>(
-        &'a self,
-        value: &mut dyn Any,
+    pub fn ui(
+        &self,
         ui: &mut egui::Ui,
         options: &dyn Any,
         id: egui::Id,
         env: InspectorUi<'_, '_>,
-    ) -> bool {
-        (self.fn_mut)(value, ui, options, id, env)
+        value: &mut dyn PartialReflect,
+    ) -> Result<bool> {
+        (self.fn_ui)(ui, options, id, env, value)
     }
-    pub fn execute_readonly<'a, 'c: 'a>(
-        &'a self,
-        value: &dyn Any,
+
+    pub fn ui_readonly(
+        &self,
         ui: &mut egui::Ui,
         options: &dyn Any,
         id: egui::Id,
         env: InspectorUi<'_, '_>,
-    ) {
-        (self.fn_readonly)(value, ui, options, id, env)
+        value: &dyn PartialReflect,
+    ) -> Result {
+        (self.fn_ui_readonly)(ui, options, id, env, value)
     }
-    pub fn execute_many<'a, 'c: 'a, 'e>(
-        &'a self,
+
+    pub fn ui_many(
+        &self,
         ui: &mut egui::Ui,
         options: &dyn Any,
         id: egui::Id,
         env: InspectorUi<'_, '_>,
         values: &mut [&mut dyn PartialReflect],
-        projector: &dyn ProjectorReflect,
-    ) -> bool {
-        (self.fn_many)(ui, options, id, env, values, projector)
+    ) -> Result<bool> {
+        (self.fn_ui_many)(ui, options, id, env, values)
     }
-}
 
-fn many_unimplemented<T: Any>(
-    ui: &mut egui::Ui,
-    _options: &dyn Any,
-    _id: egui::Id,
-    _env: InspectorUi<'_, '_>,
-    _values: &mut [&mut dyn PartialReflect],
-    _projector: &dyn ProjectorReflect,
-) -> bool {
-    no_multiedit(ui, &pretty_type_name::<T>());
-    false
-}
-
-fn add<T: Inspector + TypePath>(type_registry: &mut TypeRegistry) {
-    type_registry.register_type_data::<T, ReflectInspector>();
-}
-fn add_of_with_many<T: Inspector>(
-    type_registry: &mut TypeRegistry,
-    fn_many: InspectorEguiImplFnMany,
-) {
-    type_registry
-        .get_mut(TypeId::of::<T>())
-        .unwrap_or_else(|| panic!("{} not registered", std::any::type_name::<T>()))
-        .insert(ReflectInspector::of_with_many::<T>(fn_many));
-}
-
-fn add_raw<T: 'static>(
-    type_registry: &mut TypeRegistry,
-    fn_mut: InspectorEguiImplFn,
-    fn_readonly: InspectorEguiImplFnReadonly,
-    fn_many: InspectorEguiImplFnMany,
-) {
-    type_registry
-        .get_mut(TypeId::of::<T>())
-        .unwrap_or_else(|| panic!("{} not registered", std::any::type_name::<T>()))
-        .insert(ReflectInspector::new(fn_mut, fn_readonly, fn_many));
+    pub fn ui_many_readonly(
+        &self,
+        ui: &mut egui::Ui,
+        options: &dyn Any,
+        id: egui::Id,
+        env: InspectorUi<'_, '_>,
+        values: &[&dyn PartialReflect],
+    ) -> Result {
+        (self.fn_ui_many_readonly)(ui, options, id, env, values)
+    }
 }
 
 /// Register [`InspectorEguiImpl`]s for primitive rust types as well as standard library types
