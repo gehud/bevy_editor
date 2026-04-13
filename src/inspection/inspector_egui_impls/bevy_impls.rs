@@ -18,9 +18,9 @@ use crate::inspection::{
     reflect_inspector::{Context, InspectorUi},
 };
 
-use super::InspectorPrimitive;
+use super::Inspector;
 
-impl InspectorPrimitive for uuid::Uuid {
+impl Inspector for uuid::Uuid {
     fn ui(&mut self, ui: &mut egui::Ui, _: &dyn Any, _: egui::Id, _: InspectorUi<'_, '_>) -> bool {
         ui.label(self.to_string());
         false
@@ -30,7 +30,7 @@ impl InspectorPrimitive for uuid::Uuid {
     }
 }
 
-impl InspectorPrimitive for Entity {
+impl Inspector for Entity {
     fn ui(
         &mut self,
         ui: &mut egui::Ui,
@@ -93,7 +93,7 @@ impl InspectorPrimitive for Entity {
     }
 }
 
-impl InspectorPrimitive for Handle<Mesh> {
+impl Inspector for Handle<Mesh> {
     fn ui(
         &mut self,
         ui: &mut egui::Ui,
@@ -197,7 +197,7 @@ fn mesh_ui_inner(mesh: &Mesh, ui: &mut egui::Ui) {
     });
 }
 
-impl InspectorPrimitive for Srgba {
+impl Inspector for Srgba {
     fn ui(&mut self, ui: &mut egui::Ui, _: &dyn Any, _: egui::Id, _: InspectorUi<'_, '_>) -> bool {
         let mut color = Color32::from_rgba_unmultiplied(
             (self.red * 255.) as u8,
@@ -227,7 +227,7 @@ impl InspectorPrimitive for Srgba {
         ui.add_enabled_ui(false, |ui| copy.ui(ui, options, id, env));
     }
 }
-impl InspectorPrimitive for LinearRgba {
+impl Inspector for LinearRgba {
     fn ui(&mut self, ui: &mut egui::Ui, _: &dyn Any, _: egui::Id, _: InspectorUi<'_, '_>) -> bool {
         let mut color = [self.red, self.green, self.blue, self.alpha];
         if ui
@@ -254,7 +254,7 @@ impl InspectorPrimitive for LinearRgba {
         ui.add_enabled_ui(false, |ui| copy.ui(ui, options, id, env));
     }
 }
-impl InspectorPrimitive for Hsla {
+impl Inspector for Hsla {
     fn ui(&mut self, ui: &mut egui::Ui, _: &dyn Any, _: egui::Id, _: InspectorUi<'_, '_>) -> bool {
         let mut hsva =
             egui::ecolor::Hsva::new(self.hue, self.saturation, self.lightness, self.alpha);
@@ -279,7 +279,7 @@ impl InspectorPrimitive for Hsla {
         ui.add_enabled_ui(false, |ui| copy.ui(ui, options, id, env));
     }
 }
-impl InspectorPrimitive for Hsva {
+impl Inspector for Hsva {
     fn ui(&mut self, ui: &mut egui::Ui, _: &dyn Any, _: egui::Id, _: InspectorUi<'_, '_>) -> bool {
         let mut hsva = egui::ecolor::Hsva::new(self.hue, self.saturation, self.value, self.alpha);
         if ui.color_edit_button_hsva(&mut hsva).changed() {
@@ -304,7 +304,7 @@ impl InspectorPrimitive for Hsva {
     }
 }
 
-impl InspectorPrimitive for Color {
+impl Inspector for Color {
     fn ui(
         &mut self,
         ui: &mut egui::Ui,
@@ -343,7 +343,7 @@ impl InspectorPrimitive for Color {
     }
 }
 
-impl InspectorPrimitive for RenderLayers {
+impl Inspector for RenderLayers {
     fn ui(&mut self, ui: &mut egui::Ui, _: &dyn Any, id: egui::Id, _: InspectorUi<'_, '_>) -> bool {
         let mut new_value = None;
         egui::Grid::new(id).num_columns(2).show(ui, |ui| {
@@ -382,7 +382,7 @@ impl InspectorPrimitive for RenderLayers {
     }
 }
 
-impl InspectorPrimitive for bevy::gizmos::config::GizmoConfigStore {
+impl Inspector for bevy::gizmos::config::GizmoConfigStore {
     fn ui(
         &mut self,
         ui: &mut egui::Ui,

@@ -62,7 +62,7 @@
 #[cfg(feature = "documentation")]
 use crate::inspection::egui_utils::show_docs;
 
-use crate::inspection::inspector_egui_impls::{InspectorEguiImpl, iter_all_eq};
+use crate::inspection::inspector_egui_impls::{ReflectInspector, iter_all_eq};
 use crate::inspection::inspector_options::{InspectorOptions, ReflectInspectorOptions, Target};
 use crate::inspection::reflect_inspector::errors::TypeDataError;
 use crate::inspection::restricted_world_view::RestrictedWorldView;
@@ -373,7 +373,7 @@ impl InspectorUi<'_, '_> {
             options = &data.0;
         }
 
-        let reason = match registration.data::<InspectorEguiImpl>() {
+        let reason = match registration.data::<ReflectInspector>() {
             Some(ui_impl) => {
                 return ui_impl.execute_many(ui, options, id, self.reborrow(), values, projector);
             }
@@ -382,7 +382,7 @@ impl InspectorUi<'_, '_> {
 
         if let Some(s) = self
             .type_registry
-            .get_type_data::<InspectorEguiImpl>(type_id)
+            .get_type_data::<ReflectInspector>(type_id)
         {
             return s.execute_many(ui, options, id, self.reborrow(), values, projector);
         }
@@ -1940,12 +1940,12 @@ fn or(a: bool, b: bool) -> bool {
 fn get_type_data<'a>(
     type_registry: &'a TypeRegistry,
     type_id: &dyn DynamicTyped,
-) -> Result<&'a InspectorEguiImpl, TypeDataError> {
+) -> Result<&'a ReflectInspector, TypeDataError> {
     let registration = type_registry
         .get(type_id.reflect_type_info().type_id())
         .ok_or(TypeDataError::NotRegistered)?;
     let data = registration
-        .data::<InspectorEguiImpl>()
+        .data::<ReflectInspector>()
         .ok_or(TypeDataError::NoTypeData)?;
     Ok(data)
 }

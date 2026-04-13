@@ -4,7 +4,7 @@ use bevy::platform::time::Instant;
 use bevy::reflect::{PartialReflect, Reflect, TypePath};
 use egui::{DragValue, RichText, TextBuffer};
 
-use super::{InspectorPrimitive, InspectorUi, change_slider, iter_all_eq};
+use super::{Inspector, InspectorUi, change_slider, iter_all_eq};
 use crate::inspection::{
     inspector_options::{
         InspectorOptionsType,
@@ -27,7 +27,7 @@ macro_rules! impl_num {
 
 impl_num!(f32, f64, i8, u8, i16, u16, i32, u32, i64, u64, isize, usize);
 
-impl<T: Reflect + Num> InspectorPrimitive for T {
+impl<T: Reflect + Num> Inspector for T {
     fn ui(
         &mut self,
         ui: &mut egui::Ui,
@@ -201,7 +201,7 @@ where
     })
 }
 
-impl InspectorPrimitive for bool {
+impl Inspector for bool {
     fn ui(&mut self, ui: &mut egui::Ui, _: &dyn Any, _: egui::Id, _: InspectorUi<'_, '_>) -> bool {
         ui.checkbox(self, "").changed()
     }
@@ -220,7 +220,7 @@ impl InspectorPrimitive for bool {
     }
 }
 
-impl InspectorPrimitive for String {
+impl Inspector for String {
     fn ui(&mut self, ui: &mut egui::Ui, _: &dyn Any, _: egui::Id, _: InspectorUi<'_, '_>) -> bool {
         if self.contains('\n') {
             ui.text_edit_multiline(self).changed()
@@ -238,7 +238,7 @@ impl InspectorPrimitive for String {
     }
 }
 
-impl InspectorPrimitive for Cow<'static, str> {
+impl Inspector for Cow<'static, str> {
     fn ui(&mut self, ui: &mut egui::Ui, _: &dyn Any, _: egui::Id, _: InspectorUi<'_, '_>) -> bool {
         let mut clone = self.to_string();
         let changed = if self.contains('\n') {
@@ -263,7 +263,7 @@ impl InspectorPrimitive for Cow<'static, str> {
     }
 }
 
-impl InspectorPrimitive for Duration {
+impl Inspector for Duration {
     fn ui(
         &mut self,
         ui: &mut egui::Ui,
@@ -302,7 +302,7 @@ impl InspectorPrimitive for Duration {
     }
 }
 
-impl InspectorPrimitive for Instant {
+impl Inspector for Instant {
     fn ui(
         &mut self,
         ui: &mut egui::Ui,
@@ -323,7 +323,7 @@ impl InspectorPrimitive for Instant {
     }
 }
 
-impl<T: Reflect + TypePath + egui::emath::Numeric + InspectorOptionsType> InspectorPrimitive
+impl<T: Reflect + TypePath + egui::emath::Numeric + InspectorOptionsType> Inspector
     for std::ops::Range<T>
 {
     fn ui(
@@ -404,7 +404,7 @@ fn display_range_readonly<T: egui::emath::Numeric + InspectorOptionsType>(
     });
 }
 
-impl<T: Reflect + TypePath + egui::emath::Numeric + InspectorOptionsType> InspectorPrimitive
+impl<T: Reflect + TypePath + egui::emath::Numeric + InspectorOptionsType> Inspector
     for std::ops::RangeInclusive<T>
 {
     fn ui(
@@ -453,7 +453,7 @@ impl<T: Reflect + TypePath + egui::emath::Numeric + InspectorOptionsType> Inspec
     }
 }
 
-impl InspectorPrimitive for PathBuf {
+impl Inspector for PathBuf {
     fn ui(&mut self, ui: &mut egui::Ui, _: &dyn Any, _: egui::Id, _: InspectorUi<'_, '_>) -> bool {
         let mut str = self.to_string_lossy();
         let changed = ui.text_edit_singleline(&mut str).changed();
@@ -470,7 +470,7 @@ impl InspectorPrimitive for PathBuf {
     }
 }
 
-impl InspectorPrimitive for TypeId {
+impl Inspector for TypeId {
     fn ui(
         &mut self,
         ui: &mut egui::Ui,

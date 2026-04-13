@@ -4,13 +4,9 @@ use crate::inspection::{
     reflect_inspector::{InspectorUi, ProjectorReflect, errors::no_multiedit},
     utils::pretty_type_name,
 };
-use bevy::{asset::uuid, platform::time::Instant};
 use bevy::reflect::{FromType, PartialReflect, Reflect, TypePath, TypeRegistry};
-use std::{
-    any::{Any, TypeId},
-    borrow::Cow,
-    path::PathBuf,
-};
+use bevy::{asset::uuid, platform::time::Instant};
+use std::any::{Any, TypeId};
 
 mod bevy_impls;
 mod glam_impls;
@@ -35,14 +31,14 @@ type InspectorEguiImplFnMany = for<'a> fn(
 /// # Example Usage
 /// ```rust,no_run
 /// use bevy::prelude::*;
-/// use bevy_inspector_egui::inspector_egui_impls::{InspectorEguiImpl, InspectorPrimitive};
+/// use bevy_inspector_egui::inspector_egui_impls::{Inspector, ReflectInspector};
 /// use bevy_inspector_egui::quick::ResourceInspectorPlugin;
 /// use bevy_inspector_egui::reflect_inspector::InspectorUi;
 ///
 /// #[derive(Reflect, Default)]
 /// struct ToggleOption(bool);
 ///
-/// impl InspectorPrimitive for ToggleOption {
+/// impl Inspector for ToggleOption {
 ///     fn ui(&mut self, ui: &mut egui::Ui, _: &dyn std::any::Any, _: egui::Id, _: InspectorUi<'_, '_>) -> bool {
 ///         let mut changed = ui.radio_value(&mut self.0, false, "Disabled").changed();
 ///         changed |= ui.radio_value(&mut self.0, true, "Enabled").changed();
@@ -62,28 +58,33 @@ type InspectorEguiImplFnMany = for<'a> fn(
 ///     App::new()
 ///         .add_plugins(DefaultPlugins)
 ///         // ...
-///         .register_type_data::<ToggleOption, InspectorEguiImpl>()
+///         .register_type_data::<ToggleOption, ReflectInspector>()
 ///         .run();
 /// }
 /// ```
-pub trait InspectorPrimitive: Reflect {
+#[allow(unused)]
+pub trait Inspector: Reflect {
     fn ui(
         &mut self,
         ui: &mut egui::Ui,
         options: &dyn Any,
         id: egui::Id,
         env: InspectorUi<'_, '_>,
-    ) -> bool;
+    ) -> bool {
+        false
+    }
+
     fn ui_readonly(
         &self,
         ui: &mut egui::Ui,
         options: &dyn Any,
         id: egui::Id,
         env: InspectorUi<'_, '_>,
-    );
+    ) {
+    }
 }
 
-fn ui_many_vtable<T: Reflect + PartialEq + Clone + Default + InspectorPrimitive>(
+fn ui_many_vtable<T: Reflect + PartialEq + Clone + Default + Inspector>(
     ui: &mut egui::Ui,
     options: &dyn Any,
     id: egui::Id,
@@ -112,7 +113,7 @@ fn ui_many_vtable<T: Reflect + PartialEq + Clone + Default + InspectorPrimitive>
     false
 }
 
-fn ui_vtable<T: InspectorPrimitive>(
+fn ui_vtable<T: Inspector>(
     val: &mut dyn Any,
     ui: &mut egui::Ui,
     options: &dyn Any,
@@ -122,7 +123,8 @@ fn ui_vtable<T: InspectorPrimitive>(
     let val = val.downcast_mut::<T>().unwrap();
     T::ui(val, ui, options, id, env)
 }
-fn ui_readonly_vtable<T: InspectorPrimitive>(
+
+fn ui_readonly_vtable<T: Inspector>(
     val: &dyn Any,
     ui: &mut egui::Ui,
     options: &dyn Any,
@@ -136,30 +138,30 @@ fn ui_readonly_vtable<T: InspectorPrimitive>(
 /// Function pointers for displaying a concrete type, to be registered in the [`TypeRegistry`].
 ///
 /// This can used for leaf types like `u8` or `String`, as well as people who want to completely customize the way
-/// to display a certain type. You can use [`InspectorPrimitive`] to avoid manually writing the function pointers with correct downcasting.
+/// to display a certain type. You can use [`Inspector`] to avoid manually writing the function pointers with correct downcasting.
 #[derive(Clone)]
-pub struct InspectorEguiImpl {
+pub struct ReflectInspector {
     fn_mut: InspectorEguiImplFn,
     fn_readonly: InspectorEguiImplFnReadonly,
     fn_many: InspectorEguiImplFnMany,
 }
 
-impl<T: InspectorPrimitive> FromType<T> for InspectorEguiImpl {
+impl<T: Inspector> FromType<T> for ReflectInspector {
     fn from_type() -> Self {
-        InspectorEguiImpl::of_with_many::<T>(many_unimplemented::<T>)
+        ReflectInspector::of_with_many::<T>(many_unimplemented::<T>)
     }
 }
 
-impl InspectorEguiImpl {
-    pub fn of<T: InspectorPrimitive + PartialEq + Clone + Default>() -> Self {
-        InspectorEguiImpl {
+impl ReflectInspector {
+    pub fn of<T: Inspector + PartialEq + Clone + Default>() -> Self {
+        ReflectInspector {
             fn_mut: ui_vtable::<T>,
             fn_readonly: ui_readonly_vtable::<T>,
             fn_many: ui_many_vtable::<T>,
         }
     }
-    pub fn of_with_many<T: InspectorPrimitive>(fn_many: InspectorEguiImplFnMany) -> Self {
-        InspectorEguiImpl {
+    pub fn of_with_many<T: Inspector>(fn_many: InspectorEguiImplFnMany) -> Self {
+        ReflectInspector {
             fn_mut: ui_vtable::<T>,
             fn_readonly: ui_readonly_vtable::<T>,
             fn_many,
@@ -172,7 +174,7 @@ impl InspectorEguiImpl {
         fn_readonly: InspectorEguiImplFnReadonly,
         fn_many: InspectorEguiImplFnMany,
     ) -> Self {
-        InspectorEguiImpl {
+        ReflectInspector {
             fn_mut,
             fn_readonly,
             fn_many,
@@ -224,17 +226,17 @@ fn many_unimplemented<T: Any>(
     false
 }
 
-fn add<T: InspectorPrimitive + TypePath>(type_registry: &mut TypeRegistry) {
-    type_registry.register_type_data::<T, InspectorEguiImpl>();
+fn add<T: Inspector + TypePath>(type_registry: &mut TypeRegistry) {
+    type_registry.register_type_data::<T, ReflectInspector>();
 }
-fn add_of_with_many<T: InspectorPrimitive>(
+fn add_of_with_many<T: Inspector>(
     type_registry: &mut TypeRegistry,
     fn_many: InspectorEguiImplFnMany,
 ) {
     type_registry
         .get_mut(TypeId::of::<T>())
         .unwrap_or_else(|| panic!("{} not registered", std::any::type_name::<T>()))
-        .insert(InspectorEguiImpl::of_with_many::<T>(fn_many));
+        .insert(ReflectInspector::of_with_many::<T>(fn_many));
 }
 
 fn add_raw<T: 'static>(
@@ -246,7 +248,7 @@ fn add_raw<T: 'static>(
     type_registry
         .get_mut(TypeId::of::<T>())
         .unwrap_or_else(|| panic!("{} not registered", std::any::type_name::<T>()))
-        .insert(InspectorEguiImpl::new(fn_mut, fn_readonly, fn_many));
+        .insert(ReflectInspector::new(fn_mut, fn_readonly, fn_many));
 }
 
 /// Register [`InspectorEguiImpl`]s for primitive rust types as well as standard library types

@@ -19,11 +19,11 @@ use crate::inspection::{
     restricted_world_view::RestrictedWorldView,
 };
 
-use super::InspectorPrimitive;
+use super::Inspector;
 
 mod image_texture_conversion;
 
-impl InspectorPrimitive for Handle<Image> {
+impl Inspector for Handle<Image> {
     fn ui(
         &mut self,
         ui: &mut egui::Ui,
