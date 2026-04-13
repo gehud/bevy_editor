@@ -28,6 +28,7 @@ use egui::{Id, RichText, Sense, Ui, collapsing_header::CollapsingState};
 use crate::{
     pane::{Pane, RegisterPane},
     selection::{Selection, SelectionMap},
+    utils::paint_collapsing_button,
 };
 
 pub struct SceneTreePane;
@@ -93,15 +94,19 @@ impl SceneTreePane {
             .ok()
             .map(|children| children.to_vec())
         {
-            CollapsingState::load_with_default_open(ui.ctx(), id, false)
-                .show_header(ui, |ui| {
+            let mut collapsing_state = CollapsingState::load_with_default_open(ui.ctx(), id, false);
+            let header_response = ui
+                .horizontal(|ui| {
+                    collapsing_state.show_toggle_button(ui, paint_collapsing_button);
                     self.entity_ui_header(ui, world, entity, &name);
                 })
-                .body(|ui| {
-                    for (i, child) in children.iter().enumerate() {
-                        self.entity_ui_recurse(ui, world, *child, id.with(i));
-                    }
-                });
+                .response;
+
+            collapsing_state.show_body_indented(&header_response, ui, |ui| {
+                for (i, child) in children.iter().enumerate() {
+                    self.entity_ui_recurse(ui, world, *child, id.with(i));
+                }
+            });
         } else {
             ui.horizontal(|ui| {
                 ui.add_space(ui.spacing().indent);

@@ -7,22 +7,25 @@ use bevy::{
         resource::Resource,
         world::World,
     },
+    log::info_once,
 };
 use egui::{
-    Frame, Id, InnerResponse, Margin, ScrollArea, Shape, Stroke, TextureOptions, Ui, UiBuilder,
+    Align2, Color32, FontId, FontSelection, Frame, Id, InnerResponse, Label, Margin, RichText,
+    ScrollArea, Shape, Stroke, TextureOptions, Ui, UiBuilder,
     collapsing_header::{CollapsingState, paint_default_icon},
-    epaint::{PathShape, PathStroke},
+    emath::Rot2,
+    epaint::{PathShape, PathStroke, TextShape},
     load::SizedTexture,
+    text::LayoutJob,
 };
+use lucide_icons::Icon;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    assets::{
-        Icons,
-        icons::{self, CHEVRON_DOWN},
-    },
+    assets::icons::MaterialIcon,
     pane::{Pane, RegisterPane},
     prefs::RegisterPref,
+    utils::paint_collapsing_button,
 };
 
 pub struct AssetBrowser;
@@ -97,8 +100,8 @@ fn ui_for_dir(ui: &mut Ui, world: &mut World, file_name: String, path: PathBuf) 
     let mut collapsing_state =
         CollapsingState::load_with_default_open(ui.ctx(), Id::new(&path), false);
 
-    let InnerResponse { inner, response } =
-        ui.scope_builder(UiBuilder::new().id_salt("frame"), |ui| -> Result {
+    let response = ui
+        .scope_builder(UiBuilder::new().id_salt("frame"), |ui| {
             let response = ui.response();
 
             ui.set_height(24.0);
@@ -115,30 +118,15 @@ fn ui_for_dir(ui: &mut Ui, world: &mut World, file_name: String, path: PathBuf) 
                 frame = frame.fill(ui.style().visuals.widgets.hovered.bg_fill);
             }
 
-            frame
-                .show(ui, |ui| -> Result {
-                    ui.set_width(ui.available_width());
-                    ui.horizontal(|ui| -> Result {
-                        let icon = world.resource::<Icons>().get(CHEVRON_DOWN)?;
-
-                        collapsing_state.show_toggle_button(ui, move |ui, openness, response| {
-                            let rotation = egui::remap(openness, 0.0..=1.0, -TAU / 4.0..=0.0);
-
-                            let rect = response.rect;
-
-                            egui::Image::new((icon, rect.size()))
-                                .rotate(rotation, egui::Vec2::splat(0.5))
-                                .paint_at(ui, rect);
-                        });
-                        ui.label(file_name);
-                        Ok(())
-                    })
-                    .inner
-                })
-                .inner
-        });
-
-    inner?;
+            frame.show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                ui.horizontal(|ui| {
+                    collapsing_state.show_toggle_button(ui, paint_collapsing_button);
+                    ui.label(file_name);
+                });
+            });
+        })
+        .response;
 
     let inner = collapsing_state.show_body_indented(&response, ui, |ui| -> Result {
         for entry in read_dir(path)? {
@@ -157,8 +145,8 @@ fn ui_for_dir(ui: &mut Ui, world: &mut World, file_name: String, path: PathBuf) 
 }
 
 fn ui_for_file(ui: &mut Ui, world: &mut World, file_name: String, path: PathBuf) -> Result {
-    let InnerResponse { inner, response } =
-        ui.scope_builder(UiBuilder::new().id_salt("frame"), |ui| -> Result {
+    let response = ui
+        .scope_builder(UiBuilder::new().id_salt("frame"), |ui| {
             let response = ui.response();
 
             ui.set_height(24.0);
@@ -175,20 +163,15 @@ fn ui_for_file(ui: &mut Ui, world: &mut World, file_name: String, path: PathBuf)
                 frame = frame.fill(ui.style().visuals.widgets.hovered.bg_fill);
             }
 
-            let icon = world.resource::<Icons>().get(icons::BOX)?;
-
-            ui.set_width(ui.available_width());
             frame.show(ui, |ui| {
+                ui.set_width(ui.available_width());
                 ui.horizontal(|ui| {
-                    ui.add(egui::Image::new((icon, (15.0, 15.0).into())));
+                    ui.label(MaterialIcon::new(Icon::Box).rich_text().size(15.0));
                     ui.label(file_name);
                 });
             });
-
-            Ok(())
-        });
-
-    inner?;
+        })
+        .response;
 
     Ok(())
 }

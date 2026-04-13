@@ -10,9 +10,11 @@ mod properties;
 mod scene_tree;
 pub mod selection;
 mod style;
+pub mod utils;
 mod viewport;
 
 pub use egui;
+use lucide_icons::LUCIDE_FONT_BYTES;
 use serde::{Deserialize, Serialize};
 
 use std::env;
@@ -53,7 +55,7 @@ use egui::{
 use crate::{
     asset::AssetDatabasePlugin,
     asset_browser::AssetBrowserPlugin,
-    assets::AssetsPlugin,
+    assets::{AssetsPlugin, LUCIDE_FONT_FAMILY},
     cursor::CursorLockPlugin,
     dock::{DockArea, DockState},
     inspection::{DefaultInspectorConfigPlugin, quick::WorldInspectorPlugin},
@@ -121,7 +123,7 @@ impl Plugin for EditorPlugin {
 }
 
 #[derive(EntityEvent)]
-pub(crate) struct PrimaryEguiContextConfigured {
+struct PrimaryEguiContextConfigured {
     pub entity: Entity,
 }
 
@@ -169,7 +171,31 @@ fn setup_context(
 
     ctx.memory_mut(|memory| *memory = loaded_memory.0.clone());
     ctx.all_styles_mut(|style| set_dark_style(style));
+    ctx.add_font(FontInsert::new(
+        "fira_regular",
+        FontData::from_static(include_bytes!(
+            "assets/fonts/fira_sans/FiraSans-Regular.ttf"
+        )),
+        vec![InsertFontFamily {
+            family: FontFamily::Proportional,
+            priority: FontPriority::Highest,
+        }],
+    ));
 
+    ctx.add_font(FontInsert::new(
+        LUCIDE_FONT_FAMILY,
+        FontData::from_static(&LUCIDE_FONT_BYTES),
+        vec![
+            InsertFontFamily {
+                family: FontFamily::Proportional,
+                priority: FontPriority::Lowest,
+            },
+            InsertFontFamily {
+                family: FontFamily::Name(LUCIDE_FONT_FAMILY.into()),
+                priority: FontPriority::Highest,
+            },
+        ],
+    ));
 
     Ok(())
 }
