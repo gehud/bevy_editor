@@ -1,7 +1,7 @@
 //! Custom UI implementations for specific types. Check [`InspectorPrimitive`] for an example.
 
 use crate::inspection::{
-    reflect_inspector::{InspectorUi, ProjectorReflect, errors::no_multiedit},
+    reflect_inspector::{InspectorUi, errors::no_multiedit},
     utils::pretty_type_name,
 };
 use bevy::{asset::uuid, platform::time::Instant};
@@ -200,90 +200,81 @@ impl ReflectInspector {
     }
 }
 
-/// Register [`InspectorEguiImpl`]s for primitive rust types as well as standard library types
+/// Register [`ReflectInspector`]s for primitive rust types as well as standard library types
 #[rustfmt::skip]
 pub fn register_std_impls(type_registry: &mut TypeRegistry) {
-    add_of_with_many::<f32>(type_registry, std_impls::number_ui_many::<f32>);
-    add_of_with_many::<f64>(type_registry, std_impls::number_ui_many::<f64>);
-    add_of_with_many::<i8>(type_registry, std_impls::number_ui_many::<i8>);
-    add_of_with_many::<i16>(type_registry, std_impls::number_ui_many::<i16>);
-    add_of_with_many::<i32>(type_registry, std_impls::number_ui_many::<i32>);
-    add_of_with_many::<i64>(type_registry, std_impls::number_ui_many::<i64>);
-    add_of_with_many::<isize>(type_registry, std_impls::number_ui_many::<isize>);
-    add_of_with_many::<u8>(type_registry, std_impls::number_ui_many::<u8>);
-    add_of_with_many::<u16>(type_registry, std_impls::number_ui_many::<u16>);
-    add_of_with_many::<u32>(type_registry, std_impls::number_ui_many::<u32>);
-    add_of_with_many::<u64>(type_registry, std_impls::number_ui_many::<u64>);
-    add_of_with_many::<usize>(type_registry, std_impls::number_ui_many::<usize>);
-    add::<bool>(type_registry);
-    add::<String>(type_registry);
+    type_registry.register_type_data::<f32, ReflectInspector>();
+    type_registry.register_type_data::<f64, ReflectInspector>();
+    type_registry.register_type_data::<i8, ReflectInspector>();
+    type_registry.register_type_data::<i16, ReflectInspector>();
+    type_registry.register_type_data::<i32, ReflectInspector>();
+    type_registry.register_type_data::<i64, ReflectInspector>();
+    type_registry.register_type_data::<isize, ReflectInspector>();
+    type_registry.register_type_data::<u8, ReflectInspector>();
+    type_registry.register_type_data::<u16, ReflectInspector>();
+    type_registry.register_type_data::<u32, ReflectInspector>();
+    type_registry.register_type_data::<u64, ReflectInspector>();
+    type_registry.register_type_data::<usize, ReflectInspector>();
 
-    add::<std::ops::Range<f32>>(type_registry);
+    type_registry.register_type_data::<bool, ReflectInspector>();
+    type_registry.register_type_data::<String, ReflectInspector>();
+    type_registry.register_type_data::<std::ops::Range<f32>, ReflectInspector>();
 
     type_registry.register::<std::ops::Range<f64>>();
-    add::<std::ops::Range<f64>>(type_registry);
+    type_registry.register_type_data::<std::ops::Range<f64>, ReflectInspector>();
 
-    add::<std::ops::RangeInclusive<f32>>(type_registry);
+    type_registry.register_type_data::<std::ops::RangeInclusive<f32>, ReflectInspector>();
 
     type_registry.register::<std::ops::RangeInclusive<f64>>();
-    add::<std::ops::RangeInclusive<f64>>(type_registry);
+    type_registry.register_type_data::<std::ops::RangeInclusive<f64>, ReflectInspector>();
 
-    add::<TypeId>(type_registry);
+    type_registry.register_type_data::<TypeId, ReflectInspector>();
 
-    add::<std::time::Duration>(type_registry);
-    add_of_with_many::<Instant>(type_registry, many_unimplemented::<Instant>);
+    type_registry.register_type_data::<std::time::Duration, ReflectInspector>();
+
+    type_registry.register_type_data::<Instant, ReflectInspector>();
 }
 
-/// Register [`InspectorEguiImpl`]s for [`bevy::math`]/`glam` types
+/// Register [`ReflectInspector`]s for [`bevy::math`]/`glam` types
 #[rustfmt::skip]
 pub fn register_glam_impls(type_registry: &mut TypeRegistry) {
-    add_raw::<bevy::math::Vec2>(type_registry, glam_impls::vec2_ui, glam_impls::vec2_ui_readonly, glam_impls::vec2_ui_many);
-    add_raw::<bevy::math::Vec3>(type_registry, glam_impls::vec3_ui, glam_impls::vec3_ui_readonly, glam_impls::vec3_ui_many);
-    add_raw::<bevy::math::Vec3A>(type_registry, glam_impls::vec3a_ui, glam_impls::vec3a_ui_readonly, glam_impls::vec3a_ui_many);
-    add_raw::<bevy::math::Vec4>(type_registry, glam_impls::vec4_ui, glam_impls::vec4_ui_readonly, glam_impls::vec4_ui_many);
-    add_raw::<bevy::math::UVec2>(type_registry, glam_impls::uvec2_ui, glam_impls::uvec2_ui_readonly, glam_impls::uvec2_ui_many);
-    add_raw::<bevy::math::UVec3>(type_registry, glam_impls::uvec3_ui, glam_impls::uvec3_ui_readonly, glam_impls::uvec3_ui_many);
-    add_raw::<bevy::math::UVec4>(type_registry, glam_impls::uvec4_ui, glam_impls::uvec4_ui_readonly, glam_impls::uvec4_ui_many);
-    add_raw::<bevy::math::IVec2>(type_registry, glam_impls::ivec2_ui, glam_impls::ivec2_ui_readonly, glam_impls::ivec2_ui_many);
-    add_raw::<bevy::math::IVec3>(type_registry, glam_impls::ivec3_ui, glam_impls::ivec3_ui_readonly, glam_impls::ivec3_ui_many);
-    add_raw::<bevy::math::IVec4>(type_registry, glam_impls::ivec4_ui, glam_impls::ivec4_ui_readonly, glam_impls::ivec4_ui_many);
-    add_raw::<bevy::math::DVec2>(type_registry, glam_impls::dvec2_ui, glam_impls::dvec2_ui_readonly, glam_impls::dvec2_ui_many);
-    add_raw::<bevy::math::DVec3>(type_registry, glam_impls::dvec3_ui, glam_impls::dvec3_ui_readonly, glam_impls::dvec3_ui_many);
-    add_raw::<bevy::math::DVec4>(type_registry, glam_impls::dvec4_ui, glam_impls::dvec4_ui_readonly, glam_impls::dvec4_ui_many);
-    add_raw::<bevy::math::BVec2>(type_registry, glam_impls::bvec2_ui, glam_impls::bvec2_ui_readonly, many_unimplemented::<bevy::math::BVec2>);
-    add_raw::<bevy::math::BVec3>(type_registry, glam_impls::bvec3_ui, glam_impls::bvec3_ui_readonly, many_unimplemented::<bevy::math::BVec3>);
-    add_raw::<bevy::math::BVec4>(type_registry, glam_impls::bvec4_ui, glam_impls::bvec4_ui_readonly, many_unimplemented::<bevy::math::BVec4>);
-    add_raw::<bevy::math::Mat2>(type_registry, glam_impls::mat2_ui, glam_impls::mat2_ui_readonly, many_unimplemented::<bevy::math::Mat2>);
-    add_raw::<bevy::math::Mat3>(type_registry, glam_impls::mat3_ui, glam_impls::mat3_ui_readonly, many_unimplemented::<bevy::math::Mat3>);
-    add_raw::<bevy::math::Mat3A>(type_registry, glam_impls::mat3a_ui, glam_impls::mat3a_ui_readonly, many_unimplemented::<bevy::math::Mat3A>);
-    add_raw::<bevy::math::Mat4>(type_registry, glam_impls::mat4_ui, glam_impls::mat4_ui_readonly, many_unimplemented::<bevy::math::Mat4>);
-    add_raw::<bevy::math::DMat2>(type_registry, glam_impls::dmat2_ui, glam_impls::dmat2_ui_readonly, many_unimplemented::<bevy::math::DMat2>);
-    add_raw::<bevy::math::DMat3>(type_registry, glam_impls::dmat3_ui, glam_impls::dmat3_ui_readonly, many_unimplemented::<bevy::math::DMat3>);
-    add_raw::<bevy::math::DMat4>(type_registry, glam_impls::dmat4_ui, glam_impls::dmat4_ui_readonly, many_unimplemented::<bevy::math::DMat4>);
-
-    add_raw::<bevy::math::Quat>(type_registry, glam_impls::quat::quat_ui, glam_impls::quat::quat_ui_readonly, glam_impls::quat::quat_ui_many);
+    type_registry.register_type_data::<bevy::math::Vec2, ReflectInspector>();
+    type_registry.register_type_data::<bevy::math::Vec3, ReflectInspector>();
+    type_registry.register_type_data::<bevy::math::Vec3A, ReflectInspector>();
+    type_registry.register_type_data::<bevy::math::Vec4, ReflectInspector>();
+    type_registry.register_type_data::<bevy::math::UVec2, ReflectInspector>();
+    type_registry.register_type_data::<bevy::math::UVec3, ReflectInspector>();
+    type_registry.register_type_data::<bevy::math::UVec4, ReflectInspector>();
+    type_registry.register_type_data::<bevy::math::IVec2, ReflectInspector>();
+    type_registry.register_type_data::<bevy::math::IVec3, ReflectInspector>();
+    type_registry.register_type_data::<bevy::math::IVec4, ReflectInspector>();
+    type_registry.register_type_data::<bevy::math::DVec2, ReflectInspector>();
+    type_registry.register_type_data::<bevy::math::DVec3, ReflectInspector>();
+    type_registry.register_type_data::<bevy::math::DVec4, ReflectInspector>();
+    type_registry.register_type_data::<bevy::math::BVec2, ReflectInspector>();
+    type_registry.register_type_data::<bevy::math::BVec3, ReflectInspector>();
+    type_registry.register_type_data::<bevy::math::BVec4, ReflectInspector>();
+    type_registry.register_type_data::<bevy::math::Mat2, ReflectInspector>();
+    type_registry.register_type_data::<bevy::math::Mat3, ReflectInspector>();
+    type_registry.register_type_data::<bevy::math::Mat3A, ReflectInspector>();
+    type_registry.register_type_data::<bevy::math::Mat4, ReflectInspector>();
+    type_registry.register_type_data::<bevy::math::DMat2, ReflectInspector>();
+    type_registry.register_type_data::<bevy::math::DMat3, ReflectInspector>();
+    type_registry.register_type_data::<bevy::math::DMat4, ReflectInspector>();
+    type_registry.register_type_data::<bevy::math::Quat, ReflectInspector>();
 }
 
-/// Register [`InspectorEguiImpl`]s for `bevy` types
+/// Register [`ReflectInspector`]s for `bevy` types
 #[rustfmt::skip]
 pub fn register_bevy_impls(type_registry: &mut TypeRegistry) {
-    add_of_with_many::<bevy::ecs::entity::Entity>(type_registry, many_unimplemented::<bevy::ecs::entity::Entity>);
-    add::<bevy::color::Color>(type_registry);
-    add::<bevy::color::Srgba>(type_registry);
-    add::<bevy::color::LinearRgba>(type_registry);
-    add::<bevy::color::Hsla>(type_registry);
-    add::<bevy::color::Hsva>(type_registry);
-
-    {
-      add_of_with_many::<bevy::asset::Handle<bevy::mesh::Mesh>>(type_registry, many_unimplemented::<bevy::asset::Handle<bevy::mesh::Mesh>>);
-      add::<bevy::camera::visibility::RenderLayers>(type_registry);
-    }
-    {
-      add_of_with_many::<bevy::asset::Handle<bevy::image::Image>>(type_registry, many_unimplemented::<bevy::asset::Handle<bevy::image::Image>>);
-    }
-    add::<bevy::gizmos::config::GizmoConfigStore>(type_registry);
-
-    add::<uuid::Uuid>(type_registry);
+    type_registry.register_type_data::<bevy::ecs::entity::Entity, ReflectInspector>();
+    type_registry.register_type_data::<bevy::color::Color, ReflectInspector>();
+    type_registry.register_type_data::<bevy::color::Srgba, ReflectInspector>();
+    type_registry.register_type_data::<bevy::color::LinearRgba, ReflectInspector>();
+    type_registry.register_type_data::<bevy::color::Hsla, ReflectInspector>();
+    type_registry.register_type_data::<bevy::color::Hsva, ReflectInspector>();
+    type_registry.register_type_data::<bevy::gizmos::config::GizmoConfigStore, ReflectInspector>();
+    type_registry.register_type_data::<uuid::Uuid, ReflectInspector>();
 }
 
 pub(crate) fn change_slider<T>(
@@ -330,36 +321,4 @@ where
 pub(crate) fn iter_all_eq<T: PartialEq>(mut iter: impl Iterator<Item = T>) -> Option<T> {
     let first = iter.next()?;
     iter.all(|elem| elem == first).then_some(first)
-}
-
-#[macro_export]
-#[doc(hidden)]
-macro_rules! many_ui {
-    ($name:ident $inner:ident $ty:ty) => {
-        pub fn $name(
-            ui: &mut egui::Ui,
-            options: &dyn Any,
-            id: egui::Id,
-            env: InspectorUi<'_, '_>,
-            values: &mut [&mut dyn bevy::reflect::PartialReflect],
-            projector: &dyn $crate::inspection::reflect_inspector::ProjectorReflect,
-        ) -> bool {
-            let same = $crate::inspection::inspector_egui_impls::iter_all_eq(
-                values
-                    .iter_mut()
-                    .map(|value| projector(*value).try_downcast_ref::<$ty>().unwrap()),
-            );
-
-            let mut temp = same.cloned().unwrap_or_default();
-            if $inner(&mut temp, ui, options, id, env) {
-                for value in values.iter_mut() {
-                    let value = projector(*value).try_downcast_mut::<$ty>().unwrap();
-                    *value = temp.clone();
-                }
-
-                return true;
-            }
-            false
-        }
-    };
 }

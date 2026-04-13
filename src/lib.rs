@@ -56,7 +56,7 @@ use crate::{
     asset_browser::AssetBrowserPlugin,
     assets::{AssetsPlugin, LUCIDE_FONT_FAMILY},
     dock::{DockArea, DockState},
-    inspection::{DefaultInspectorConfigPlugin, quick::WorldInspectorPlugin},
+    inspection::{DefaultInspectorConfigPlugin},
     pane::{PaneDocking, PanePlugin, PaneRegistry, PaneViewer},
     prefs::{Load, PrefsPlugin, RegisterPref, Save},
     properties::PropertiesPlugin,

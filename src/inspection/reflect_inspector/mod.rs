@@ -88,10 +88,6 @@ use std::{
 
 pub(crate) mod errors;
 
-pub trait ProjectorReflect: Fn(&mut dyn PartialReflect) -> &mut dyn PartialReflect {}
-
-impl<T> ProjectorReflect for T where T: Fn(&mut dyn PartialReflect) -> &mut dyn PartialReflect {}
-
 /// Display the value without any [`Context`] or short circuiting behaviour.
 ///
 /// This means that for example bevy's `Handle<StandardMaterial>` values cannot be displayed,

@@ -1,22 +1,21 @@
-use std::{any::TypeId, borrow::Cow, ops::AddAssign, path::PathBuf};
+use std::ops::Add;
+use std::{any::TypeId, borrow::Cow, path::PathBuf};
 
 use bevy::ecs::error::Result;
 use bevy::platform::time::Instant;
 use bevy::reflect::{PartialReflect, Reflect, TypePath};
+use bytemuck::Zeroable;
 use egui::{DragValue, RichText, TextBuffer};
 
-use super::{Inspector, InspectorUi, change_slider, iter_all_eq};
-use crate::inspection::{
-    inspector_options::{
-        InspectorOptionsType,
-        std_options::{NumberDisplay, NumberOptions, RangeOptions},
-    },
-    reflect_inspector::ProjectorReflect,
+use super::{Inspector, InspectorUi};
+use crate::inspection::inspector_options::{
+    InspectorOptionsType,
+    std_options::{NumberDisplay, NumberOptions, RangeOptions},
 };
 use std::{any::Any, time::Duration};
 
 // just for orphan rules
-trait Num: egui::emath::Numeric {}
+trait Num: egui::emath::Numeric + Zeroable + Add<Output = Self> {}
 
 macro_rules! impl_num {
     ($($ty:ty),*) => {
@@ -41,7 +40,7 @@ impl<T: Reflect + Num> Inspector for T {
             .downcast_ref::<NumberOptions<T>>()
             .cloned()
             .unwrap_or_default();
-        Ok(display_number(value, &options, ui, 0.1))
+        Ok(display_number(value, None, &options, ui, 0.1))
     }
 
     fn ui_readonly(
@@ -73,6 +72,48 @@ impl<T: Reflect + Num> Inspector for T {
 
         Ok(())
     }
+
+    fn ui_many(
+        ui: &mut egui::Ui,
+        options: &dyn Any,
+        _id: egui::Id,
+        _env: InspectorUi<'_, '_>,
+        values: &mut [&mut dyn PartialReflect],
+    ) -> Result<bool> {
+        let values = values
+            .iter_mut()
+            .map(|value| value.try_downcast_mut::<Self>().unwrap())
+            .collect::<Vec<_>>();
+        let Some(first) = values.first() else {
+            return Ok(false);
+        };
+
+        let mut first = **first;
+
+        let options = options
+            .downcast_ref::<NumberOptions<T>>()
+            .cloned()
+            .unwrap_or_default();
+
+        let same = values.iter().all(|value| **value == first);
+
+        let changed;
+
+        if same {
+            changed = display_number(&mut first, None, &options, ui, 0.1);
+            for value in values {
+                *value = first;
+            }
+        } else {
+            let mut delta = Self::zeroed();
+            changed = display_number(&mut delta, Some("-".into()), &options, ui, 0.1);
+            for value in values {
+                *value = *value + delta;
+            }
+        }
+
+        Ok(changed)
+    }
 }
 
 pub fn number_ui<T: egui::emath::Numeric>(
@@ -87,7 +128,7 @@ pub fn number_ui<T: egui::emath::Numeric>(
         .downcast_ref::<NumberOptions<T>>()
         .cloned()
         .unwrap_or_default();
-    display_number(value, &options, ui, 0.1)
+    display_number(value, None, &options, ui, 0.1)
 }
 pub fn number_ui_readonly<T: egui::emath::Numeric>(
     value: &dyn Any,
@@ -119,6 +160,7 @@ pub fn number_ui_readonly<T: egui::emath::Numeric>(
 
 fn display_number<T: egui::emath::Numeric>(
     value: &mut T,
+    label: Option<String>,
     options: &NumberOptions<T>,
     ui: &mut egui::Ui,
     default_speed: f32,
@@ -126,6 +168,9 @@ fn display_number<T: egui::emath::Numeric>(
     let mut changed = match options.display {
         NumberDisplay::Drag => {
             let mut widget = egui::DragValue::new(value);
+            if let Some(label) = label {
+                widget = widget.custom_formatter(move |_, _| label.clone())
+            }
             if !options.prefix.is_empty() {
                 widget = widget.prefix(&options.prefix);
             }
@@ -171,39 +216,6 @@ fn display_number<T: egui::emath::Numeric>(
         }
     }
     changed
-}
-
-pub fn number_ui_many<T>(
-    ui: &mut egui::Ui,
-    _: &dyn Any,
-    id: egui::Id,
-    _env: InspectorUi<'_, '_>,
-    values: &mut [&mut dyn PartialReflect],
-    projector: &dyn ProjectorReflect,
-) -> bool
-where
-    T: Reflect + egui::emath::Numeric + AddAssign<T>,
-{
-    let same = iter_all_eq(
-        values
-            .iter_mut()
-            .map(|value| *projector(*value).try_downcast_ref::<T>().unwrap()),
-    )
-    .map(T::to_f64);
-
-    change_slider(ui, id, same, |change, overwrite| {
-        for value in values.iter_mut() {
-            let value = projector(*value)
-                .try_downcast_mut::<T>()
-                .expect("non-fully-reflected value passed to number_ui_many");
-            let change = T::from_f64(change);
-            if overwrite {
-                *value = change;
-            } else {
-                *value += change;
-            }
-        }
-    })
 }
 
 impl Inspector for bool {

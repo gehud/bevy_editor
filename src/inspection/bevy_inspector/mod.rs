@@ -45,7 +45,7 @@ use bevy::asset::{Asset, AssetServer, Assets, ReflectAsset, UntypedAssetId};
 use bevy::ecs::query::QueryFilter;
 use bevy::ecs::world::CommandQueue;
 use bevy::ecs::{component::ComponentId, prelude::*};
-use bevy::reflect::{Reflect, TypeRegistry};
+use bevy::reflect::Reflect;
 use bevy::state::state::{FreelyMutableState, NextState, State};
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
@@ -54,7 +54,7 @@ use fuzzy_matcher::skim::SkimMatcherV2;
 pub mod errors;
 
 use crate::inspection::reflect_inspector::{Context, InspectorUi};
-use crate::inspection::restricted_world_view::{ReflectBorrow, RestrictedWorldView};
+use crate::inspection::restricted_world_view::RestrictedWorldView;
 
 /// Display a single [`&mut dyn Reflect`](bevy::reflect::Reflect).
 ///
