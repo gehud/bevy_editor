@@ -36,24 +36,6 @@ pub mod guess_entity_name {
         }
     }
 
-    pub(crate) fn guess_entity_name_restricted(
-        world: &mut RestrictedWorldView<'_>,
-        entity: Entity,
-    ) -> String {
-        match world.world().get_entity(entity) {
-            Ok(cell) => {
-                if world.allows_access_to_component((entity, std::any::TypeId::of::<Name>())) {
-                    // SAFETY: we have access and don't keep reference
-                    if let Some(name) = unsafe { cell.get::<Name>() } {
-                        return format!("{} ({})", name.as_str(), entity);
-                    }
-                }
-                guess_entity_name_inner(world.world(), entity, cell.archetype())
-            }
-            Err(_) => format!("Entity {} (inexistent)", entity.index()),
-        }
-    }
-
     fn guess_entity_name_inner(
         world: UnsafeWorldCell<'_>,
         entity: Entity,

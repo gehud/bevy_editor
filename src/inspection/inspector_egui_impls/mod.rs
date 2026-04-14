@@ -2,12 +2,11 @@
 
 use crate::inspection::{
     reflect_inspector::{InspectorUi},
-    utils::pretty_type_name,
 };
 use bevy::{asset::uuid, platform::time::Instant};
 use bevy::{
     ecs::error::Result,
-    reflect::{FromType, PartialReflect, Reflect, TypePath, TypeRegistry},
+    reflect::{FromType, PartialReflect, Reflect, TypeRegistry},
 };
 use disqualified::ShortName;
 use std::any::{Any, TypeId};
@@ -275,47 +274,6 @@ pub fn register_bevy_impls(type_registry: &mut TypeRegistry) {
     type_registry.register_type_data::<bevy::color::Hsva, ReflectInspector>();
     type_registry.register_type_data::<bevy::gizmos::config::GizmoConfigStore, ReflectInspector>();
     type_registry.register_type_data::<uuid::Uuid, ReflectInspector>();
-}
-
-pub(crate) fn change_slider<T>(
-    ui: &mut egui::Ui,
-    id: egui::Id,
-    same: Option<T>,
-    f: impl FnOnce(T, bool),
-) -> bool
-where
-    T: egui::emath::Numeric + std::ops::Sub<Output = T> + Default + Send + Sync + 'static,
-{
-    let speed = if T::INTEGRAL { 1.0 } else { 0.1 };
-
-    match same {
-        Some(mut same) => {
-            let widget = egui::DragValue::new(&mut same).speed(speed);
-
-            let changed = ui.add(widget).changed();
-            if changed {
-                f(same, true);
-            }
-
-            changed
-        }
-        None => {
-            let old_change = ui.memory_mut(|memory| *memory.data.get_temp_mut_or_default::<T>(id));
-            let mut change = old_change;
-
-            let widget = egui::DragValue::new(&mut change)
-                .speed(speed)
-                .custom_formatter(|_, _| "-".to_string());
-
-            let changed = ui.add(widget).changed();
-            if changed {
-                f(change - old_change, false);
-            }
-
-            ui.memory_mut(|memory| *memory.data.get_temp_mut_or_default(id) = change);
-            changed
-        }
-    }
 }
 
 pub(crate) fn iter_all_eq<T: PartialEq>(mut iter: impl Iterator<Item = T>) -> Option<T> {

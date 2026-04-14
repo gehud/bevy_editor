@@ -301,7 +301,8 @@ impl Inspector for Hsva {
         value: &mut dyn PartialReflect,
     ) -> Result<bool> {
         let value = value.try_downcast_mut::<Self>().unwrap();
-        let mut hsva = egui::ecolor::Hsva::new(value.hue, value.saturation, value.value, value.alpha);
+        let mut hsva =
+            egui::ecolor::Hsva::new(value.hue, value.saturation, value.value, value.alpha);
         if ui.color_edit_button_hsva(&mut hsva).changed() {
             value.hue = hsva.h;
             value.saturation = hsva.s;
@@ -449,13 +450,19 @@ impl Inspector for bevy::gizmos::config::GizmoConfigStore {
                 .get(*ty)
                 .map(|x| x.type_info().ty().short_path())
                 .unwrap_or("<unknown gizmo group>");
-            CollapsingHeader::new(name)
+            let inner = CollapsingHeader::new(name)
                 .id_salt(id.with(ty))
-                .show(ui, |ui| {
-                    env.ui_for_reflect(group, ui);
+                .show(ui, |ui| -> Result {
+                    env.ui_for_reflect(group, ui)?;
                     ui.separator();
-                    env.ui_for_reflect_with_options(value, ui, egui::Id::new("data"), &());
-                });
+                    env.ui_for_reflect_with_options(value, ui, egui::Id::new("data"), &())?;
+                    Ok(())
+                })
+                .body_returned;
+
+            if let Some(inner) = inner {
+                inner?;
+            }
         }
 
         Ok(false)
@@ -468,7 +475,7 @@ impl Inspector for bevy::gizmos::config::GizmoConfigStore {
         mut env: InspectorUi<'_, '_>,
         value: &dyn PartialReflect,
     ) -> Result {
-        let value = value.try_downcast_ref::<Self>().unwrap().clone();
+        let value = value.try_downcast_ref::<Self>().unwrap();
         for (ty, group, value) in value.iter() {
             use egui::CollapsingHeader;
 
@@ -477,13 +484,24 @@ impl Inspector for bevy::gizmos::config::GizmoConfigStore {
                 .get(*ty)
                 .map(|x| x.type_info().ty().short_path())
                 .unwrap_or("<unknown gizmo group>");
-            CollapsingHeader::new(name)
+            let inner = CollapsingHeader::new(name)
                 .id_salt(id.with(ty))
-                .show(ui, |ui| {
-                    env.ui_for_reflect_readonly(group, ui);
+                .show(ui, |ui| -> Result {
+                    env.ui_for_reflect_readonly(group, ui)?;
                     ui.separator();
-                    env.ui_for_reflect_readonly_with_options(value, ui, egui::Id::new("data"), &());
-                });
+                    env.ui_for_reflect_readonly_with_options(
+                        value,
+                        ui,
+                        egui::Id::new("data"),
+                        &(),
+                    )?;
+                    Ok(())
+                })
+                .body_returned;
+
+            if let Some(inner) = inner {
+                inner?;
+            }
         }
 
         Ok(())

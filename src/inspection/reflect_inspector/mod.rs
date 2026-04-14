@@ -872,9 +872,10 @@ impl InspectorUi<'_, '_> {
             for i in 0..len {
                 let val = list.get(i).unwrap();
                 ui.horizontal_top(|ui| -> Result {
-                    self.ui_for_reflect_readonly_with_options(val, ui, id.with(i), options)
+                    self.ui_for_reflect_readonly_with_options(val, ui, id.with(i), options)?;
+                    Ok(())
                 })
-                .inner;
+                .inner?;
 
                 if i != len - 1 {
                     ui.separator();
@@ -1030,11 +1031,11 @@ impl InspectorUi<'_, '_> {
                     return Err(error);
                 }
 
-                self.map_add_element_ui(map, ui, id, &mut changed);
+                self.map_add_element_ui(map, ui, id, &mut changed)?;
 
                 Ok(())
             })
-            .inner;
+            .inner?;
 
         Ok(changed)
     }
@@ -1198,7 +1199,7 @@ impl InspectorUi<'_, '_> {
                         ui.end_row();
                         Ok(())
                     })
-                    .inner;
+                    .inner?;
 
                 if i != len - 1 {
                     ui.separator();
@@ -1379,41 +1380,47 @@ impl InspectorUi<'_, '_> {
 
             for (i, value_to_check) in reflected_values.iter().enumerate() {
                 let value_type_id = (**value_to_check).type_id();
-                egui::Grid::new((value_type_id, i)).show(ui, |ui| {
-                    // Do all sets contain this value ?
-                    if len == 1
-                        || values[1..].iter_mut().all(|set_to_compare| {
-                            let set_to_compare = match set_to_compare.reflect_mut() {
-                                ReflectMut::Set(set) => set,
-                                _ => unreachable!(),
-                            };
-                            set_to_compare.iter().any(|value| {
-                                value.reflect_partial_eq(value_to_check.borrow()) == Some(true)
+                egui::Grid::new((value_type_id, i))
+                    .show(ui, |ui| -> Result {
+                        // Do all sets contain this value ?
+                        if len == 1
+                            || values[1..].iter_mut().all(|set_to_compare| {
+                                let set_to_compare = match set_to_compare.reflect_mut() {
+                                    ReflectMut::Set(set) => set,
+                                    _ => unreachable!(),
+                                };
+                                set_to_compare.iter().any(|value| {
+                                    value.reflect_partial_eq(value_to_check.borrow()) == Some(true)
+                                })
                             })
-                        })
-                    {
-                        // All sets contain this value: Show value
-                        ui.horizontal_top(|ui| {
-                            self.ui_for_reflect_readonly_with_options(
-                                value_to_check.borrow(),
-                                ui,
-                                // FIXME: is the id passed here correct?
-                                id.with(i),
-                                options,
-                            );
-                        });
-                        ui.horizontal_top(|ui| {
-                            if remove_button(ui).on_hover_text("Remove element").clicked() {
-                                let copy = value_to_check.to_dynamic();
-                                op = Some(RemoveElement(copy));
-                            }
-                        });
-                    } else {
-                        ui.label("Different values");
-                    }
+                        {
+                            // All sets contain this value: Show value
+                            ui.horizontal_top(|ui| -> Result {
+                                self.ui_for_reflect_readonly_with_options(
+                                    value_to_check.borrow(),
+                                    ui,
+                                    // FIXME: is the id passed here correct?
+                                    id.with(i),
+                                    options,
+                                )?;
+                                Ok(())
+                            })
+                            .inner?;
+                            ui.horizontal_top(|ui| {
+                                if remove_button(ui).on_hover_text("Remove element").clicked() {
+                                    let copy = value_to_check.to_dynamic();
+                                    op = Some(RemoveElement(copy));
+                                }
+                            });
+                        } else {
+                            ui.label("Different values");
+                        }
 
-                    ui.end_row();
-                });
+                        ui.end_row();
+
+                        Ok(())
+                    })
+                    .inner?;
                 if i != len - 1 {
                     ui.separator();
                 }

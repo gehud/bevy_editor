@@ -1,5 +1,5 @@
 use std::fmt::Debug;
-use std::ops::{Add, DerefMut, Sub};
+use std::ops::{Add, Sub};
 use std::{any::TypeId, borrow::Cow, path::PathBuf};
 
 use bevy::ecs::error::Result;
@@ -81,7 +81,7 @@ impl<T: Reflect + Num + Debug> Inspector for T {
         _env: InspectorUi<'_, '_>,
         values: &mut [&mut dyn PartialReflect],
     ) -> Result<bool> {
-        let mut values = values
+        let values = values
             .iter_mut()
             .map(|value| value.try_downcast_mut::<Self>().unwrap())
             .collect::<Vec<_>>();
@@ -247,9 +247,11 @@ impl Inspector for bool {
         value: &dyn PartialReflect,
     ) -> Result {
         let mut value = value.try_downcast_ref::<Self>().unwrap().clone();
-        ui.add_enabled_ui(false, |ui| {
-            Self::ui(ui, options, id, env, &mut value);
-        });
+        ui.add_enabled_ui(false, |ui| -> Result {
+            Self::ui(ui, options, id, env, &mut value)?;
+            Ok(())
+        })
+        .inner?;
         Ok(())
     }
 }
@@ -371,7 +373,7 @@ impl Inspector for Duration {
             suffix: "s".to_string(),
             ..Default::default()
         };
-        env.ui_for_reflect_readonly_with_options(&seconds, ui, id, &options);
+        env.ui_for_reflect_readonly_with_options(&seconds, ui, id, &options)?;
         Ok(())
     }
 }
@@ -591,7 +593,7 @@ impl Inspector for TypeId {
         value: &mut dyn PartialReflect,
     ) -> Result<bool> {
         let value = value.try_downcast_mut::<Self>().unwrap();
-        Self::ui_readonly(ui, options, id, env, value);
+        Self::ui_readonly(ui, options, id, env, value)?;
         Ok(false)
     }
 
