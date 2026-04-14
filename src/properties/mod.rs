@@ -21,11 +21,7 @@ use egui::{
 
 use crate::{
     inspection::{
-        self,
-        bevy_inspector::{EntityFilter, Filter, errors, guess_entity_name},
-        reflect_inspector::{Context, InspectorUi},
-        restricted_world_view::{ReflectBorrow, RestrictedWorldView},
-        utils::{self, pretty_type_name, pretty_type_name_str},
+        self, error, reflect_inspector::{Context, InspectorUi}, restricted_world_view::{ReflectBorrow, RestrictedWorldView}, utils::{self, pretty_type_name, pretty_type_name_str}
     },
     pane::{Pane, RegisterPane},
     selection::{EntitySelection, Selection, SelectionMap},
@@ -129,7 +125,7 @@ fn ui_for_entities_shared_components(
     };
 
     let Ok(mut components) = components_of_entity(&mut world.into(), first) else {
-        errors::nonexistent_entity(ui, first);
+        error::nonexistent_entity(ui, first);
         return Ok(());
     };
 
@@ -179,7 +175,7 @@ fn ui_for_entities_shared_components(
                             values.push(value);
                         }
                         Err(error) => {
-                            errors::no_access(error, ui, &name);
+                            error::no_access(error, ui, &name);
                             return Ok(());
                         }
                     }
@@ -225,7 +221,7 @@ fn ui_for_entity_components(
     type_registry: &TypeRegistry,
 ) -> Result {
     let Ok(components) = components_of_entity(world, entity) else {
-        errors::nonexistent_entity(ui, entity);
+        error::nonexistent_entity(ui, entity);
         return Ok(());
     };
 
@@ -267,7 +263,7 @@ fn ui_for_entity_components(
                 Err(e) => {
                     ui.indent(id, |ui| {
                         let response = ui.label(egui::RichText::new(&name).underline());
-                        response.on_hover_ui(|ui| errors::no_access(e, ui, &name));
+                        response.on_hover_ui(|ui| error::no_access(e, ui, &name));
                     });
                     continue;
                 }

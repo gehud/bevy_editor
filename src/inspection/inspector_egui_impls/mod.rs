@@ -1,7 +1,7 @@
 //! Custom UI implementations for specific types. Check [`InspectorPrimitive`] for an example.
 
 use crate::inspection::{
-    reflect_inspector::{InspectorUi, errors::no_multiedit},
+    reflect_inspector::{InspectorUi},
     utils::pretty_type_name,
 };
 use bevy::{asset::uuid, platform::time::Instant};

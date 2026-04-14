@@ -135,7 +135,7 @@
 //!
 //! **A:** Implement [`InspectorPrimitive`](crate::inspection::inspector_egui_impls::InspectorPrimitive) and call `app.register_type_data::<T, InspectorEguiImpl>`.
 
-pub mod bevy_inspector;
+pub mod error;
 pub mod inspector_egui_impls;
 pub mod inspector_options;
 pub mod reflect_inspector;

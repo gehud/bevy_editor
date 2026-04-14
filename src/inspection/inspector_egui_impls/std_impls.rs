@@ -1,4 +1,5 @@
-use std::ops::Add;
+use std::fmt::Debug;
+use std::ops::{Add, DerefMut, Sub};
 use std::{any::TypeId, borrow::Cow, path::PathBuf};
 
 use bevy::ecs::error::Result;
@@ -15,7 +16,7 @@ use crate::inspection::inspector_options::{
 use std::{any::Any, time::Duration};
 
 // just for orphan rules
-trait Num: egui::emath::Numeric + Zeroable + Add<Output = Self> {}
+trait Num: egui::emath::Numeric + Zeroable + Add<Output = Self> + Sub<Output = Self> {}
 
 macro_rules! impl_num {
     ($($ty:ty),*) => {
@@ -27,7 +28,7 @@ macro_rules! impl_num {
 
 impl_num!(f32, f64, i8, u8, i16, u16, i32, u32, i64, u64, isize, usize);
 
-impl<T: Reflect + Num> Inspector for T {
+impl<T: Reflect + Num + Debug> Inspector for T {
     fn ui(
         ui: &mut egui::Ui,
         options: &dyn Any,
@@ -40,7 +41,7 @@ impl<T: Reflect + Num> Inspector for T {
             .downcast_ref::<NumberOptions<T>>()
             .cloned()
             .unwrap_or_default();
-        Ok(display_number(value, None, &options, ui, 0.1))
+        Ok(display_number(value, None, &options, ui, 0.1).0)
     }
 
     fn ui_readonly(
@@ -80,7 +81,7 @@ impl<T: Reflect + Num> Inspector for T {
         _env: InspectorUi<'_, '_>,
         values: &mut [&mut dyn PartialReflect],
     ) -> Result<bool> {
-        let values = values
+        let mut values = values
             .iter_mut()
             .map(|value| value.try_downcast_mut::<Self>().unwrap())
             .collect::<Vec<_>>();
@@ -88,27 +89,33 @@ impl<T: Reflect + Num> Inspector for T {
             return Ok(false);
         };
 
-        let mut first = **first;
+        let mut target_value = **first;
 
         let options = options
             .downcast_ref::<NumberOptions<T>>()
             .cloned()
             .unwrap_or_default();
 
-        let same = values.iter().all(|value| **value == first);
+        let same = values.iter().all(|value| **value == target_value);
 
-        let changed;
+        let prev_value = target_value;
+        let result = display_number(
+            &mut target_value,
+            if same { None } else { Some("-".into()) },
+            &options,
+            ui,
+            0.1,
+        );
+        let changed = result.0;
+        let draggeed = result.1;
 
-        if same {
-            changed = display_number(&mut first, None, &options, ui, 0.1);
+        if changed {
             for value in values {
-                *value = first;
-            }
-        } else {
-            let mut delta = Self::zeroed();
-            changed = display_number(&mut delta, Some("-".into()), &options, ui, 0.1);
-            for value in values {
-                *value = *value + delta;
+                if same || !draggeed {
+                    *value = target_value;
+                } else {
+                    *value = *value + (target_value - prev_value);
+                }
             }
         }
 
@@ -128,7 +135,7 @@ pub fn number_ui<T: egui::emath::Numeric>(
         .downcast_ref::<NumberOptions<T>>()
         .cloned()
         .unwrap_or_default();
-    display_number(value, None, &options, ui, 0.1)
+    display_number(value, None, &options, ui, 0.1).0
 }
 pub fn number_ui_readonly<T: egui::emath::Numeric>(
     value: &dyn Any,
@@ -164,8 +171,8 @@ fn display_number<T: egui::emath::Numeric>(
     options: &NumberOptions<T>,
     ui: &mut egui::Ui,
     default_speed: f32,
-) -> bool {
-    let mut changed = match options.display {
+) -> (bool, bool) {
+    let (mut changed, dragged) = match options.display {
         NumberDisplay::Drag => {
             let mut widget = egui::DragValue::new(value);
             if let Some(label) = label {
@@ -188,14 +195,16 @@ fn display_number<T: egui::emath::Numeric>(
             } else {
                 widget = widget.speed(default_speed);
             }
-            ui.add(widget).changed()
+            let response = ui.add(widget);
+            (response.changed(), response.dragged())
         }
         NumberDisplay::Slider => {
             let min = options.min.unwrap_or_else(|| T::from_f64(0.0));
             let max = options.max.unwrap_or_else(|| T::from_f64(1.0));
             let range = min..=max;
             let widget = egui::Slider::new(value, range);
-            ui.add(widget).changed()
+            let response = ui.add(widget);
+            (response.changed(), false)
         }
     };
 
@@ -215,7 +224,7 @@ fn display_number<T: egui::emath::Numeric>(
             changed = true;
         }
     }
-    changed
+    (changed, dragged)
 }
 
 impl Inspector for bool {

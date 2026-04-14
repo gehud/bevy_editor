@@ -5,7 +5,7 @@ use std::{
     sync::Mutex,
 };
 
-use crate::inspection::utils::pretty_type_name;
+use crate::inspection::{error::no_access, utils::pretty_type_name};
 use bevy::asset::{Assets, Handle};
 use bevy_egui::{EguiTextureHandle, EguiUserTextures};
 use bevy::image::Image;
@@ -13,7 +13,6 @@ use bevy::reflect::DynamicTypePath;
 use egui::{Vec2, load::SizedTexture};
 
 use crate::inspection::{
-    bevy_inspector::errors::{no_access, no_world_in_context},
     dropdown::DropDownBox,
     reflect_inspector::InspectorUi,
     restricted_world_view::RestrictedWorldView,

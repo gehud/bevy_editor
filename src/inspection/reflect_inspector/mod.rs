@@ -62,9 +62,9 @@
 #[cfg(feature = "documentation")]
 use crate::inspection::egui_utils::show_docs;
 
+use crate::inspection::error::{self, TypeDataError};
 use crate::inspection::inspector_egui_impls::{ReflectInspector, iter_all_eq};
 use crate::inspection::inspector_options::{InspectorOptions, ReflectInspectorOptions, Target};
-use crate::inspection::reflect_inspector::errors::TypeDataError;
 use crate::inspection::restricted_world_view::RestrictedWorldView;
 use crate::inspection::{
     egui_utils::{add_button, down_button, remove_button, up_button},
@@ -85,8 +85,6 @@ use std::{
     any::{Any, TypeId},
     borrow::Borrow,
 };
-
-pub(crate) mod errors;
 
 /// Display the value without any [`Context`] or short circuiting behaviour.
 ///
@@ -203,7 +201,7 @@ impl InspectorUi<'_, '_> {
             ReflectMut::Map(value) => self.ui_for_reflect_map(value, ui, id, options)?,
             ReflectMut::Enum(value) => self.ui_for_enum(value, ui, id, options)?,
             ReflectMut::Opaque(value) => {
-                errors::reflect_value_no_impl(ui, reason, value.reflect_short_type_path());
+                error::reflect_value_no_impl(ui, reason, value.reflect_short_type_path());
                 false
             }
             ReflectMut::Set(value) => self.ui_for_set(value, ui, id, options)?,
@@ -266,7 +264,7 @@ impl InspectorUi<'_, '_> {
             ReflectRef::Map(value) => self.ui_for_reflect_map_readonly(value, ui, id, options)?,
             ReflectRef::Enum(value) => self.ui_for_enum_readonly(value, ui, id, options)?,
             ReflectRef::Opaque(value) => {
-                errors::reflect_value_no_impl(ui, reason, value.reflect_short_type_path())
+                error::reflect_value_no_impl(ui, reason, value.reflect_short_type_path())
             }
             ReflectRef::Set(value) => self.ui_for_set_readonly(value, ui, id, options)?,
             #[allow(unreachable_patterns)]
@@ -299,7 +297,7 @@ impl InspectorUi<'_, '_> {
         values: &mut [&mut dyn PartialReflect],
     ) -> Result<bool> {
         let Some(registration) = self.type_registry.get(type_id) else {
-            errors::not_in_type_registry(ui, name);
+            error::not_in_type_registry(ui, name);
             return Ok(false);
         };
         let info = registration.type_info();
@@ -335,16 +333,16 @@ impl InspectorUi<'_, '_> {
             TypeInfo::Tuple(info) => self.ui_for_tuple_many(info, ui, id, options, values)?,
             TypeInfo::List(info) => self.ui_for_list_many(info, ui, id, options, values)?,
             TypeInfo::Array(info) => {
-                errors::no_multiedit(ui, &pretty_type_name_str(info.type_path()));
+                error::no_multiedit(ui, &pretty_type_name_str(info.type_path()));
                 false
             }
             TypeInfo::Map(info) => {
-                errors::no_multiedit(ui, &pretty_type_name_str(info.type_path()));
+                error::no_multiedit(ui, &pretty_type_name_str(info.type_path()));
                 false
             }
             TypeInfo::Enum(info) => self.ui_for_enum_many(info, ui, id, options, values)?,
             TypeInfo::Opaque(info) => {
-                errors::reflect_value_no_impl(ui, reason, info.type_path());
+                error::reflect_value_no_impl(ui, reason, info.type_path());
                 false
             }
             TypeInfo::Set(info) => self.ui_for_set_many(info, ui, id, options, values)?,
@@ -849,7 +847,7 @@ impl InspectorUi<'_, '_> {
 
             let error = ui.data_mut(|data| *data.get_temp_mut_or_default::<bool>(error_id));
             if error {
-                errors::no_default_value(ui, info.type_path());
+                error::no_default_value(ui, info.type_path());
             }
             if ui.input(|input| input.pointer.any_down()) {
                 ui.data_mut(|data| data.insert_temp::<bool>(error_id, false));
@@ -959,7 +957,7 @@ impl InspectorUi<'_, '_> {
             let error_id = id.with("error");
             let error = ui.data_mut(|data| *data.get_temp_mut_or_default::<bool>(error_id));
             if error {
-                errors::no_default_value(ui, info.type_path());
+                error::no_default_value(ui, info.type_path());
             }
             if ui.input(|input| input.pointer.any_down()) {
                 ui.data_mut(|data| data.insert_temp::<bool>(error_id, false));
@@ -1226,7 +1224,7 @@ impl InspectorUi<'_, '_> {
 
             let error = ui.data_mut(|data| *data.get_temp_mut_or_default::<bool>(error_id));
             if error {
-                errors::no_default_value(ui, set_info.type_path());
+                error::no_default_value(ui, set_info.type_path());
             }
             if ui.input(|input| input.pointer.any_down()) {
                 ui.data_mut(|data| data.insert_temp::<bool>(error_id, false));
@@ -1427,7 +1425,7 @@ impl InspectorUi<'_, '_> {
             let error_id = id.with("error");
             let error = ui.data_mut(|data| *data.get_temp_mut_or_default::<bool>(error_id));
             if error {
-                errors::no_default_value(ui, info.type_path());
+                error::no_default_value(ui, info.type_path());
             }
             if ui.input(|input| input.pointer.any_down()) {
                 ui.data_mut(|data| data.insert_temp::<bool>(error_id, false));
@@ -1714,7 +1712,7 @@ impl InspectorUi<'_, '_> {
                             if let Err(fields) = variant_is_constructable {
                                 variant_label_response = variant_label_response
                                     .on_disabled_hover_ui(|ui| {
-                                        errors::unconstructable_variant(
+                                        error::unconstructable_variant(
                                             ui,
                                             info.type_path(),
                                             variant_name,
@@ -1725,7 +1723,7 @@ impl InspectorUi<'_, '_> {
 
                             /*let res = variant_label_response.on_hover_ui(|ui| {
                                 if !unconstructable_variants.is_empty() {
-                                    errors::unconstructable_variants(
+                                    error::unconstructable_variants(
                                         ui,
                                         info.type_name(),
                                         &unconstructable_variants,
@@ -1830,7 +1828,7 @@ impl<'a, 'c> InspectorUi<'a, 'c> {
                     let field_default_value = match self.get_default_value_for(field.type_id()) {
                         Some(value) => value,
                         None => {
-                            errors::no_default_value(ui, field.type_path());
+                            error::no_default_value(ui, field.type_path());
                             return Err(());
                         }
                     };
@@ -1844,7 +1842,7 @@ impl<'a, 'c> InspectorUi<'a, 'c> {
                     let field_default_value = match self.get_default_value_for(field.type_id()) {
                         Some(value) => value,
                         None => {
-                            errors::no_default_value(ui, field.type_path());
+                            error::no_default_value(ui, field.type_path());
                             return Err(());
                         }
                     };
