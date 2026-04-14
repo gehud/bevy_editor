@@ -86,38 +86,9 @@ use std::{
     borrow::Borrow,
 };
 
-/// Display the value without any [`Context`] or short circuiting behaviour.
-///
-/// This means that for example bevy's `Handle<StandardMaterial>` values cannot be displayed,
-/// as they would need to have access to the `World`.
-///
-/// Use [`InspectorUi::new`] instead to provide context or use one of the methods in [`bevy_inspector`](crate::inspection::bevy_inspector).
-pub fn ui_for_value(
-    value: &mut dyn PartialReflect,
-    ui: &mut egui::Ui,
-    type_registry: &TypeRegistry,
-) -> Result<bool> {
-    InspectorUi::new(type_registry, &mut Context::default()).ui_for_reflect(value, ui)
-}
-
-/// Display the readonly value without any [`Context`] or short circuiting behaviour.
-///
-/// This means that for example bevy's `Handle<StandardMaterial>` values cannot be displayed,
-/// as they would need to have access to the `World`.
-///
-/// Use [`InspectorUi::new`] instead to provide context or use one of the methods in [`bevy_inspector`](crate::inspection::bevy_inspector).
-pub fn ui_for_value_readonly(
-    value: &dyn PartialReflect,
-    ui: &mut egui::Ui,
-    type_registry: &TypeRegistry,
-) -> Result {
-    InspectorUi::new(type_registry, &mut Context::default()).ui_for_reflect_readonly(value, ui)
-}
-
-#[derive(Default)]
 pub struct Context<'a> {
-    pub world: Option<RestrictedWorldView<'a>>,
-    pub queue: Option<&'a mut CommandQueue>,
+    pub world: RestrictedWorldView<'a>,
+    pub queue: &'a mut CommandQueue,
 }
 
 pub struct InspectorUi<'a, 'c> {

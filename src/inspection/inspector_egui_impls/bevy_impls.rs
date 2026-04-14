@@ -1,6 +1,6 @@
 use std::any::Any;
 
-use bevy::asset::uuid;
+use bevy::asset::{Asset, Handle, uuid};
 use bevy::camera::visibility::RenderLayers;
 use bevy::color::{Color, Hsla, Hsva, LinearRgba, Srgba};
 use bevy::ecs::entity::Entity;

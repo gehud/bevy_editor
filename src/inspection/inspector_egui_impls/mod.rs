@@ -1,18 +1,27 @@
 //! Custom UI implementations for specific types. Check [`InspectorPrimitive`] for an example.
 
 use crate::inspection::{
-    reflect_inspector::{InspectorUi},
+    inspector_egui_impls::handle::HandleInspector, reflect_inspector::InspectorUi,
 };
-use bevy::{asset::uuid, platform::time::Instant};
+use bevy::{
+    asset::{Handle, ReflectHandle, uuid},
+    mesh::{Mesh, Mesh3d},
+    pbr::StandardMaterial,
+    platform::time::Instant,
+};
 use bevy::{
     ecs::error::Result,
     reflect::{FromType, PartialReflect, Reflect, TypeRegistry},
 };
 use disqualified::ShortName;
-use std::any::{Any, TypeId};
+use std::{
+    any::{Any, TypeId},
+    sync::Arc,
+};
 
 mod bevy_impls;
 mod glam_impls;
+mod handle;
 mod image;
 mod std_impls;
 
@@ -274,6 +283,12 @@ pub fn register_bevy_impls(type_registry: &mut TypeRegistry) {
     type_registry.register_type_data::<bevy::color::Hsva, ReflectInspector>();
     type_registry.register_type_data::<bevy::gizmos::config::GizmoConfigStore, ReflectInspector>();
     type_registry.register_type_data::<uuid::Uuid, ReflectInspector>();
+
+    for registration in type_registry.iter_mut() {
+        if registration.data::<ReflectHandle>().is_some() {
+            registration.insert(ReflectInspector::of::<HandleInspector>());
+        }
+    }
 }
 
 pub(crate) fn iter_all_eq<T: PartialEq>(mut iter: impl Iterator<Item = T>) -> Option<T> {

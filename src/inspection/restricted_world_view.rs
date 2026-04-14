@@ -8,17 +8,24 @@ use bevy::ecs::{
 use bevy::reflect::{Reflect, ReflectFromPtr, TypeRegistry};
 use smallvec::{SmallVec, smallvec};
 use std::any::{Any, TypeId};
+use std::fmt::Display;
+use thiserror::Error;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum Error {
     NoAccessToResource(TypeId),
     NoAccessToComponent(EntityComponent),
-
     ResourceDoesNotExist(TypeId),
     ComponentDoesNotExist(EntityComponent),
     NoComponentId(TypeId),
     NoTypeRegistration(TypeId),
     NoTypeData(TypeId, &'static str),
+}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }
 
 type EntityComponent = (Entity, TypeId);

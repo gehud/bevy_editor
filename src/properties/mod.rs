@@ -52,7 +52,7 @@ impl Pane for PropertiesPane {
             {
                 match selected.as_slice() {
                     &[entity] => ui_for_entity(ui, world, entity)?,
-                    entities => ui_for_entities_shared_components(ui, world, entities)?,
+                    entities => ui_for_entities(ui, world, entities)?,
                 }
             }
         }
@@ -101,7 +101,7 @@ fn ui_for_entity(ui: &mut Ui, world: &mut World, entity: Entity) -> Result {
     let mut queue = CommandQueue::default();
     ui_for_entity_components(
         &mut world.into(),
-        Some(&mut queue),
+        &mut queue,
         entity,
         ui,
         &type_registry,
@@ -112,7 +112,7 @@ fn ui_for_entity(ui: &mut Ui, world: &mut World, entity: Entity) -> Result {
     Ok(())
 }
 
-fn ui_for_entities_shared_components(
+fn ui_for_entities(
     ui: &mut Ui,
     world: &mut World,
     entities: &[Entity],
@@ -140,8 +140,8 @@ fn ui_for_entities_shared_components(
     let (resources_view, components_view) = RestrictedWorldView::resources_components(world);
     let mut queue = CommandQueue::default();
     let mut cx = Context {
-        world: Some(resources_view),
-        queue: Some(&mut queue),
+        world: resources_view,
+        queue: &mut queue,
     };
     let mut env = InspectorUi::new(&type_registry, &mut cx);
 
@@ -215,7 +215,7 @@ fn ui_for_entities_shared_components(
 
 fn ui_for_entity_components(
     world: &mut RestrictedWorldView<'_>,
-    mut queue: Option<&mut CommandQueue>,
+    mut queue: &mut CommandQueue,
     entity: Entity,
     ui: &mut egui::Ui,
     type_registry: &TypeRegistry,
@@ -249,9 +249,8 @@ fn ui_for_entity_components(
             let (mut component_view, world) =
                 world.split_off_component((entity, component_type_id));
             let mut cx = Context {
-                world: Some(world),
-                #[allow(clippy::needless_option_as_deref)]
-                queue: queue.as_deref_mut(),
+                world: world,
+                queue: queue,
             };
 
             let value = match component_view.get_entity_component_reflect(

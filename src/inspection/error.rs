@@ -198,13 +198,13 @@ pub fn reflect_value_no_impl(ui: &mut egui::Ui, reason: TypeDataError, type_name
             (FontId::proportional(13.0), "Try implementing "),
             (
                 FontId::monospace(12.0),
-                &format!("InspectorPrimitive for {}", pretty_type_name_str(type_name)),
+                &format!("Inspector for {}", pretty_type_name_str(type_name)),
             ),
             (FontId::proportional(13.0), "\nand call "),
             (
                 FontId::monospace(12.0),
                 &format!(
-                    "app.register_type_data::<{}, InspectorEguiImpl>",
+                    "app.register_type_data::<{}, ReflectInspector>",
                     pretty_type_name_str(type_name)
                 ),
             ),
