@@ -4,18 +4,25 @@ use std::{
     env::current_dir,
     fs::read_dir,
     path::Path,
+    str::FromStr,
     time::{SystemTime, UNIX_EPOCH},
 };
 
 use bevy::{
     app::{App, Plugin, PreStartup, Startup, Update},
-    asset::{AssetApp, AssetMetaCheck, AssetMode, AssetPlugin, AssetServer, uuid::Uuid},
+    asset::{
+        AssetApp, AssetMetaCheck, AssetMode, AssetPlugin, AssetServer,
+        io::{AssetSource, AssetSourceBuilder},
+        uuid::Uuid,
+    },
     ecs::{
         error::Result,
         message::{Message, MessageReader},
+        reflect::AppTypeRegistry,
         system::{Commands, Res},
     },
     log::info,
+    reflect::TypeRegistry,
     tasks::block_on,
     utils::default,
 };
@@ -40,6 +47,7 @@ fn open_database(mut commands: Commands) -> Result {
 
 fn refresh(
     mut requests: MessageReader<RefreshDatabase>,
+    type_registry: Res<AppTypeRegistry>,
     assets: Res<AssetServer>,
     database: Res<AssetDatabase>,
     mut commands: Commands,
@@ -50,12 +58,12 @@ fn refresh(
 
     requests.clear();
 
-    database.connection().execute(
-        "update assets set deleted = true where label is null",
-        params![],
-    )?;
+    database
+        .connection()
+        .execute("update assets set deleted = true", params![])?;
 
-    refresh_recurse("assets", &assets, &database)?;
+    let type_registry = type_registry.read();
+    refresh_recurse("assets", &type_registry, &assets, &database)?;
 
     commands.write_message(DatabaseRefresed);
 
@@ -64,6 +72,7 @@ fn refresh(
 
 fn refresh_recurse(
     path: impl AsRef<Path>,
+    type_registry: &TypeRegistry,
     assets: &AssetServer,
     database: &AssetDatabase,
 ) -> Result {
@@ -71,7 +80,7 @@ fn refresh_recurse(
         let path = entry?.path();
 
         if path.is_dir() {
-            refresh_recurse(path, assets, database)?;
+            refresh_recurse(path, type_registry, assets, database)?;
         } else {
             let extension = path
                 .extension()
@@ -86,55 +95,68 @@ fn refresh_recurse(
             let path = AssetDatabase::normalize_path(path.strip_prefix("assets")?);
 
             let row = database.connection().query_one(
-                "select modified_at from assets where path = ?1 and label is null",
+                "select uuid, modified_at from assets where path = ?1",
                 params![path],
                 |row| {
-                    let modified_at: DateTime<Utc> = row.get(0)?;
-                    Ok(modified_at)
+                    let uuid: String = row.get(0)?;
+                    let modified_at: DateTime<Utc> = row.get(1)?;
+                    Ok((uuid, modified_at))
                 },
             );
 
-            let last_modified_at = DateTime::<Utc>::from(metadata.modified()?);
+            let new_modified_at = DateTime::<Utc>::from(metadata.modified()?);
             match row {
-                Ok(mut modified_at) => {
-                    if modified_at > last_modified_at {
-                        modified_at = last_modified_at;
-
-                        database.connection().execute(
-                            "update assets set deleted = true where path = ?1",
-                            params![path],
-                        )?;
-
-                        let _ = block_on(assets.load_untyped_async(&path))?;
-
-                        if let Some(labels) = assets.get_living_labeled_assets(&path) {
-                            for label in labels {
-                                database.connection().execute(
-                                "update assets set deleted = false, modified_at = ?1 where path = ?2 and label = ?3",
-                                params![modified_at, path, label],
-                            )?;
-                            }
-                        }
+                Ok((uuid, mut modified_at)) => {
+                    if new_modified_at > modified_at {
+                        modified_at = new_modified_at;
                     }
 
+                    let untyped = block_on(assets.load_untyped_async(&path))?;
+
+                    let type_path = type_registry
+                        .get_type_info(untyped.type_id())
+                        .map(|info| info.type_path())
+                        .unwrap_or_default();
+
                     database.connection().execute(
-                        "update assets set deleted = false, modified_at = ?1 where path = ?2 and label is null",
-                        params![modified_at, path],
+                        "update assets set deleted = false, type_path = ?1, modified_at = ?2 where path = ?3",
+                        params![type_path, modified_at, path],
                     )?;
+
+                    database
+                        .connection()
+                        .execute("delete from labels where uuid = ?1", params![uuid])?;
+
+                    if let Some(labels) = assets.get_living_labeled_assets(&path) {
+                        for label in labels {
+                            database.connection().execute(
+                                "insert into labels (uuid, label) values (?1, ?2)",
+                                params![uuid, label],
+                            )?;
+                        }
+                    }
                 }
                 Err(error) => match error {
                     SqliteError::QueryReturnedNoRows => {
-                        let _ = block_on(assets.load_untyped_async(&path))?;
+                        let untyped = block_on(assets.load_untyped_async(&path))?;
+
+                        let type_path = type_registry
+                            .get_type_info(untyped.type_id())
+                            .map(|info| info.type_path())
+                            .unwrap_or_default();
+
+                        let uuid = Uuid::new_v4().to_string();
+
                         database.connection().execute(
-                            "insert into assets (uuid, path, modified_at) values (?1, ?2, ?3)",
-                            params![Uuid::new_v4().to_string(), path, last_modified_at],
+                            "insert into assets (uuid, path, type_path, modified_at) values (?1, ?2, ?3, ?4)",
+                            params![uuid, path, type_path, new_modified_at],
                         )?;
 
                         if let Some(labels) = assets.get_living_labeled_assets(&path) {
                             for label in labels {
                                 database.connection().execute(
-                                    "insert into assets (uuid, path, label, modified_at) values (?1, ?2, ?3, ?4)",
-                                    params![Uuid::new_v4().to_string(), path, label, last_modified_at],
+                                    "insert into labels (uuid, label) values (?1, ?2)",
+                                    params![uuid, label],
                                 )?;
                             }
                         }

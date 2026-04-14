@@ -87,7 +87,10 @@ impl Pane for AssetBrowser {
     }
 }
 
-pub(crate) struct AssetPayload(pub Uuid);
+pub(crate) struct AssetPayload {
+    pub uuid: Uuid,
+    pub label: Option<String>,
+}
 
 enum AssetBrowserEntry {
     Directory {
@@ -102,7 +105,7 @@ enum AssetBrowserEntry {
         uuid: Uuid,
         file_name: String,
         path: PathBuf,
-        labels: Vec<Uuid>,
+        labels: Vec<String>,
     },
     LabeledAsset {
         uuid: Uuid,
@@ -119,7 +122,7 @@ impl AssetBrowserEntry {
 
         if let Some(label) = asset_path.label() {
             let uuid = db
-                .get_asset_uuid(asset_path.clone())?
+                .get_uuid(asset_path.clone())?
                 .ok_or_else(|| BevyError::from("Invalid asset path"))?;
 
             Ok(Self::LabeledAsset {
@@ -135,10 +138,10 @@ impl AssetBrowserEntry {
             if path.is_dir() {
                 Ok(Self::Directory { file_name, path })
             } else {
-                if let Some(uuid) = db.get_asset_uuid(asset_path.clone())? {
+                if let Some(uuid) = db.get_uuid(asset_path.clone())? {
                     let labels = world
                         .resource::<AssetDatabase>()
-                        .get_asset_labeled_uuids(asset_path)?
+                        .get_labels(&uuid)?
                         .unwrap_or_default();
 
                     Ok(Self::Asset {
@@ -176,7 +179,10 @@ impl AssetBrowserEntry {
                 ui.label(MaterialIcon::new(Icon::Box).rich_text().size(15.0));
                 ui.dnd_drag_source(
                     Id::new(path).with("dnd_drag_source"),
-                    AssetPayload(*uuid),
+                    AssetPayload {
+                        uuid: *uuid,
+                        label: None,
+                    },
                     |ui| ui.label(file_name),
                 );
             }
@@ -186,7 +192,10 @@ impl AssetBrowserEntry {
                 ui.label(MaterialIcon::new(Icon::Box).rich_text().size(15.0));
                 ui.dnd_drag_source(
                     Id::new(path).with(label).with("dnd_drag_source"),
-                    AssetPayload(*uuid),
+                    AssetPayload {
+                        uuid: *uuid,
+                        label: Some(label.clone()),
+                    },
                     |ui| ui.label(label),
                 );
             }
@@ -203,15 +212,10 @@ impl AssetBrowserEntry {
                     ui_for_asset(ui, world, asset_path)?;
                 }
             }
-            AssetBrowserEntry::Asset { labels, .. } => {
-                for uuid in labels {
-                    let path = world
-                        .resource::<AssetDatabase>()
-                        .get_path_by_uuid(uuid)?
-                        .ok_or_else(|| BevyError::from("Invalid labeled uuid"))?
-                        .into_owned();
-
-                    ui_for_asset(ui, world, path)?;
+            AssetBrowserEntry::Asset { labels, path, .. } => {
+                let path = path.strip_prefix("assets")?.to_owned();
+                for label in labels {
+                    ui_for_asset(ui, world, AssetPath::from(path.clone()).with_label(label))?;
                 }
             }
             _ => {}

@@ -37,16 +37,25 @@ impl Inspector for HandleInspector {
             .map(|type_id| env.type_registry.get(type_id).unwrap())
             .unwrap();
 
-        let reflect_handle = registration.data::<ReflectHandle>().unwrap();
+        let Some(reflect_handle) = registration.data::<ReflectHandle>() else {
+            ui.label("Asset is not reflected.");
+            return Ok(false);
+        };
+
         let reflect_default = registration.data::<ReflectDefault>().unwrap();
 
         let is_payload_suitable =
             if let Some(payload) = ui.response().dnd_hover_payload::<AssetPayload>() {
                 let db = env.context.world.get_resource_mut::<AssetDatabase>()?;
-                let asset_path = db
-                    .get_path_by_uuid(&payload.0)?
+                let mut asset_path = db
+                    .get_path(&payload.uuid)?
                     .ok_or_else(|| BevyError::from("Invalid asset payload"))?
                     .clone_owned();
+
+                if let Some(label) = &payload.label {
+                    asset_path = asset_path.with_label(label);
+                }
+
                 let asset_server = env.context.world.get_resource_mut::<AssetServer>()?;
                 let untyped = block_on(asset_server.load_untyped_async(asset_path))?;
                 untyped.type_id() == reflect_handle.asset_type_id()
@@ -80,10 +89,15 @@ impl Inspector for HandleInspector {
         if let Some(payload) = response.dnd_release_payload::<AssetPayload>() {
             if is_payload_suitable {
                 let db = env.context.world.get_resource_mut::<AssetDatabase>()?;
-                let asset_path = db
-                    .get_path_by_uuid(&payload.0)?
+                let mut asset_path = db
+                    .get_path(&payload.uuid)?
                     .ok_or_else(|| BevyError::from("Invalid asset payload"))?
                     .clone_owned();
+
+                if let Some(label) = &payload.label {
+                    asset_path = asset_path.with_label(label);
+                }
+
                 let asset_server = env.context.world.get_resource_mut::<AssetServer>()?;
                 let untyped = block_on(asset_server.load_untyped_async(asset_path))?;
                 value.apply(reflect_handle.typed(untyped).as_partial_reflect());

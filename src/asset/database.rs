@@ -1,5 +1,5 @@
 use std::{
-    fs::{create_dir_all, read_dir},
+    fs::create_dir_all,
     path::Path,
     str::FromStr,
     sync::{Mutex, MutexGuard, PoisonError},
@@ -8,9 +8,8 @@ use std::{
 use bevy::{
     asset::{AssetPath, uuid::Uuid},
     ecs::{error::Result, resource::Resource},
-    utils::default,
 };
-use rusqlite::{Connection, Error as SqliteError, ToSql, params, types::Null};
+use rusqlite::{Connection, Error as SqliteError, params};
 
 #[derive(Resource)]
 pub(crate) struct AssetDatabase(Mutex<Connection>);
@@ -44,33 +43,31 @@ impl AssetDatabase {
         self.connection().execute(
             "create table if not exists assets (
                     uuid text not null primary key,
-                    path text not null,
-                    label text default null,
+                    path text not null unique,
+                    type_path text not null,
                     deleted bool not null default false,
-                    modified_at datetime nut null,
-                    unique (path, label)
+                    modified_at datetime nut null
                 )",
-            (),
+            params![],
         )?;
+
+        self.connection().execute(
+            "create table if not exists labels (
+                    uuid text not null,
+                    label text not null
+                )",
+            params![],
+        )?;
+
         Ok(())
     }
 
-    pub fn get_asset_uuid<'a>(&self, path: impl Into<AssetPath<'a>>) -> Result<Option<Uuid>> {
-        let mut path = path.into();
-
-        let label_query = if let Some(label) = path.take_label() {
-            format!("label = '{}'", label)
-        } else {
-            "label is null".into()
-        };
-
+    pub fn get_uuid<'a>(&self, path: impl Into<AssetPath<'a>>) -> Result<Option<Uuid>> {
+        let path = path.into();
         let path = Self::normalize_path(path.path());
 
         match self.connection().query_one(
-            &format!(
-                "select uuid from assets where not deleted and path = ?1 and {}",
-                label_query
-            ),
+            "select uuid from assets where not deleted and path = ?1",
             params![path],
             |row| {
                 let uuid: String = row.get(0)?;
@@ -85,50 +82,36 @@ impl AssetDatabase {
         }
     }
 
-    pub fn get_asset_labeled_uuids<'a>(
-        &self,
-        path: impl Into<AssetPath<'a>>,
-    ) -> Result<Option<Vec<Uuid>>> {
-        let path = path.into();
-
-        if path.label().is_some() {
-            return Err("'AssetPath' without label expected.".into());
-        }
-
-        if self.get_asset_uuid(&path)?.is_none() {
+    pub fn get_labels<'a>(&self, uuid: &Uuid) -> Result<Option<Vec<String>>> {
+        if self.get_path(uuid)?.is_none() {
             return Ok(None);
         }
 
-        let path = Self::normalize_path(path.path());
-
         let connection = self.connection();
 
-        let mut stmt = connection.prepare(
-            "select uuid from assets where not deleted and label is not null and path = ?1",
-        )?;
+        let mut stmt = connection.prepare("select label from labels where uuid = ?1")?;
 
-        let iter = stmt.query_map(params![path], |row| {
-            let uuid: String = row.get(0)?;
-            Ok(Uuid::from_str(&uuid))
+        let iter = stmt.query_map(params![uuid.to_string()], |row| {
+            let label: String = row.get(0)?;
+            Ok(label)
         })?;
 
-        let mut uuids = Vec::new();
+        let mut labels = Vec::new();
 
-        for uuid in iter {
-            uuids.push(uuid??);
+        for label in iter {
+            labels.push(label?);
         }
 
-        Ok(Some(uuids))
+        Ok(Some(labels))
     }
 
-    pub fn get_path_by_uuid<'a>(&self, uuid: &Uuid) -> Result<Option<AssetPath<'_>>> {
-        let (path, label) = match self.connection().query_one(
-            "select path, label from assets where uuid = ?1",
+    pub fn get_path(&self, uuid: &Uuid) -> Result<Option<AssetPath<'_>>> {
+        let path = match self.connection().query_one(
+            "select path from assets where not deleted and uuid = ?1",
             params![uuid.to_string()],
             |row| {
                 let path: String = row.get(0)?;
-                let label: Option<String> = row.get(1).ok();
-                Ok((path, label))
+                Ok(path)
             },
         ) {
             Ok(value) => value,
@@ -140,12 +123,6 @@ impl AssetDatabase {
             },
         };
 
-        let mut path = AssetPath::from(path);
-
-        if let Some(label) = label {
-            path = path.with_label(label);
-        }
-
-        Ok(Some(path))
+        Ok(Some(AssetPath::from(path)))
     }
 }
