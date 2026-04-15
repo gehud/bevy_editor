@@ -30,9 +30,11 @@ use bevy::{
         observer::On,
         query::With,
         resource::Resource,
+        schedule::LogLevel,
         system::{Commands, Local, Query, Res, ResMut, Single, SystemState},
         world::{DeferredWorld, Mut, World},
     },
+    log::{Level, LogPlugin},
     picking::{
         Pickable,
         events::{Click, Pointer},
@@ -56,7 +58,7 @@ use crate::{
     asset_browser::AssetBrowserPlugin,
     assets::{AssetsPlugin, LUCIDE_FONT_FAMILY},
     dock::{DockArea, DockState},
-    inspection::{DefaultInspectorConfigPlugin},
+    inspection::DefaultInspectorConfigPlugin,
     pane::{PaneDocking, PanePlugin, PaneRegistry, PaneViewer},
     prefs::{Load, PrefsPlugin, RegisterPref, Save},
     properties::PropertiesPlugin,
@@ -93,6 +95,10 @@ impl Plugin for EditorPlugin {
                             title: "Bevy Editor".into(),
                             ..default()
                         }),
+                        ..default()
+                    })
+                    .set(LogPlugin {
+                        level: Level::DEBUG,
                         ..default()
                     })
                     .disable::<AssetPlugin>(),

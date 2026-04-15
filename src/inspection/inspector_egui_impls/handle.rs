@@ -1,5 +1,5 @@
 use bevy::{
-    asset::{AssetServer, ReflectHandle},
+    asset::{AssetPath, AssetServer, ReflectHandle, UntypedHandle, processor::AssetProcessor},
     ecs::{
         error::{BevyError, Result},
         resource,
@@ -69,6 +69,28 @@ impl Inspector for HandleInspector {
             ui.style().visuals.widgets.inactive.bg_stroke
         };
 
+        let untyped = reflect_handle
+            .downcast_handle_untyped(value.try_as_reflect().unwrap().as_any())
+            .unwrap();
+
+        let path = untyped
+            .path()
+            .map(|path| path.to_owned())
+            .unwrap_or_else(|| AssetPath::from("internal"));
+
+        let label = path.label().map(|label| label.to_string());
+        let mut path = path.path().to_path_buf();
+
+        if let Some(parent) = path.parent() {
+            path = path.strip_prefix(parent)?.to_path_buf();
+        }
+
+        let mut path = AssetPath::from(path);
+
+        if let Some(label) = label {
+            path = path.with_label(label);
+        }
+
         let response = Frame::new()
             .inner_margin(ui.spacing().button_padding)
             .corner_radius(ui.style().visuals.widgets.inactive.corner_radius)
@@ -81,7 +103,8 @@ impl Inspector for HandleInspector {
                         value.apply(reflect_default.default().as_partial_reflect());
                         changed = true;
                     }
-                    ui.label("asset");
+
+                    ui.label(path.to_string());
                 });
             })
             .response;
