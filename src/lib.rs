@@ -97,10 +97,6 @@ impl Plugin for EditorPlugin {
                         }),
                         ..default()
                     })
-                    .set(LogPlugin {
-                        level: Level::DEBUG,
-                        ..default()
-                    })
                     .disable::<AssetPlugin>(),
             )
             .add_plugins(PrefsPlugin)

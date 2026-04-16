@@ -825,6 +825,7 @@ dependencies = [
  "fuzzy-matcher",
  "image",
  "lucide-icons",
+ "notify",
  "opener",
  "paste",
  "platform-dirs",

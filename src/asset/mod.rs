@@ -5,6 +5,10 @@ use std::{
     fs::read_dir,
     path::Path,
     str::FromStr,
+    sync::{
+        Mutex, PoisonError,
+        mpsc::{Receiver, Sender, channel},
+    },
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -19,14 +23,20 @@ use bevy::{
         error::Result,
         message::{Message, MessageReader},
         reflect::AppTypeRegistry,
+        resource::Resource,
         system::{Commands, Res},
     },
-    log::info,
+    log::{info, warn},
     reflect::TypeRegistry,
     tasks::block_on,
     utils::default,
 };
 use chrono::{DateTime, Utc};
+use notify::{
+    Error as NotifyError, Event as NotifyEvent, EventKind, RecursiveMode, Watcher,
+    event::{ModifyKind, RenameMode},
+    recommended_watcher,
+};
 use rusqlite::{Error as SqliteError, params};
 
 use crate::asset::database::AssetDatabase;
@@ -170,13 +180,74 @@ fn refresh_recurse(
     Ok(())
 }
 
+const ASSETS_ROOT: &'static str = "assets";
+
+#[derive(Resource)]
+struct DirectoryWatcher {
+    _watcher: notify::RecommendedWatcher,
+    receiver: Mutex<Receiver<Result<NotifyEvent, NotifyError>>>,
+}
+
+fn setup_watcher(mut commands: Commands) {
+    let (sender, receiver) = channel();
+    let watcher = recommended_watcher(sender);
+
+    match watcher {
+        Ok(mut watcher) => {
+            if watcher
+                .watch(Path::new(ASSETS_ROOT), RecursiveMode::Recursive)
+                .is_ok()
+            {
+                commands.insert_resource(DirectoryWatcher {
+                    _watcher: watcher,
+                    receiver: Mutex::new(receiver),
+                });
+            } else {
+                warn!("Failed to watch directory: {:?}", ASSETS_ROOT);
+            }
+        }
+        Err(e) => {
+            warn!("Failed to create directory watcher: {}", e);
+        }
+    }
+}
+
+fn read_directory_events(watcher: Res<DirectoryWatcher>) -> Result {
+    let receiver = watcher
+        .receiver
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+
+    while let Ok(event) = receiver.try_recv() {
+        let event = event?;
+
+        match event.kind {
+            EventKind::Modify(modify_kind) => match modify_kind {
+                ModifyKind::Name(rename_mode) => match rename_mode {
+                    RenameMode::Both => {
+                        info!(
+                            "Asset renamed from {:?} to {:?}",
+                            event.paths[0], event.paths[1]
+                        );
+                    }
+                    _ => {}
+                },
+                _ => {}
+            },
+            _ => {}
+        }
+    }
+
+    Ok(())
+}
+
 pub struct AssetDatabasePlugin;
 
 impl Plugin for AssetDatabasePlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(AssetPlugin {
             watch_for_changes_override: Some(true),
-            meta_check: AssetMetaCheck::Never,
+            meta_check: AssetMetaCheck::Always,
             use_asset_processor_override: Some(true),
             mode: AssetMode::Processed,
             ..default()
@@ -184,6 +255,8 @@ impl Plugin for AssetDatabasePlugin {
         .add_message::<RefreshDatabase>()
         .add_message::<DatabaseRefresed>()
         .add_systems(PreStartup, open_database)
-        .add_systems(Update, refresh);
+        .add_systems(Startup, setup_watcher)
+        .add_systems(Update, refresh)
+        .add_systems(Update, read_directory_events);
     }
 }
