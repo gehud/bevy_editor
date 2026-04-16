@@ -12,7 +12,6 @@ use egui::{DragValue, Frame, InnerResponse, Response, Widget};
 use lucide_icons::Icon;
 
 use crate::{
-    asset::database::AssetDatabase,
     asset_browser::AssetPayload,
     assets::icons::MaterialIcon,
     inspection::inspector_egui_impls::{Inspector, ReflectInspector},
@@ -46,19 +45,7 @@ impl Inspector for HandleInspector {
 
         let is_payload_suitable =
             if let Some(payload) = ui.response().dnd_hover_payload::<AssetPayload>() {
-                let db = env.context.world.get_resource_mut::<AssetDatabase>()?;
-                let mut asset_path = db
-                    .get_path(&payload.uuid)?
-                    .ok_or_else(|| BevyError::from("Invalid asset payload"))?
-                    .clone_owned();
-
-                if let Some(label) = &payload.label {
-                    asset_path = asset_path.with_label(label);
-                }
-
-                let asset_server = env.context.world.get_resource_mut::<AssetServer>()?;
-                let untyped = block_on(asset_server.load_untyped_async(asset_path))?;
-                untyped.type_id() == reflect_handle.asset_type_id()
+                payload.type_id == reflect_handle.asset_type_id()
             } else {
                 false
             };
@@ -111,18 +98,8 @@ impl Inspector for HandleInspector {
 
         if let Some(payload) = response.dnd_release_payload::<AssetPayload>() {
             if is_payload_suitable {
-                let db = env.context.world.get_resource_mut::<AssetDatabase>()?;
-                let mut asset_path = db
-                    .get_path(&payload.uuid)?
-                    .ok_or_else(|| BevyError::from("Invalid asset payload"))?
-                    .clone_owned();
-
-                if let Some(label) = &payload.label {
-                    asset_path = asset_path.with_label(label);
-                }
-
                 let asset_server = env.context.world.get_resource_mut::<AssetServer>()?;
-                let untyped = block_on(asset_server.load_untyped_async(asset_path))?;
+                let untyped = block_on(asset_server.load_untyped_async(&payload.path))?;
                 value.apply(reflect_handle.typed(untyped).as_partial_reflect());
             }
         }

@@ -35,7 +35,6 @@ platform-dirs = "0.3.0"
 ron = "0.12.1"
 thiserror = "2.0.18"
 lucide-icons = "1.8.0"
-uuid = { version = "1.23.0", features = ["v4"] }
 notify = "8.2.0"
 
 [patch.crates-io]

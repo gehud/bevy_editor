@@ -1,4 +1,5 @@
 use std::{
+    any::TypeId,
     f32::consts::TAU,
     fs::read_dir,
     path::{Path, PathBuf},
@@ -13,6 +14,7 @@ use bevy::{
         world::World,
     },
     log::info_once,
+    platform::collections::HashSet,
     tasks::block_on,
 };
 use egui::{
@@ -26,10 +28,8 @@ use egui::{
 };
 use lucide_icons::Icon;
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 use crate::{
-    asset::database::AssetDatabase,
     assets::icons::MaterialIcon,
     pane::{Pane, RegisterPane},
     prefs::RegisterPref,
@@ -88,8 +88,8 @@ impl Pane for AssetBrowser {
 }
 
 pub(crate) struct AssetPayload {
-    pub uuid: Uuid,
-    pub label: Option<String>,
+    pub type_id: TypeId,
+    pub path: String,
 }
 
 enum AssetBrowserEntry {
@@ -102,13 +102,15 @@ enum AssetBrowserEntry {
         path: PathBuf,
     },
     Asset {
-        uuid: Uuid,
+        type_id: TypeId,
+        asset_path: String,
         file_name: String,
         path: PathBuf,
-        labels: Vec<String>,
+        labels: HashSet<Box<str>>,
     },
     LabeledAsset {
-        uuid: Uuid,
+        type_id: TypeId,
+        asset_path: String,
         path: PathBuf,
         label: String,
     },
@@ -118,15 +120,16 @@ impl AssetBrowserEntry {
     fn new<'a>(path: impl Into<AssetPath<'a>>, world: &mut World) -> Result<Self> {
         let asset_path = path.into();
         let path = Path::new("assets").join(asset_path.path().to_path_buf());
-        let db = world.resource::<AssetDatabase>();
 
         if let Some(label) = asset_path.label() {
-            let uuid = db
-                .get_uuid(asset_path.clone())?
-                .ok_or_else(|| BevyError::from("Invalid asset path"))?;
-
+            let handle = block_on(
+                world
+                    .resource::<AssetServer>()
+                    .load_untyped_async(&asset_path),
+            )?;
             Ok(Self::LabeledAsset {
-                uuid,
+                type_id: handle.type_id(),
+                asset_path: asset_path.to_string(),
                 path,
                 label: label.to_string(),
             })
@@ -138,14 +141,18 @@ impl AssetBrowserEntry {
             if path.is_dir() {
                 Ok(Self::Directory { file_name, path })
             } else {
-                if let Some(uuid) = db.get_uuid(asset_path.clone())? {
-                    let labels = world
-                        .resource::<AssetDatabase>()
-                        .get_labels(&uuid)?
+                let asset_server = world.resource::<AssetServer>();
+
+                let handle = block_on(asset_server.load_untyped_async(&asset_path));
+
+                if let Ok(handle) = handle {
+                    let labels = asset_server
+                        .get_living_labeled_assets(&asset_path)
                         .unwrap_or_default();
 
                     Ok(Self::Asset {
-                        uuid,
+                        type_id: handle.type_id(),
+                        asset_path: asset_path.to_string(),
                         file_name,
                         path,
                         labels,
@@ -168,9 +175,10 @@ impl AssetBrowserEntry {
                 ui.label(file_name);
             }
             AssetBrowserEntry::Asset {
+                type_id,
                 file_name,
                 labels,
-                uuid,
+                asset_path,
                 path,
             } => {
                 if !labels.is_empty() {
@@ -180,21 +188,25 @@ impl AssetBrowserEntry {
                 ui.dnd_drag_source(
                     Id::new(path).with("dnd_drag_source"),
                     AssetPayload {
-                        uuid: *uuid,
-                        label: None,
+                        type_id: type_id.clone(),
+                        path: asset_path.clone(),
                     },
                     |ui| ui.label(file_name),
                 );
             }
             AssetBrowserEntry::LabeledAsset {
-                label, uuid, path, ..
+                type_id,
+                label,
+                asset_path,
+                path,
+                ..
             } => {
                 ui.label(MaterialIcon::new(Icon::Box).rich_text().size(15.0));
                 ui.dnd_drag_source(
                     Id::new(path).with(label).with("dnd_drag_source"),
                     AssetPayload {
-                        uuid: *uuid,
-                        label: Some(label.clone()),
+                        type_id: type_id.clone(),
+                        path: asset_path.clone(),
                     },
                     |ui| ui.label(label),
                 );
@@ -215,7 +227,11 @@ impl AssetBrowserEntry {
             AssetBrowserEntry::Asset { labels, path, .. } => {
                 let path = path.strip_prefix("assets")?.to_owned();
                 for label in labels {
-                    ui_for_asset(ui, world, AssetPath::from(path.clone()).with_label(label))?;
+                    ui_for_asset(
+                        ui,
+                        world,
+                        AssetPath::from(path.clone()).with_label(label.to_string()),
+                    )?;
                 }
             }
             _ => {}
