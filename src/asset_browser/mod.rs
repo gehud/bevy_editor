@@ -1,5 +1,6 @@
 use std::{
     any::TypeId,
+    borrow::Cow,
     f32::consts::TAU,
     fs::read_dir,
     path::{Path, PathBuf},
@@ -7,15 +8,16 @@ use std::{
 
 use bevy::{
     app::{App, Plugin},
-    asset::{AssetPath, AssetServer},
+    asset::{AssetPath, AssetServer, Assets, Handle, LoadedUntypedAsset, UntypedHandle},
     ecs::{
         error::{BevyError, Result},
         resource::Resource,
         world::World,
     },
-    log::info_once,
-    platform::collections::HashSet,
+    log::{info, info_once},
+    platform::collections::{HashMap, HashSet},
     tasks::block_on,
+    utils::default,
 };
 use egui::{
     Align2, Color32, FontId, FontSelection, Frame, Id, InnerResponse, Label, Margin, RichText,
@@ -61,7 +63,9 @@ impl Pane for AssetBrowser {
 
         ui.separator();
 
-        let InnerResponse { inner, .. } = Frame::new()
+        let mut inspected_assets = HashSet::new();
+
+        Frame::new()
             .inner_margin(Margin {
                 top: 8,
                 right: 12,
@@ -73,24 +77,32 @@ impl Pane for AssetBrowser {
                     .show(ui, |ui| -> Result {
                         for entry in read_dir("assets")? {
                             let asset_path = entry?.path().strip_prefix("assets")?.to_owned();
-                            ui_for_asset(ui, world, asset_path)?;
+                            ui_for_asset(ui, world, asset_path, &mut inspected_assets)?;
                         }
 
                         Ok(())
                     })
                     .inner
-            });
+            })
+            .inner?;
 
-        inner?;
+        let mut tree = world.resource_mut::<AssetTree>();
+        tree.0.retain(|path, _| inspected_assets.contains(path));
 
         Ok(())
     }
 }
 
-pub(crate) struct AssetPayload {
-    pub type_id: TypeId,
-    pub path: String,
+#[derive(Clone)]
+enum AssetState {
+    Loading(Handle<LoadedUntypedAsset>),
+    Ready(UntypedHandle),
 }
+
+#[derive(Default, Resource)]
+struct AssetTree(HashMap<String, AssetState>);
+
+pub(crate) struct AssetPayload(pub UntypedHandle);
 
 enum AssetBrowserEntry {
     Directory {
@@ -99,19 +111,14 @@ enum AssetBrowserEntry {
     },
     File {
         file_name: String,
-        path: PathBuf,
     },
     Asset {
-        type_id: TypeId,
         asset_path: String,
         file_name: String,
-        path: PathBuf,
-        labels: HashSet<Box<str>>,
+        labels: Option<HashSet<Box<str>>>,
     },
     LabeledAsset {
-        type_id: TypeId,
         asset_path: String,
-        path: PathBuf,
         label: String,
     },
 }
@@ -122,15 +129,8 @@ impl AssetBrowserEntry {
         let path = Path::new("assets").join(asset_path.path().to_path_buf());
 
         if let Some(label) = asset_path.label() {
-            let handle = block_on(
-                world
-                    .resource::<AssetServer>()
-                    .load_untyped_async(&asset_path),
-            )?;
             Ok(Self::LabeledAsset {
-                type_id: handle.type_id(),
                 asset_path: asset_path.to_string(),
-                path,
                 label: label.to_string(),
             })
         } else {
@@ -141,30 +141,35 @@ impl AssetBrowserEntry {
             if path.is_dir() {
                 Ok(Self::Directory { file_name, path })
             } else {
+                let extension = path
+                    .extension()
+                    .map(|extension| extension.to_string_lossy())
+                    .unwrap_or_else(|| "".into());
+
                 let asset_server = world.resource::<AssetServer>();
 
-                let handle = block_on(asset_server.load_untyped_async(&asset_path));
-
-                if let Ok(handle) = handle {
-                    let labels = asset_server
-                        .get_living_labeled_assets(&asset_path)
-                        .unwrap_or_default();
+                if block_on(asset_server.get_asset_loader_with_extension(&extension)).is_ok() {
+                    let labels = asset_server.get_living_labeled_assets(&asset_path);
 
                     Ok(Self::Asset {
-                        type_id: handle.type_id(),
                         asset_path: asset_path.to_string(),
                         file_name,
-                        path,
                         labels,
                     })
                 } else {
-                    Ok(Self::File { file_name, path })
+                    Ok(Self::File { file_name })
                 }
             }
         }
     }
 
-    fn header(&self, ui: &mut Ui, state: &mut CollapsingState, _: &mut World) -> Result {
+    fn header(
+        &self,
+        ui: &mut Ui,
+        state: &mut CollapsingState,
+        world: &mut World,
+        inspected_assets: &mut HashSet<String>,
+    ) -> Result {
         match self {
             AssetBrowserEntry::Directory { file_name, .. } => {
                 state.show_toggle_button(ui, paint_collapsing_button);
@@ -175,63 +180,120 @@ impl AssetBrowserEntry {
                 ui.label(file_name);
             }
             AssetBrowserEntry::Asset {
-                type_id,
                 file_name,
                 labels,
                 asset_path,
-                path,
             } => {
-                if !labels.is_empty() {
+                inspected_assets.insert(asset_path.clone());
+
+                if labels.as_ref().is_some_and(|labels| !labels.is_empty()) {
                     state.show_toggle_button(ui, paint_collapsing_button);
                 }
+
+                let state = world.resource::<AssetTree>().0.get(asset_path).cloned();
+
                 ui.label(MaterialIcon::new(Icon::Box).rich_text().size(15.0));
-                ui.dnd_drag_source(
-                    Id::new(path).with("dnd_drag_source"),
-                    AssetPayload {
-                        type_id: type_id.clone(),
-                        path: asset_path.clone(),
-                    },
-                    |ui| ui.label(file_name),
-                );
+
+                if let Some(state) = state {
+                    match state {
+                        AssetState::Loading(handle) => {
+                            ui.label("Loading...");
+
+                            if let Some(loaded) = world
+                                .resource::<Assets<LoadedUntypedAsset>>()
+                                .get(&handle)
+                                .map(|handle| handle.handle.clone())
+                            {
+                                world
+                                    .resource_mut::<AssetTree>()
+                                    .0
+                                    .insert(asset_path.clone(), AssetState::Ready(loaded));
+                            }
+                        }
+                        AssetState::Ready(untyped_handle) => {
+                            ui.dnd_drag_source(
+                                Id::new(asset_path).with("dnd_drag_source"),
+                                AssetPayload(untyped_handle),
+                                |ui| ui.label(file_name),
+                            );
+                        }
+                    }
+                } else {
+                    let handle = world.resource::<AssetServer>().load_untyped(asset_path);
+                    world
+                        .resource_mut::<AssetTree>()
+                        .0
+                        .insert(asset_path.clone(), AssetState::Loading(handle));
+                }
             }
-            AssetBrowserEntry::LabeledAsset {
-                type_id,
-                label,
-                asset_path,
-                path,
-                ..
-            } => {
+            AssetBrowserEntry::LabeledAsset { label, asset_path } => {
+                inspected_assets.insert(asset_path.clone());
                 ui.label(MaterialIcon::new(Icon::Box).rich_text().size(15.0));
-                ui.dnd_drag_source(
-                    Id::new(path).with(label).with("dnd_drag_source"),
-                    AssetPayload {
-                        type_id: type_id.clone(),
-                        path: asset_path.clone(),
-                    },
-                    |ui| ui.label(label),
-                );
+
+                let state = world.resource::<AssetTree>().0.get(asset_path).cloned();
+
+                if let Some(state) = state {
+                    match state {
+                        AssetState::Loading(handle) => {
+                            ui.label("Loading...");
+
+                            if let Some(loaded) = world
+                                .resource::<Assets<LoadedUntypedAsset>>()
+                                .get(&handle)
+                                .map(|handle| handle.handle.clone())
+                            {
+                                world
+                                    .resource_mut::<AssetTree>()
+                                    .0
+                                    .insert(asset_path.clone(), AssetState::Ready(loaded));
+                            }
+                        }
+                        AssetState::Ready(untyped_handle) => {
+                            ui.dnd_drag_source(
+                                Id::new(asset_path).with("dnd_drag_source"),
+                                AssetPayload(untyped_handle),
+                                |ui| ui.label(label),
+                            );
+                        }
+                    }
+                } else {
+                    let handle = world.resource::<AssetServer>().load_untyped(asset_path);
+                    world
+                        .resource_mut::<AssetTree>()
+                        .0
+                        .insert(asset_path.clone(), AssetState::Loading(handle));
+                }
             }
         }
 
         Ok(())
     }
 
-    fn body(&self, ui: &mut Ui, world: &mut World) -> Result {
+    fn body(
+        &self,
+        ui: &mut Ui,
+        world: &mut World,
+        inspected_assets: &mut HashSet<String>,
+    ) -> Result {
         match self {
             AssetBrowserEntry::Directory { path, .. } => {
                 for entry in read_dir(path)? {
                     let asset_path = entry?.path().strip_prefix("assets")?.to_owned();
-                    ui_for_asset(ui, world, asset_path)?;
+                    ui_for_asset(ui, world, asset_path, inspected_assets)?;
                 }
             }
-            AssetBrowserEntry::Asset { labels, path, .. } => {
-                let path = path.strip_prefix("assets")?.to_owned();
-                for label in labels {
-                    ui_for_asset(
-                        ui,
-                        world,
-                        AssetPath::from(path.clone()).with_label(label.to_string()),
-                    )?;
+            AssetBrowserEntry::Asset {
+                labels, asset_path, ..
+            } => {
+                if let Some(labels) = labels {
+                    for label in labels {
+                        ui_for_asset(
+                            ui,
+                            world,
+                            AssetPath::from(asset_path.clone()).with_label(label.to_string()),
+                            inspected_assets,
+                        )?;
+                    }
                 }
             }
             _ => {}
@@ -245,6 +307,7 @@ fn ui_for_asset<'a>(
     ui: &mut Ui,
     world: &mut World,
     asset_path: impl Into<AssetPath<'a>>,
+    inspected_assets: &mut HashSet<String>,
 ) -> Result {
     let asset_path = asset_path.into();
 
@@ -274,16 +337,19 @@ fn ui_for_asset<'a>(
             frame
                 .show(ui, |ui| -> Result {
                     ui.set_width(ui.available_width());
-                    ui.horizontal(|ui| -> Result { entry.header(ui, &mut collapsing_state, world) })
-                        .inner
+                    ui.horizontal(|ui| -> Result {
+                        entry.header(ui, &mut collapsing_state, world, inspected_assets)
+                    })
+                    .inner
                 })
                 .inner
         });
 
     inner?;
 
-    let inner = collapsing_state
-        .show_body_indented(&response, ui, |ui| -> Result { entry.body(ui, world) });
+    let inner = collapsing_state.show_body_indented(&response, ui, |ui| -> Result {
+        entry.body(ui, world, inspected_assets)
+    });
 
     if let Some(inner) = inner {
         inner.inner?;
@@ -296,6 +362,6 @@ pub struct AssetBrowserPlugin;
 
 impl Plugin for AssetBrowserPlugin {
     fn build(&self, app: &mut App) {
-        app.register_pane(AssetBrowser);
+        app.init_resource::<AssetTree>().register_pane(AssetBrowser);
     }
 }

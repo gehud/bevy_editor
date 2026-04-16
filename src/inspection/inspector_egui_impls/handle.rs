@@ -28,6 +28,9 @@ impl Inspector for HandleInspector {
         env: crate::inspection::reflect_inspector::InspectorUi<'_, '_>,
         value: &mut dyn bevy::reflect::PartialReflect,
     ) -> bevy::ecs::error::Result<bool> {
+        ui.scope(|ui| {
+
+        });
         let mut changed = false;
 
         let registration = value
@@ -45,7 +48,7 @@ impl Inspector for HandleInspector {
 
         let is_payload_suitable =
             if let Some(payload) = ui.response().dnd_hover_payload::<AssetPayload>() {
-                payload.type_id == reflect_handle.asset_type_id()
+                payload.0.type_id() == reflect_handle.asset_type_id()
             } else {
                 false
             };
@@ -98,9 +101,8 @@ impl Inspector for HandleInspector {
 
         if let Some(payload) = response.dnd_release_payload::<AssetPayload>() {
             if is_payload_suitable {
-                let asset_server = env.context.world.get_resource_mut::<AssetServer>()?;
-                let untyped = block_on(asset_server.load_untyped_async(&payload.path))?;
-                value.apply(reflect_handle.typed(untyped).as_partial_reflect());
+                info!("{:?}", payload.0.path());
+                value.apply(reflect_handle.typed(payload.0.clone()).as_partial_reflect());
             }
         }
 
