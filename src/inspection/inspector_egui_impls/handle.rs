@@ -28,9 +28,6 @@ impl Inspector for HandleInspector {
         env: crate::inspection::reflect_inspector::InspectorUi<'_, '_>,
         value: &mut dyn bevy::reflect::PartialReflect,
     ) -> bevy::ecs::error::Result<bool> {
-        ui.scope(|ui| {
-
-        });
         let mut changed = false;
 
         let registration = value
@@ -101,8 +98,8 @@ impl Inspector for HandleInspector {
 
         if let Some(payload) = response.dnd_release_payload::<AssetPayload>() {
             if is_payload_suitable {
-                info!("{:?}", payload.0.path());
                 value.apply(reflect_handle.typed(payload.0.clone()).as_partial_reflect());
+                changed = true;
             }
         }
 
