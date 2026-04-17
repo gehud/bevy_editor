@@ -3,6 +3,8 @@ use crate::dock::Style as DockStyle;
 use bevy::utils::default;
 use egui::{Color32, CornerRadius, FontFamily, FontId, Margin, Shadow, Stroke, Style, TextStyle};
 
+pub const ACCENT: Color32 = Color32::from_rgb(32, 110, 201);
+
 pub fn set_dark_style(style: &mut Style) {
     style.text_styles = [
         (
@@ -90,8 +92,6 @@ impl IntoDockStyle for Style {
             ..default()
         };
 
-        let accent_color = Color32::from_rgb(32, 110, 201);
-
         style.tab.active.bg_fill = pane_bg_color;
         style.tab.spacing = 5.0;
         style.tab.active.corner_radius = CornerRadius {
@@ -119,7 +119,7 @@ impl IntoDockStyle for Style {
             ne: 2,
             ..default()
         };
-        style.tab.focused.marker_color = accent_color;
+        style.tab.focused.marker_color = ACCENT;
         style.tab.focused.outline_color = pane_bg_color;
         style.tab.focused_with_kb_focus = style.tab.focused.clone();
 

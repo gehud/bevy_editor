@@ -21,7 +21,7 @@ use bevy::{
 };
 use egui::{
     Align2, Color32, FontId, FontSelection, Frame, Id, InnerResponse, Label, Margin, RichText,
-    ScrollArea, Shape, Stroke, TextureOptions, Ui, UiBuilder,
+    ScrollArea, Sense, Shape, Stroke, TextureOptions, Ui, UiBuilder,
     collapsing_header::{CollapsingState, paint_default_icon},
     emath::Rot2,
     epaint::{PathShape, PathStroke, TextShape},
