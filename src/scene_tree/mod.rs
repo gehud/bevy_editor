@@ -1,6 +1,8 @@
+use std::ops::Deref;
+
 use bevy::{
     app::{App, Plugin, Startup},
-    asset::Assets,
+    asset::{Assets, Handle},
     camera::visibility::Visibility,
     color::Color,
     ecs::{
@@ -9,9 +11,11 @@ use bevy::{
         error::Result,
         hierarchy::{ChildOf, Children},
         name::Name,
+        query::{With, Without},
         system::{Commands, ResMut},
         world::World,
     },
+    gltf::Gltf,
     light::PointLight,
     math::{
         Quat,
@@ -19,13 +23,14 @@ use bevy::{
     },
     mesh::{Mesh, Mesh3d},
     pbr::{MeshMaterial3d, StandardMaterial},
-    scene::{InstanceId, Scene, SceneSpawner},
+    scene::{InstanceId, Scene, SceneInstance, SceneRoot, SceneSpawner},
     transform::components::Transform,
     utils::default,
 };
-use egui::{Id, RichText, Sense, Ui, collapsing_header::CollapsingState};
+use egui::{Frame, Id, RichText, Sense, Ui, collapsing_header::CollapsingState};
 
 use crate::{
+    asset_browser::AssetPayload,
     pane::{Pane, RegisterPane},
     selection::{Selection, SelectionMap},
     utils::paint_collapsing_button,
@@ -39,41 +44,56 @@ impl Pane for SceneTreePane {
     }
 
     fn ui(&mut self, ui: &mut Ui, world: &mut World) -> Result {
-        let (root, instance_id) = world
-            .query::<(Entity, &InspectedScene)>()
-            .single(world)
-            .map(|(entity, scene)| (entity, scene.instance))?;
+        let tree = world
+            .query_filtered::<Entity, With<SceneTree>>()
+            .single(world)?;
 
-        let scene_name = world
-            .query::<&Name>()
-            .get(world, root)
-            .map(|name| name.to_string())
-            .ok()
-            .unwrap_or_else(|| "Unnamed".into());
-
-        ui.label(RichText::from(scene_name).heading());
-        ui.separator();
-
-        if !world
-            .resource::<SceneSpawner>()
-            .instance_is_ready(instance_id)
-        {
-            ui.label("Loading...");
-            return Ok(());
-        }
-
-        let id = ui.make_persistent_id("scene_tree");
-
-        if let Some(children) = world
-            .query::<&Children>()
-            .get(world, root)
-            .ok()
+        let roots = world
+            .entity(tree)
+            .get::<Children>()
             .map(|children| children.to_vec())
-        {
-            for (i, entity) in children.iter().enumerate() {
-                self.entity_ui_recurse(ui, world, *entity, id.with(i));
+            .unwrap_or_default();
+
+        for root in roots {
+            if world.entity(root).contains::<SceneRoot>() {
+                ui.label("Loading...");
+            } else {
+                self.entity_ui_recurse(ui, world, root, Id::new(root));
             }
         }
+
+        let mut frame = Frame::new().begin(ui);
+        frame.content_ui.take_available_space();
+        let response = frame.allocate_space(ui);
+
+        let scene = response
+            .dnd_hover_payload::<AssetPayload>()
+            .and_then(|payload| {
+                payload.0.clone().try_typed::<Scene>().ok().or_else(|| {
+                    payload
+                        .0
+                        .clone()
+                        .try_typed::<Gltf>()
+                        .ok()
+                        .and_then(|handle| {
+                            world
+                                .resource::<Assets<Gltf>>()
+                                .get(&handle)
+                                .and_then(|gltf| gltf.default_scene.clone())
+                        })
+                })
+            });
+
+        if let Some(scene) = scene {
+            frame.frame.fill = ui.style().visuals.widgets.active.bg_fill;
+            frame.frame.stroke = ui.style().visuals.widgets.active.bg_stroke;
+
+            if response.dnd_release_payload::<AssetPayload>().is_some() {
+                world.resource_mut::<SceneSpawner>().spawn_as_child(scene, tree);
+            }
+        }
+
+        frame.paint(ui);
 
         Ok(())
     }
@@ -136,9 +156,7 @@ impl SceneTreePane {
 }
 
 #[derive(Component)]
-struct InspectedScene {
-    instance: InstanceId,
-}
+struct SceneTree;
 
 fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
@@ -184,17 +202,22 @@ fn setup(
         }
     }
 
+    let scene_tree = commands
+        .spawn((SceneTree, Visibility::Visible, Transform::IDENTITY))
+        .id();
+
     let scene_handle = scenes.add(scene);
 
-    let root = commands.spawn(Name::new("Unnamed")).id();
+    let scene_root = commands
+        .spawn((
+            ChildOf(scene_tree),
+            Name::new("Untiteled"),
+            Visibility::Visible,
+            Transform::IDENTITY,
+        ))
+        .id();
 
-    let instance = scene_spawner.spawn_as_child(scene_handle, root);
-
-    commands.entity(root).insert((
-        Visibility::Visible,
-        Transform::IDENTITY,
-        InspectedScene { instance },
-    ));
+    scene_spawner.spawn_as_child(scene_handle, scene_root);
 }
 
 pub struct SceneTreePlugin;

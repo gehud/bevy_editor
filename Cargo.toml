@@ -16,6 +16,7 @@ bevy = { git = "https://github.com/gehud/bevy.git", branch = "editor", features 
     "debug",
     "track_location",
     "file_watcher",
+    "jpeg"
 ] }
 bevy_egui = { git = "https://github.com/gehud/bevy_egui.git" }
 bevy_mod_outline = { git = "https://github.com/gehud/bevy_mod_outline.git" }
