@@ -51,10 +51,15 @@ impl Pane for SceneTreePane {
     }
 
     fn ui(&mut self, ui: &mut Ui, world: &mut World) -> Result {
+        let tree = world
+            .query_filtered::<Entity, With<SceneTree>>()
+            .single(world)?;
+
         let roots = world
-            .query_filtered::<Entity, (With<SceneRoot>, Without<ChildOf>)>()
-            .iter(world)
-            .collect::<Vec<_>>();
+            .entity(tree)
+            .get::<Children>()
+            .map(|children| children.to_vec())
+            .unwrap_or_default();
 
         for root in roots {
             if !world.entity(root).contains::<SceneInstance>() {
@@ -102,6 +107,7 @@ impl Pane for SceneTreePane {
                     .unwrap_or_else(|| "Untitled".into());
 
                 world.spawn((
+                    ChildOf(tree),
                     Name::new(name),
                     Visibility::Visible,
                     Transform::IDENTITY,
@@ -213,6 +219,9 @@ impl SceneTreePane {
     }
 }
 
+#[derive(Component)]
+struct SceneTree;
+
 fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -256,9 +265,14 @@ fn setup(
         }
     }
 
+    let tree = commands
+        .spawn((SceneTree, Visibility::Visible, Transform::IDENTITY))
+        .id();
+
     let scene_handle = scenes.add(scene);
 
     commands.spawn((
+        ChildOf(tree),
         Name::new("Sample"),
         Visibility::Visible,
         Transform::IDENTITY,
