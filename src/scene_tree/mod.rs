@@ -12,7 +12,7 @@ use bevy::{
         hierarchy::{ChildOf, Children},
         name::Name,
         query::{Or, With, Without},
-        system::{Commands, ResMut},
+        system::{Commands, Query, ResMut},
         world::World,
     },
     gltf::Gltf,
@@ -66,9 +66,11 @@ impl Pane for SceneTreePane {
             .map(|children| children.to_vec())
             .unwrap_or_default();
 
-        for root in roots {
-            self.entity_ui_recurse(ui, world, root, Id::new(root));
-        }
+        ui.push_id("scene_tree", |ui| {
+            for root in roots {
+                self.entity_ui_recurse(ui, world, root);
+            }
+        });
 
         let mut frame = Frame::new().begin(ui);
         frame.content_ui.take_available_space();
@@ -124,12 +126,14 @@ impl Pane for SceneTreePane {
 }
 
 impl SceneTreePane {
-    fn entity_ui_recurse(&mut self, ui: &mut Ui, world: &mut World, entity: Entity, id: Id) {
+    fn entity_ui_recurse(&mut self, ui: &mut Ui, world: &mut World, entity: Entity) {
         let name = world
             .entity(entity)
             .get::<Name>()
             .map(|name| name.to_string())
             .unwrap_or_else(|| "Entity".into());
+
+        let id = Id::new(entity);
 
         let mut collapsing_state =
             CollapsingState::load_with_default_open(ui.ctx(), id.with("collapsing"), false);
@@ -147,7 +151,7 @@ impl SceneTreePane {
         let header_response = ui
             .scope_builder(
                 UiBuilder::new()
-                    .id_salt(id.with("frame"))
+                    .id(id.with("frame"))
                     .sense(Sense::click_and_drag()),
                 |ui| {
                     let response = ui.response();
@@ -239,34 +243,43 @@ impl SceneTreePane {
                     .parent();
             let siblings = world.entity(parent).get::<Children>().unwrap();
 
-            let mut insert_index = siblings
+            let mut drop_index = siblings
                 .iter()
                 .position(|sibling| *sibling == entity)
                 .unwrap();
 
-            let mut target = parent;
+            let mut drop_target = parent;
 
             if pointer.y < rect.center().y - 6.0 {
                 ui.painter().hline(rect.x_range(), rect.top(), stroke);
                 if is_within_parent {
-                    insert_index = insert_index.saturating_sub(1);
+                    drop_index = drop_index.saturating_sub(1);
                 }
             } else if pointer.y > rect.center().y + 6.0 {
                 ui.painter().hline(rect.x_range(), rect.bottom(), stroke);
                 if !is_within_parent {
-                    insert_index += 1;
+                    drop_index += 1;
                 }
             } else {
-                target = entity;
+                drop_target = entity;
             }
 
             if let Some(payload) = header_response.dnd_release_payload::<EntityPayload>() {
-                if target == entity {
-                    world.entity_mut(entity).add_child(payload.entity);
-                } else {
-                    world
-                        .entity_mut(parent)
-                        .insert_child(insert_index, payload.entity);
+                let is_recurse = drop_target == payload.entity
+                    || world
+                        .query::<&ChildOf>()
+                        .query(world)
+                        .iter_ancestors(drop_target)
+                        .any(|ancestor| ancestor == payload.entity);
+
+                if !is_recurse {
+                    if drop_target == entity {
+                        world.entity_mut(entity).add_child(payload.entity);
+                    } else {
+                        world
+                            .entity_mut(drop_target)
+                            .insert_child(drop_index, payload.entity);
+                    }
                 }
             }
         }
@@ -294,7 +307,7 @@ impl SceneTreePane {
                 .map(|children| children.to_vec())
             {
                 for child in children {
-                    self.entity_ui_recurse(ui, world, child, Id::new(child));
+                    self.entity_ui_recurse(ui, world, child);
                 }
             }
         });
