@@ -16,7 +16,7 @@ pub use egui;
 use lucide_icons::LUCIDE_FONT_BYTES;
 use serde::{Deserialize, Serialize};
 
-use std::env;
+use std::{env, num::NonZero};
 
 use bevy::{
     DefaultPlugins,
@@ -39,13 +39,14 @@ use bevy::{
         Pickable,
         events::{Click, Pointer},
     },
+    prelude::Deref,
     reflect::Reflect,
     utils::default,
     window::{PrimaryWindow, Window, WindowPlugin},
 };
 use bevy_egui::{
-    EguiContexts, EguiGlobalSettings, EguiPlugin, EguiPrimaryContextPass, PrimaryEguiContext,
-    egui::CentralPanel,
+    EguiContext, EguiContexts, EguiGlobalSettings, EguiPlugin, EguiPrimaryContextPass,
+    PrimaryEguiContext, egui::CentralPanel,
 };
 use egui::{
     FontData, FontFamily, Frame, Id, InnerResponse, LayerId, Memory, MenuBar, Panel, Sense, Ui,
@@ -114,19 +115,13 @@ impl Plugin for EditorPlugin {
                 auto_create_primary_context: false,
                 ..default()
             })
-            .add_systems(Startup, setup)
-            .add_observer(setup_context)
+            .add_systems(Startup, (load_context, maximize_window))
             .add_systems(EguiPrimaryContextPass, ui)
             .add_observer(on_save);
     }
 }
 
-#[derive(EntityEvent)]
-struct PrimaryEguiContextConfigured {
-    pub entity: Entity,
-}
-
-#[derive(Resource, Default, Serialize, Deserialize)]
+#[derive(Clone, Default, Deserialize, Resource, Serialize)]
 struct EguiMemory(Memory);
 
 fn on_save(_: On<Save>, mut contexts: EguiContexts, mut egui_memory: ResMut<EguiMemory>) -> Result {
@@ -138,37 +133,24 @@ fn on_save(_: On<Save>, mut contexts: EguiContexts, mut egui_memory: ResMut<Egui
     Ok(())
 }
 
-fn setup(world: &mut World) -> Result {
-    let entity = world
-        .spawn((
-            Pickable::IGNORE,
-            Camera {
-                order: 1,
-                ..default()
-            },
-            Camera2d,
-            PrimaryEguiContext,
-        ))
-        .id();
+fn load_context(world: &mut World) {
+    let loaded_memory = world.resource::<EguiMemory>().clone().0;
 
-    world.trigger(PrimaryEguiContextConfigured { entity });
+    let mut ctx = world.spawn((
+        Pickable::IGNORE,
+        Camera {
+            order: 1,
+            ..default()
+        },
+        Camera2d,
+        PrimaryEguiContext,
+    ));
 
-    let mut primary_window = world
-        .query_filtered::<&mut Window, With<PrimaryWindow>>()
-        .single_mut(world)?;
-    primary_window.set_maximized(true);
+    let mut ctx = ctx.get_mut::<EguiContext>().unwrap();
+    let ctx = ctx.get_mut();
 
-    Ok(())
-}
-
-fn setup_context(
-    trigger: On<PrimaryEguiContextConfigured>,
-    loaded_memory: Res<EguiMemory>,
-    mut contexts: EguiContexts,
-) -> Result {
-    let ctx = contexts.ctx_for_entity_mut(trigger.event_target())?;
-
-    ctx.memory_mut(|memory| *memory = loaded_memory.0.clone());
+    ctx.memory_mut(|memory| *memory = loaded_memory);
+    ctx.memory_mut(|memory| memory.options.max_passes = NonZero::new(1).unwrap());
     ctx.all_styles_mut(|style| set_dark_style(style));
     ctx.add_font(FontInsert::new(
         "fira_regular",
@@ -195,8 +177,10 @@ fn setup_context(
             },
         ],
     ));
+}
 
-    Ok(())
+fn maximize_window(mut primary_window: Single<&mut Window, With<PrimaryWindow>>) {
+    primary_window.set_maximized(true);
 }
 
 fn ui(
@@ -250,7 +234,7 @@ fn ui(
 
     let InnerResponse { inner, .. } = CentralPanel::default()
         .frame(
-            Frame::central_panel(&ctx.style())
+            Frame::central_panel(ui.style())
                 .inner_margin(0)
                 .outer_margin(0),
         )

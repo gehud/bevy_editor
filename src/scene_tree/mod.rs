@@ -66,11 +66,11 @@ impl Pane for SceneTreePane {
             .map(|children| children.to_vec())
             .unwrap_or_default();
 
-        ui.push_id("scene_tree", |ui| {
-            for root in roots {
-                self.entity_ui_recurse(ui, world, root);
-            }
-        });
+        let id = Id::new("scene_tree");
+
+        for root in roots {
+            self.entity_ui_recurse(ui, world, root, id);
+        }
 
         let mut frame = Frame::new().begin(ui);
         frame.content_ui.take_available_space();
@@ -126,14 +126,14 @@ impl Pane for SceneTreePane {
 }
 
 impl SceneTreePane {
-    fn entity_ui_recurse(&mut self, ui: &mut Ui, world: &mut World, entity: Entity) {
+    fn entity_ui_recurse(&mut self, ui: &mut Ui, world: &mut World, entity: Entity, id: Id) {
         let name = world
             .entity(entity)
             .get::<Name>()
             .map(|name| name.to_string())
             .unwrap_or_else(|| "Entity".into());
 
-        let id = Id::new(entity);
+        let id = id.with(entity);
 
         let mut collapsing_state =
             CollapsingState::load_with_default_open(ui.ctx(), id.with("collapsing"), false);
@@ -227,6 +227,34 @@ impl SceneTreePane {
             )
             .response;
 
+        let mut selection_map = world.resource_mut::<SelectionMap>();
+
+        if header_response.clicked() {
+            if !ui.input(|i| i.modifiers.ctrl) {
+                selection_map.clear();
+                selection_map.select(entity);
+            } else {
+                if selection_map.is_selected(entity) {
+                    selection_map.deselect(entity);
+                } else {
+                    selection_map.select(entity);
+                }
+            }
+        }
+
+        collapsing_state.show_body_indented(&header_response, ui, |ui| {
+            if let Some(children) = world
+                .query::<&Children>()
+                .get(world, entity)
+                .ok()
+                .map(|children| children.to_vec())
+            {
+                for child in children {
+                    self.entity_ui_recurse(ui, world, child, id);
+                }
+            }
+        });
+
         if let (Some(pointer), Some(payload)) = (
             ui.input(|i| i.pointer.interact_pos()),
             header_response.dnd_hover_payload::<EntityPayload>(),
@@ -283,34 +311,6 @@ impl SceneTreePane {
                 }
             }
         }
-
-        let mut selection_map = world.resource_mut::<SelectionMap>();
-
-        if header_response.clicked() {
-            if !ui.input(|i| i.modifiers.ctrl) {
-                selection_map.clear();
-                selection_map.select(entity);
-            } else {
-                if selection_map.is_selected(entity) {
-                    selection_map.deselect(entity);
-                } else {
-                    selection_map.select(entity);
-                }
-            }
-        }
-
-        collapsing_state.show_body_indented(&header_response, ui, |ui| {
-            if let Some(children) = world
-                .query::<&Children>()
-                .get(world, entity)
-                .ok()
-                .map(|children| children.to_vec())
-            {
-                for child in children {
-                    self.entity_ui_recurse(ui, world, child);
-                }
-            }
-        });
     }
 }
 
