@@ -29,8 +29,9 @@ use bevy::{
     utils::default,
 };
 use egui::{
-    Color32, CornerRadius, Frame, Id, InnerResponse, Label, Margin, RichText, Sense, Stroke, Ui,
-    UiBuilder, Widget, collapsing_header::CollapsingState,
+    Color32, CornerRadius, DragAndDrop, Frame, Id, InnerResponse, Label, LayerId, Margin, Modal,
+    Order, RichText, Sense, Stroke, Ui, UiBuilder, Widget, collapsing_header::CollapsingState,
+    emath,
 };
 use lucide_icons::Icon;
 
@@ -42,6 +43,10 @@ use crate::{
     style::ACCENT,
     utils::paint_collapsing_button,
 };
+
+pub struct EntityPayload {
+    pub entity: Entity,
+}
 
 pub struct SceneTreePane;
 
@@ -62,11 +67,7 @@ impl Pane for SceneTreePane {
             .unwrap_or_default();
 
         for root in roots {
-            if !world.entity(root).contains::<SceneInstance>() {
-                ui.label("Loading...");
-            } else {
-                self.entity_ui_recurse(ui, world, root, Id::new(root));
-            }
+            self.entity_ui_recurse(ui, world, root, Id::new(root));
         }
 
         let mut frame = Frame::new().begin(ui);
@@ -133,7 +134,11 @@ impl SceneTreePane {
         let mut collapsing_state =
             CollapsingState::load_with_default_open(ui.ctx(), id.with("collapsing"), false);
 
-        let icon_color = if world.entity(entity).contains::<SceneInstance>() {
+        let is_scene = world.entity(entity).contains::<SceneTree>();
+        let is_loaded_scene = world.entity(entity).contains::<SceneInstance>();
+        let is_loading_scene = is_scene && !is_loaded_scene;
+
+        let icon_color = if is_loaded_scene {
             ACCENT
         } else {
             Color32::WHITE
@@ -143,9 +148,12 @@ impl SceneTreePane {
             .scope_builder(
                 UiBuilder::new()
                     .id_salt(id.with("frame"))
-                    .sense(Sense::click()),
+                    .sense(Sense::click_and_drag()),
                 |ui| {
                     let response = ui.response();
+                    let is_dragged = response.dragged();
+
+                    response.dnd_set_drag_payload(EntityPayload { entity });
 
                     let mut frame = Frame::new()
                         .inner_margin(Margin {
@@ -171,23 +179,97 @@ impl SceneTreePane {
                         ui.horizontal(|ui| {
                             if world.entity(entity).contains::<Children>() {
                                 collapsing_state.show_toggle_button(ui, paint_collapsing_button);
+                            } else {
+                                ui.add_space(ui.spacing().indent + ui.spacing().item_spacing.x);
                             }
 
-                            Label::new(
-                                MaterialIcon::new(Icon::Box)
-                                    .rich_text()
-                                    .size(15.0)
-                                    .color(icon_color),
-                            )
-                            .selectable(false)
-                            .ui(ui);
+                            let header = |ui: &mut Ui| {
+                                Label::new(
+                                    MaterialIcon::new(Icon::Box)
+                                        .rich_text()
+                                        .size(15.0)
+                                        .color(icon_color),
+                                )
+                                .selectable(false)
+                                .ui(ui);
 
-                            Label::new(name).selectable(false).ui(ui);
+                                if is_loading_scene {
+                                    Label::new("Loading...").selectable(false).ui(ui);
+                                } else {
+                                    Label::new(name.clone()).selectable(false).ui(ui);
+                                }
+                            };
+
+                            if is_dragged {
+                                let id = id.with("dnd");
+                                let layer_id = LayerId::new(Order::Tooltip, id);
+                                let response = ui
+                                    .scope_builder(UiBuilder::new().layer_id(layer_id), header)
+                                    .response;
+
+                                if let Some(pointer_pos) = ui.ctx().pointer_interact_pos() {
+                                    let delta = pointer_pos - response.rect.center();
+                                    ui.ctx().transform_layer_shapes(
+                                        layer_id,
+                                        emath::TSTransform::from_translation(delta),
+                                    );
+                                }
+                            } else {
+                                header(ui);
+                            }
                         });
                     });
                 },
             )
             .response;
+
+        if let (Some(pointer), Some(payload)) = (
+            ui.input(|i| i.pointer.interact_pos()),
+            header_response.dnd_hover_payload::<EntityPayload>(),
+        ) {
+            let rect = header_response.rect;
+            let stroke = Stroke::new(1.0, ACCENT);
+
+            let parent = world.entity(entity).get::<ChildOf>().unwrap().parent();
+            let is_within_parent = parent
+                == world
+                    .entity(payload.entity)
+                    .get::<ChildOf>()
+                    .unwrap()
+                    .parent();
+            let siblings = world.entity(parent).get::<Children>().unwrap();
+
+            let mut insert_index = siblings
+                .iter()
+                .position(|sibling| *sibling == entity)
+                .unwrap();
+
+            let mut target = parent;
+
+            if pointer.y < rect.center().y - 6.0 {
+                ui.painter().hline(rect.x_range(), rect.top(), stroke);
+                if is_within_parent {
+                    insert_index = insert_index.saturating_sub(1);
+                }
+            } else if pointer.y > rect.center().y + 6.0 {
+                ui.painter().hline(rect.x_range(), rect.bottom(), stroke);
+                if !is_within_parent {
+                    insert_index += 1;
+                }
+            } else {
+                target = entity;
+            }
+
+            if let Some(payload) = header_response.dnd_release_payload::<EntityPayload>() {
+                if target == entity {
+                    world.entity_mut(entity).add_child(payload.entity);
+                } else {
+                    world
+                        .entity_mut(parent)
+                        .insert_child(insert_index, payload.entity);
+                }
+            }
+        }
 
         let mut selection_map = world.resource_mut::<SelectionMap>();
 
