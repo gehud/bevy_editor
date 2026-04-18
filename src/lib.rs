@@ -240,6 +240,7 @@ fn ui(
 
                     DockArea::new(&mut docking.0)
                         .style(style)
+                        .show_close_buttons(false)
                         .show_leaf_close_all_buttons(false)
                         .show_leaf_collapse_buttons(false)
                         .show_inside(ui, &mut viewer);

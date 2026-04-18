@@ -40,7 +40,7 @@ pub fn set_dark_style(style: &mut Style) {
 
     style.visuals.popup_shadow = Shadow {
         blur: 8,
-        spread: 6,
+        spread: 4,
         color: Color32::from_black_alpha(96),
         ..default()
     };
