@@ -227,16 +227,23 @@ impl SceneTreePane {
             )
             .response;
 
-        collapsing_state.show_body_indented(&header_response, ui, |ui| {
+        collapsing_state.show_body_unindented(ui, |ui| {
             if let Some(children) = world
                 .query::<&Children>()
                 .get(world, entity)
                 .ok()
                 .map(|children| children.to_vec())
             {
-                for child in children {
-                    self.entity_ui_recurse(ui, world, child, global_id);
-                }
+                ui.horizontal(|ui| {
+                    ui.add_space(7.5);
+                    ui.vertical(|ui| {
+                        ui.indent(id.with("children"), |ui| {
+                            for child in children {
+                                self.entity_ui_recurse(ui, world, child, global_id);
+                            }
+                        });
+                    });
+                });
             }
         });
 
