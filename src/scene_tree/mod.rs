@@ -39,7 +39,7 @@ use crate::{
     asset_browser::AssetPayload,
     assets::icons::MaterialIcon,
     pane::{Pane, RegisterPane},
-    selection::{EntitySelection, Selection, SelectionMap},
+    selection::{EntitySelection, SelectionMap},
     style::ACCENT,
     utils::paint_collapsing_button,
 };
@@ -204,7 +204,10 @@ fn entity_ui_recurse(ui: &mut Ui, world: &mut World, entity: Entity, id: Id) {
                     frame.fill = ui.style().visuals.widgets.hovered.bg_fill;
                 }
 
-                if world.resource_mut::<SelectionMap>().is_selected(entity) {
+                if world
+                    .resource_mut::<SelectionMap>()
+                    .is_selected(&EntitySelection::new(entity))
+                {
                     frame.stroke.color = ACCENT;
                 }
 
@@ -299,12 +302,12 @@ fn entity_ui_recurse(ui: &mut Ui, world: &mut World, entity: Entity, id: Id) {
     if header_response.clicked() {
         if !ui.input(|i| i.modifiers.ctrl) {
             selection_map.clear();
-            selection_map.select(entity);
+            selection_map.select(EntitySelection::new(entity));
         } else {
-            if selection_map.is_selected(entity) {
-                selection_map.deselect(entity);
+            if selection_map.is_selected(&EntitySelection::new(entity)) {
+                selection_map.deselect(&EntitySelection::new(entity));
             } else {
-                selection_map.select(entity);
+                selection_map.select(EntitySelection::new(entity));
             }
         }
     }

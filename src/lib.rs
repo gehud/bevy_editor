@@ -36,8 +36,8 @@ use bevy::{
     window::{PrimaryWindow, Window, WindowPlugin},
 };
 use bevy_egui::{
-    EguiContext, EguiContexts, EguiGlobalSettings, EguiPlugin, EguiPrimaryContextPass,
-    PrimaryEguiContext, egui::CentralPanel,
+    EguiContext, EguiContexts, EguiGlobalSettings, EguiPickingOrder, EguiPlugin,
+    EguiPrimaryContextPass, PrimaryEguiContext, egui::CentralPanel,
 };
 use egui::{
     FontData, FontFamily, Frame, LayerId, Memory, MenuBar, Panel, Sense, Ui, UiBuilder, WidgetText,
@@ -92,6 +92,10 @@ impl Plugin for EditorPlugin {
             )
             .add_plugins(PrefsPlugin)
             .add_plugins(EguiPlugin::default())
+            .insert_resource(EguiGlobalSettings {
+                auto_create_primary_context: false,
+                ..default()
+            })
             .add_plugins(AssetsPlugin)
             .add_plugins(DefaultInspectorConfigPlugin)
             .add_plugins(PanePlugin)
@@ -101,10 +105,6 @@ impl Plugin for EditorPlugin {
             .add_plugins(PropertiesPlugin)
             .add_plugins(AssetBrowserPlugin)
             .register_pref::<EguiMemory>()
-            .insert_resource(EguiGlobalSettings {
-                auto_create_primary_context: false,
-                ..default()
-            })
             .add_systems(Startup, (load_context, maximize_window))
             .add_systems(EguiPrimaryContextPass, ui)
             .add_observer(on_save);

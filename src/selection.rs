@@ -33,75 +33,65 @@ pub struct EntitySelection {
     pub entity: Entity,
 }
 
+impl EntitySelection {
+    pub fn new(entity: Entity) -> Self {
+        Self { entity }
+    }
+}
+
+impl From<Entity> for EntitySelection {
+    fn from(entity: Entity) -> Self {
+        Self::new(entity)
+    }
+}
+
 impl SelectionItem for EntitySelection {
-    const SELECTION: Selection = Selection::Entity;
+    const LABEL: &'static str = "Entity";
 }
 
-impl IntoSelectionItem for Entity {
-    type Item = EntitySelection;
+pub trait SelectedItem: Any + Send + Sync + 'static {
+    fn clone(&self) -> Box<dyn SelectedItem>;
 
-    fn into_selection_item(self) -> Self::Item {
-        EntitySelection { entity: self }
+    fn eq(&self, other: &dyn SelectedItem) -> Option<bool>;
+}
+
+pub trait SelectionItem: SelectedItem + Clone + Eq {
+    const LABEL: &'static str;
+}
+
+impl<T: Any + Clone + PartialEq + Send + Sync + 'static> SelectedItem for T {
+    fn clone(&self) -> Box<dyn SelectedItem> {
+        Box::new(Clone::clone(self))
     }
-}
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct FileSelection {
-    pub path: PathBuf,
-}
+    fn eq(&self, other: &dyn SelectedItem) -> Option<bool> {
+        let Some(other) = (other as &dyn Any).downcast_ref::<T>() else {
+            return None;
+        };
 
-impl SelectionItem for FileSelection {
-    const SELECTION: Selection = Selection::File;
-}
-
-impl IntoSelectionItem for PathBuf {
-    type Item = FileSelection;
-
-    fn into_selection_item(self) -> Self::Item {
-        FileSelection { path: self }
-    }
-}
-
-pub trait SelectionItem: Eq + Send + Sync + 'static {
-    const SELECTION: Selection;
-}
-
-pub trait IntoSelectionItem {
-    type Item: SelectionItem;
-
-    fn into_selection_item(self) -> Self::Item;
-}
-
-impl<S: SelectionItem> IntoSelectionItem for S {
-    type Item = S;
-
-    fn into_selection_item(self) -> Self::Item {
-        self
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub enum Selection {
-    Entity,
-    File,
-}
-
-impl Display for Selection {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            Selection::Entity => write!(f, "Entity"),
-            Selection::File => write!(f, "File"),
-        }
+        Some(PartialEq::eq(self, other))
     }
 }
 
 pub trait SelectionItems: Any + Send + Sync {
-    fn count(&self) -> usize;
+    fn label(&self) -> &'static str;
+
+    fn len(&self) -> usize;
+
+    fn clone(&self) -> Box<dyn SelectionItems>;
 }
 
 impl<S: SelectionItem> SelectionItems for Vec<S> {
-    fn count(&self) -> usize {
-        self.len()
+    fn label(&self) -> &'static str {
+        S::LABEL
+    }
+
+    fn len(&self) -> usize {
+        Vec::len(self)
+    }
+
+    fn clone(&self) -> Box<dyn SelectionItems> {
+        Box::new(Clone::clone(self))
     }
 }
 
@@ -120,7 +110,19 @@ pub struct Deselect {
 
 #[derive(Default, Resource)]
 pub struct SelectionMap {
-    by_type: HashMap<Selection, Box<dyn SelectionItems>>,
+    by_type: HashMap<TypeId, Box<dyn SelectionItems>>,
+}
+
+impl Clone for SelectionMap {
+    fn clone(&self) -> Self {
+        Self {
+            by_type: self
+                .by_type
+                .iter()
+                .map(|(type_id, items)| (*type_id, items.as_ref().clone()))
+                .collect(),
+        }
+    }
 }
 
 impl SelectionMap {
@@ -128,19 +130,16 @@ impl SelectionMap {
         self.by_type.clear();
     }
 
-    pub fn is_selected<S: IntoSelectionItem>(&self, item: S) -> bool {
-        self.get::<S::Item>()
-            .is_some_and(|items| items.contains(&item.into_selection_item()))
+    pub fn is_selected<S: SelectionItem>(&self, item: &S) -> bool {
+        self.get::<S>().is_some_and(|items| items.contains(item))
     }
 
-    pub fn selections(&self) -> impl ExactSizeIterator<Item = &Selection> {
+    pub fn type_ids(&self) -> impl ExactSizeIterator<Item = &TypeId> {
         self.by_type.keys()
     }
 
-    pub fn select<S: IntoSelectionItem>(&mut self, item: S) {
-        let items = self.get_mut_or_isnert::<S::Item>();
-
-        let item = item.into_selection_item();
+    pub fn select<S: SelectionItem>(&mut self, item: S) {
+        let items = self.get_mut_or_isnert::<S>();
 
         if let Some(position) = items.iter().position(|selected| selected == &item) {
             items.swap_remove(position);
@@ -149,48 +148,52 @@ impl SelectionMap {
         items.push(item);
     }
 
-    pub fn deselect<S: IntoSelectionItem>(&mut self, item: S) {
-        let Some(items) = self.get_mut::<S::Item>() else {
+    pub fn deselect<S: SelectionItem>(&mut self, item: &S) {
+        let Some(items) = self.get_mut::<S>() else {
             return;
         };
 
-        let item = item.into_selection_item();
-
-        let Some(position) = items.iter().position(|selected| selected == &item) else {
+        let Some(position) = items.iter().position(|selected| selected == item) else {
             return;
         };
 
         items.remove(position);
 
         if items.is_empty() {
-            self.by_type.remove(&S::Item::SELECTION);
+            self.by_type.remove(&TypeId::of::<S>());
         }
     }
 
-    pub fn of_selection(&self, selection: &Selection) -> Option<&dyn SelectionItems> {
-        self.by_type.get(selection).map(|items| items.as_ref())
+    pub fn iter(&self) -> impl ExactSizeIterator<Item = (&TypeId, &dyn SelectionItems)> {
+        self.by_type
+            .iter()
+            .map(|(type_id, items)| (type_id, items.as_ref()))
     }
 
     pub fn of_type<S: SelectionItem>(&self) -> Option<impl ExactSizeIterator<Item = &S>> {
         self.get::<S>().map(|items| items.iter())
     }
 
+    pub fn of_type_id(&self, type_id: &TypeId) -> Option<&dyn SelectionItems> {
+        self.by_type.get(type_id).map(|items| items.as_ref())
+    }
+
     fn get<S: SelectionItem>(&self) -> Option<&Vec<S>> {
         self.by_type
-            .get(&S::SELECTION)
+            .get(&TypeId::of::<S>())
             .map(|items| (items.as_ref() as &dyn Any).downcast_ref().unwrap())
     }
 
     fn get_mut<S: SelectionItem>(&mut self) -> Option<&mut Vec<S>> {
         self.by_type
-            .get_mut(&S::SELECTION)
+            .get_mut(&TypeId::of::<S>())
             .map(|items| (items.as_mut() as &mut dyn Any).downcast_mut().unwrap())
     }
 
     fn get_mut_or_isnert<S: SelectionItem>(&mut self) -> &mut Vec<S> {
         (self
             .by_type
-            .entry(S::SELECTION)
+            .entry(TypeId::of::<S>())
             .or_insert_with(|| Box::new(Vec::<S>::new()))
             .as_mut() as &mut dyn Any)
             .downcast_mut()
@@ -236,7 +239,8 @@ fn on_deselected(
         entity: trigger.event_target(),
     });
 
-    map.deselect(trigger.event_target());
+    // In case the entity was despawned
+    map.deselect(&EntitySelection::new(trigger.event_target()));
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, SystemSet)]

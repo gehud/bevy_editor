@@ -21,10 +21,13 @@ use egui::{
 
 use crate::{
     inspection::{
-        self, error, reflect_inspector::{Context, InspectorUi}, restricted_world_view::{ReflectBorrow, RestrictedWorldView}, utils::{self, pretty_type_name, pretty_type_name_str}
+        self, error,
+        reflect_inspector::{Context, InspectorUi},
+        restricted_world_view::{ReflectBorrow, RestrictedWorldView},
+        utils::{self, pretty_type_name, pretty_type_name_str},
     },
     pane::{Pane, RegisterPane},
-    selection::{EntitySelection, Selection, SelectionMap},
+    selection::{EntitySelection, SelectionMap},
 };
 
 pub struct PropertiesPane;
@@ -37,15 +40,14 @@ impl Pane for PropertiesPane {
     fn ui(&mut self, ui: &mut Ui, world: &mut World) -> Result {
         let selection_map = world.resource::<SelectionMap>();
 
-        if selection_map.selections().len() > 1 {
+        if selection_map.type_ids().len() > 1 {
             ui.heading("Selected");
             ui.separator();
 
-            for selection in selection_map.selections() {
-                let items = selection_map.of_selection(selection).unwrap();
-                ui.label(format!("{} x{}", selection, items.count()));
+            for (_, items) in selection_map.iter() {
+                ui.label(format!("{} x{}", items.label(), items.len()));
             }
-        } else if selection_map.selections().len() == 1 {
+        } else if selection_map.type_ids().len() == 1 {
             if let Some(selected) = selection_map
                 .of_type::<EntitySelection>()
                 .map(|selected| selected.map(|item| item.entity).collect::<Vec<_>>())
@@ -99,24 +101,14 @@ fn ui_for_entity(ui: &mut Ui, world: &mut World, entity: Entity) -> Result {
     ui.separator();
 
     let mut queue = CommandQueue::default();
-    ui_for_entity_components(
-        &mut world.into(),
-        &mut queue,
-        entity,
-        ui,
-        &type_registry,
-    )?;
+    ui_for_entity_components(&mut world.into(), &mut queue, entity, ui, &type_registry)?;
 
     queue.apply(world);
 
     Ok(())
 }
 
-fn ui_for_entities(
-    ui: &mut Ui,
-    world: &mut World,
-    entities: &[Entity],
-) -> Result {
+fn ui_for_entities(ui: &mut Ui, world: &mut World, entities: &[Entity]) -> Result {
     let type_registry = world.resource::<AppTypeRegistry>().0.clone();
     let type_registry = type_registry.read();
 

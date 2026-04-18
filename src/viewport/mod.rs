@@ -44,11 +44,13 @@ use bevy::{
     mesh::{Mesh2d, Mesh3d},
     picking::{
         Pickable, PickingSystems,
-        events::{Click, Drag, DragEnd, DragStart, Move, Pointer, PointerState},
+        backend::ray::RayMap,
+        events::{Click, Drag, DragEnd, DragStart, Move, Pointer, PointerState, Release},
         hover::HoverMap,
         mesh_picking::{MeshPickingPlugin, MeshPickingSettings, ray_cast::RayCastVisibility},
         pointer::{
             Location, PointerButton, PointerId, PointerInput, PointerInteraction, PointerLocation,
+            PointerMap,
         },
     },
     platform::collections::HashMap,
@@ -68,7 +70,7 @@ use egui::{
 
 use crate::{
     pane::{Pane, RegisterPane},
-    selection::{Deselect, Select, SelectionMap},
+    selection::{Deselect, EntitySelection, Select, SelectionMap},
     viewport::{
         camera::{FreeCamera, FreeCameraPlugin, FreeCameraState},
         grid::{InfiniteGrid, InfiniteGridPlugin, InfiniteGridSettings},
@@ -195,12 +197,11 @@ fn setup(
         Camera3d::default(),
         Camera {
             clear_color: ClearColorConfig::Custom(Color::srgb(0.25, 0.25, 0.25)),
-            order: -1,
+            order: 0,
             ..default()
         },
         RenderTarget::Image(viewport_target_handle.clone().into()),
         Transform::from_xyz(3.0, 3.0, 3.0).looking_at(Vec3::ZERO, Vec3::Y),
-        PointerId::Custom(Uuid::new_v4()),
     ));
 
     commands.spawn((
@@ -216,47 +217,32 @@ fn setup(
 }
 
 fn viewport_picking(
-    mut viewport_camera: Single<(
-        &PointerId,
-        &Viewport,
-        &mut FreeCameraState,
-        &RenderTarget,
-        &mut PointerLocation,
-    )>,
-    mut pointer_inputs: MessageReader<PointerInput>,
-    mut commands: Commands,
-) {
-    let (viewport_pointer_id, picking, state, render_target, pointer_location) =
-        viewport_camera.deref_mut();
+    mut viewport_camera: Single<(&Viewport, &mut FreeCameraState, &RenderTarget)>,
+    pointer_map: Res<PointerMap>,
+    mut pointers: Query<&mut PointerLocation>,
+) -> Result {
+    let (picking, state, render_target) = viewport_camera.deref_mut();
 
     let Some(position) = picking.position() else {
-        pointer_location.location = None;
         state.enabled = false;
-        return;
+        return Ok(());
     };
 
     state.enabled = true;
+    let pointer_entity = &pointer_map.get_entity(PointerId::Mouse).unwrap();
+    let mut pointer_location = pointers.get_mut(*pointer_entity)?;
 
-    for input in pointer_inputs
-        .read()
-        .filter(|input| input.pointer_id == PointerId::Mouse)
-    {
-        let location = Location {
-            position,
-            target: NormalizedRenderTarget::Image(render_target.as_image().unwrap().clone().into()),
-        };
+    let location = Location {
+        position,
+        target: NormalizedRenderTarget::Image(render_target.as_image().unwrap().clone().into()),
+    };
 
-        pointer_location.location = Some(location.clone());
+    pointer_location.location = Some(location.clone());
 
-        commands.write_message(PointerInput {
-            action: input.action,
-            location,
-            pointer_id: **viewport_pointer_id,
-        });
-    }
+    Ok(())
 }
 
-fn on_pick_mesh(
+fn select(
     mut trigger: On<Pointer<Click>>,
     meshes: Query<Entity, Or<(With<Mesh2d>, With<Mesh3d>)>>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
@@ -274,20 +260,34 @@ fn on_pick_mesh(
 
     trigger.propagate(false);
 
-    let is_selected = selection_map.is_selected(target);
+    let selection = EntitySelection::new(target);
 
     if !keyboard_input.pressed(KeyCode::ControlLeft) {
         selection_map.clear();
-        selection_map.select(target);
+        selection_map.select(selection);
     } else {
-        if is_selected {
-            selection_map.deselect(target);
+        if selection_map.is_selected(&selection) {
+            selection_map.deselect(&selection);
         } else {
-            selection_map.select(target);
+            selection_map.select(selection);
         }
     }
 
     Ok(())
+}
+
+fn deselect_all(
+    mouse_input: Res<ButtonInput<MouseButton>>,
+    hover_map: Res<HoverMap>,
+    mut selection_map: ResMut<SelectionMap>,
+) {
+    if !mouse_input.just_released(MouseButton::Left) {
+        return;
+    }
+
+    if hover_map[&PointerId::Mouse].is_empty() {
+        selection_map.clear();
+    }
 }
 
 fn on_select(trigger: On<Select>, mut commands: Commands) {
@@ -312,25 +312,6 @@ fn on_deselect(trigger: On<Deselect>, entities: Query<Entity>, mut commands: Com
         .remove::<OutlineVolume>();
 }
 
-fn deselect_all(
-    trigger: On<Pointer<Click>>,
-    viewport_picking: Single<&Viewport>,
-    primary_window: Single<Entity, With<PrimaryWindow>>,
-    mut map: ResMut<SelectionMap>,
-) {
-    if trigger.button != PointerButton::Primary {
-        return;
-    }
-
-    if viewport_picking.hover_pos.is_none() {
-        return;
-    }
-
-    if trigger.event_target() == *primary_window {
-        map.clear();
-    }
-}
-
 pub struct ViewportPlugin;
 
 impl Plugin for ViewportPlugin {
@@ -341,10 +322,15 @@ impl Plugin for ViewportPlugin {
             .add_plugins(FreeCameraPlugin)
             .register_pane(ViewportPane)
             .add_systems(Startup, setup)
-            .add_systems(First, viewport_picking.in_set(PickingSystems::PostInput))
-            .add_observer(on_pick_mesh)
+            .add_systems(Update, deselect_all)
+            .add_systems(
+                PreUpdate,
+                viewport_picking
+                    .after(PointerInput::receive)
+                    .after(RayMap::repopulate),
+            )
+            .add_observer(select)
             .add_observer(on_select)
-            .add_observer(on_deselect)
-            .add_observer(deselect_all);
+            .add_observer(on_deselect);
     }
 }
