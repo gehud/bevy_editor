@@ -16,31 +16,22 @@ pub use egui;
 use lucide_icons::LUCIDE_FONT_BYTES;
 use serde::{Deserialize, Serialize};
 
-use std::{env, num::NonZero};
+use std::env;
 
 use bevy::{
     DefaultPlugins,
     app::{App, Plugin, PluginGroup, Startup},
     asset::AssetPlugin,
-    camera::{Camera, Camera2d, visibility::RenderLayers},
+    camera::{Camera, Camera2d},
     ecs::{
-        entity::Entity,
         error::Result,
-        event::EntityEvent,
         observer::On,
         query::With,
         resource::Resource,
-        schedule::LogLevel,
-        system::{Commands, Local, Query, Res, ResMut, Single, SystemState},
-        world::{DeferredWorld, Mut, World},
+        system::{Res, ResMut, Single, SystemState},
+        world::{Mut, World},
     },
-    log::{Level, LogPlugin},
-    picking::{
-        Pickable,
-        events::{Click, Pointer},
-    },
-    prelude::Deref,
-    reflect::Reflect,
+    picking::Pickable,
     utils::default,
     window::{PrimaryWindow, Window, WindowPlugin},
 };
@@ -49,8 +40,7 @@ use bevy_egui::{
     PrimaryEguiContext, egui::CentralPanel,
 };
 use egui::{
-    FontData, FontFamily, Frame, Id, InnerResponse, LayerId, Memory, MenuBar, Panel, Sense, Ui,
-    UiBuilder, WidgetText,
+    FontData, FontFamily, Frame, LayerId, Memory, MenuBar, Panel, Sense, Ui, UiBuilder, WidgetText,
     epaint::text::{FontInsert, FontPriority, InsertFontFamily},
 };
 
@@ -58,10 +48,10 @@ use crate::{
     asset::AssetWatcherPlugin,
     asset_browser::AssetBrowserPlugin,
     assets::{AssetsPlugin, LUCIDE_FONT_FAMILY},
-    dock::{DockArea, DockState},
+    dock::DockArea,
     inspection::DefaultInspectorConfigPlugin,
     pane::{PaneDocking, PanePlugin, PaneRegistry, PaneViewer},
-    prefs::{Load, PrefsPlugin, RegisterPref, Save},
+    prefs::{PrefsPlugin, RegisterPref, Save},
     properties::PropertiesPlugin,
     scene_tree::SceneTreePlugin,
     selection::{SelectionMap, SelectionPlugin},
@@ -150,7 +140,6 @@ fn load_context(world: &mut World) {
     let ctx = ctx.get_mut();
 
     ctx.memory_mut(|memory| *memory = loaded_memory);
-    ctx.memory_mut(|memory| memory.options.max_passes = NonZero::new(1).unwrap());
     ctx.all_styles_mut(|style| set_dark_style(style));
     ctx.add_font(FontInsert::new(
         "fira_regular",
@@ -212,7 +201,7 @@ fn ui(
                                     pane_docking
                                         .0
                                         .set_focused_node_and_surface(tab_path.node_path());
-                                    pane_docking.0.set_active_tab(tab_path);
+                                    pane_docking.0.set_active_tab(tab_path).unwrap();
                                 } else {
                                     pane_docking.0.add_window(vec![name.clone()]);
                                 }
@@ -232,7 +221,7 @@ fn ui(
             });
         });
 
-    let InnerResponse { inner, .. } = CentralPanel::default()
+    CentralPanel::default()
         .frame(
             Frame::central_panel(ui.style())
                 .inner_margin(0)
@@ -258,9 +247,8 @@ fn ui(
                     viewer.result
                 })
             })
-        });
-
-    inner?;
+        })
+        .inner?;
 
     if ui.response().interact(Sense::click()).clicked() {
         world.resource_mut::<SelectionMap>().clear();

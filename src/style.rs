@@ -6,6 +6,8 @@ use egui::{Color32, CornerRadius, FontFamily, FontId, Margin, Shadow, Stroke, St
 pub const ACCENT: Color32 = Color32::from_rgb(32, 110, 201);
 
 pub fn set_dark_style(style: &mut Style) {
+    style.debug.warn_if_rect_changes_id = false;
+
     style.text_styles = [
         (
             TextStyle::Small,

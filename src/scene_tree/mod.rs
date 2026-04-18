@@ -66,10 +66,8 @@ impl Pane for SceneTreePane {
             .map(|children| children.to_vec())
             .unwrap_or_default();
 
-        let id = Id::new("scene_tree");
-
         for root in roots {
-            self.entity_ui_recurse(ui, world, root, id);
+            self.entity_ui_recurse(ui, world, root, ui.id());
         }
 
         let mut frame = Frame::new().begin(ui);
@@ -133,6 +131,8 @@ impl SceneTreePane {
             .map(|name| name.to_string())
             .unwrap_or_else(|| "Entity".into());
 
+        let global_id = id;
+
         let id = id.with(entity);
 
         let mut collapsing_state =
@@ -151,7 +151,7 @@ impl SceneTreePane {
         let header_response = ui
             .scope_builder(
                 UiBuilder::new()
-                    .id(id.with("frame"))
+                    .id_salt(id.with("header"))
                     .sense(Sense::click_and_drag()),
                 |ui| {
                     let response = ui.response();
@@ -183,34 +183,36 @@ impl SceneTreePane {
                         ui.horizontal(|ui| {
                             if world.entity(entity).contains::<Children>() {
                                 collapsing_state.show_toggle_button(ui, paint_collapsing_button);
-                            } else {
-                                ui.add_space(ui.spacing().indent + ui.spacing().item_spacing.x);
                             }
 
-                            let header = |ui: &mut Ui| {
-                                Label::new(
-                                    MaterialIcon::new(Icon::Box)
-                                        .rich_text()
-                                        .size(15.0)
-                                        .color(icon_color),
-                                )
-                                .selectable(false)
-                                .ui(ui);
-
-                                if is_loading_scene {
-                                    Label::new("Loading...").selectable(false).ui(ui);
-                                } else {
-                                    Label::new(name.clone()).selectable(false).ui(ui);
-                                }
-                            };
+                            let id = id.with("dnd");
+                            let mut ui_builder = UiBuilder::new().id(id);
+                            let layer_id = LayerId::new(Order::Tooltip, id);
 
                             if is_dragged {
-                                let id = id.with("dnd");
-                                let layer_id = LayerId::new(Order::Tooltip, id);
-                                let response = ui
-                                    .scope_builder(UiBuilder::new().layer_id(layer_id), header)
-                                    .response;
+                                ui_builder.layer_id = Some(layer_id);
+                            }
 
+                            let response = ui
+                                .scope_builder(ui_builder, |ui| {
+                                    Label::new(
+                                        MaterialIcon::new(Icon::Box)
+                                            .rich_text()
+                                            .size(15.0)
+                                            .color(icon_color),
+                                    )
+                                    .selectable(false)
+                                    .ui(ui);
+
+                                    if is_loading_scene {
+                                        Label::new("Loading...").selectable(false).ui(ui);
+                                    } else {
+                                        Label::new(name.clone()).selectable(false).ui(ui);
+                                    }
+                                })
+                                .response;
+
+                            if is_dragged {
                                 if let Some(pointer_pos) = ui.ctx().pointer_interact_pos() {
                                     let delta = pointer_pos - response.rect.center();
                                     ui.ctx().transform_layer_shapes(
@@ -218,14 +220,25 @@ impl SceneTreePane {
                                         emath::TSTransform::from_translation(delta),
                                     );
                                 }
-                            } else {
-                                header(ui);
                             }
                         });
                     });
                 },
             )
             .response;
+
+        collapsing_state.show_body_indented(&header_response, ui, |ui| {
+            if let Some(children) = world
+                .query::<&Children>()
+                .get(world, entity)
+                .ok()
+                .map(|children| children.to_vec())
+            {
+                for child in children {
+                    self.entity_ui_recurse(ui, world, child, global_id);
+                }
+            }
+        });
 
         let mut selection_map = world.resource_mut::<SelectionMap>();
 
@@ -241,19 +254,6 @@ impl SceneTreePane {
                 }
             }
         }
-
-        collapsing_state.show_body_indented(&header_response, ui, |ui| {
-            if let Some(children) = world
-                .query::<&Children>()
-                .get(world, entity)
-                .ok()
-                .map(|children| children.to_vec())
-            {
-                for child in children {
-                    self.entity_ui_recurse(ui, world, child, id);
-                }
-            }
-        });
 
         if let (Some(pointer), Some(payload)) = (
             ui.input(|i| i.pointer.interact_pos()),
