@@ -227,10 +227,16 @@ fn on_selected(trigger: On<Add, Selected>, mut commands: Commands) {
     });
 }
 
-fn on_deselected(trigger: On<Remove, Selected>, mut commands: Commands) {
+fn on_deselected(
+    trigger: On<Remove, Selected>,
+    mut map: ResMut<SelectionMap>,
+    mut commands: Commands,
+) {
     commands.trigger(Deselect {
         entity: trigger.event_target(),
     });
+
+    map.deselect(trigger.event_target());
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, SystemSet)]

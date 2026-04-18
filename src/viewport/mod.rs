@@ -69,7 +69,10 @@ use egui::{
 use crate::{
     pane::{Pane, RegisterPane},
     selection::{Deselect, Select, SelectionMap},
-    viewport::{camera::{FreeCamera, FreeCameraPlugin, FreeCameraState}, grid::{InfiniteGrid, InfiniteGridPlugin, InfiniteGridSettings}},
+    viewport::{
+        camera::{FreeCamera, FreeCameraPlugin, FreeCameraState},
+        grid::{InfiniteGrid, InfiniteGridPlugin, InfiniteGridSettings},
+    },
 };
 
 pub struct ViewportPane;
@@ -213,7 +216,13 @@ fn setup(
 }
 
 fn viewport_picking(
-    mut viewport_camera: Single<(&PointerId, &Viewport, &mut FreeCameraState, &RenderTarget, &mut PointerLocation)>,
+    mut viewport_camera: Single<(
+        &PointerId,
+        &Viewport,
+        &mut FreeCameraState,
+        &RenderTarget,
+        &mut PointerLocation,
+    )>,
     mut pointer_inputs: MessageReader<PointerInput>,
     mut commands: Commands,
 ) {
@@ -293,7 +302,11 @@ fn on_select(trigger: On<Select>, mut commands: Commands) {
         });
 }
 
-fn on_deselect(trigger: On<Deselect>, mut commands: Commands) {
+fn on_deselect(trigger: On<Deselect>, entities: Query<Entity>, mut commands: Commands) {
+    if !entities.contains(trigger.event_target()) {
+        return;
+    }
+
     commands
         .entity(trigger.event_target())
         .remove::<OutlineVolume>();

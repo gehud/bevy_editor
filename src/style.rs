@@ -39,8 +39,8 @@ pub fn set_dark_style(style: &mut Style) {
     style.visuals.window_corner_radius = CornerRadius::same(6);
 
     style.visuals.popup_shadow = Shadow {
-        blur: 8,
-        spread: 4,
+        blur: 12,
+        spread: 2,
         color: Color32::from_black_alpha(96),
         ..default()
     };
