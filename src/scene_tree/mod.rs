@@ -56,18 +56,33 @@ impl Pane for SceneTreePane {
     }
 
     fn ui(&mut self, ui: &mut Ui, world: &mut World) -> Result {
-        let tree = world
-            .query_filtered::<Entity, With<SceneTree>>()
+        let root = world
+            .query_filtered::<Entity, With<InspectedScene>>()
             .single(world)?;
 
-        let roots = world
-            .entity(tree)
+        let name = world
+            .entity(root)
+            .get::<Name>()
+            .map(|name| name.to_string())
+            .unwrap_or_else(|| "Untiteled".into());
+
+        ui.heading(name);
+
+        ui.separator();
+
+        if !world.entity(root).contains::<SceneInstance>() {
+            ui.label("Loading...");
+            return Ok(());
+        }
+
+        let children = world
+            .entity(root)
             .get::<Children>()
             .map(|children| children.to_vec())
             .unwrap_or_default();
 
-        for root in roots {
-            self.entity_ui_recurse(ui, world, root, ui.id());
+        for child in children {
+            self.entity_ui_recurse(ui, world, child, ui.id());
         }
 
         let mut frame = Frame::new().begin(ui);
@@ -107,8 +122,9 @@ impl Pane for SceneTreePane {
                     })
                     .unwrap_or_else(|| "Untitled".into());
 
+                world.entity_mut(root).despawn();
                 world.spawn((
-                    ChildOf(tree),
+                    InspectedScene,
                     Name::new(name),
                     Visibility::Visible,
                     Transform::IDENTITY,
@@ -138,7 +154,7 @@ impl SceneTreePane {
         let mut collapsing_state =
             CollapsingState::load_with_default_open(ui.ctx(), id.with("collapsing"), false);
 
-        let is_scene = world.entity(entity).contains::<SceneTree>();
+        let is_scene = world.entity(entity).contains::<SceneRoot>();
         let is_loaded_scene = world.entity(entity).contains::<SceneInstance>();
         let is_loading_scene = is_scene && !is_loaded_scene;
 
@@ -183,6 +199,8 @@ impl SceneTreePane {
                         ui.horizontal(|ui| {
                             if world.entity(entity).contains::<Children>() {
                                 collapsing_state.show_toggle_button(ui, paint_collapsing_button);
+                            } else {
+                                ui.add_space(ui.spacing().indent + ui.spacing().item_spacing.x);
                             }
 
                             let id = id.with("dnd");
@@ -235,7 +253,7 @@ impl SceneTreePane {
                 .map(|children| children.to_vec())
             {
                 ui.horizontal(|ui| {
-                    ui.add_space(7.5);
+                    ui.add_space(ui.spacing().item_spacing.x);
                     ui.vertical(|ui| {
                         ui.indent(id.with("children"), |ui| {
                             for child in children {
@@ -322,7 +340,7 @@ impl SceneTreePane {
 }
 
 #[derive(Component)]
-struct SceneTree;
+struct InspectedScene;
 
 fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
@@ -367,17 +385,13 @@ fn setup(
         }
     }
 
-    let tree = commands
-        .spawn((SceneTree, Visibility::Visible, Transform::IDENTITY))
-        .id();
-
     let scene_handle = scenes.add(scene);
 
     commands.spawn((
-        ChildOf(tree),
-        Name::new("Sample"),
+        InspectedScene,
         Visibility::Visible,
         Transform::IDENTITY,
+        Name::new("Sample"),
         SceneRoot(scene_handle),
     ));
 }
