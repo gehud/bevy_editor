@@ -2,24 +2,39 @@ use std::{any::TypeId, f32, ops::DerefMut, path::Path};
 
 use bevy::{
     app::{App, Plugin},
+    camera::{
+        primitives::{Aabb, CubemapFrusta},
+        visibility::{
+            CubemapVisibleEntities, InheritedVisibility, ViewVisibility, Visibility,
+            VisibilityClass,
+        },
+    },
     ecs::{
         change_detection::{DetectChanges, DetectChangesMut},
-        component::ComponentId,
+        component::{Component, ComponentId},
         entity::Entity,
         error::Result,
-        hierarchy::Children,
+        hierarchy::{ChildOf, Children},
         name::Name,
         reflect::AppTypeRegistry,
+        resource::Resource,
         world::{CommandQueue, World},
     },
+    picking::{events::Scroll, hover::PickingInteraction},
+    platform::collections::{HashMap, HashSet},
     reflect::TypeRegistry,
+    render::sync_world::{RenderEntity, SyncToRenderWorld},
+    transform::components::{GlobalTransform, TransformTreeChanged},
 };
 use egui::{
-    Color32, Frame, Id, InnerResponse, Response, TextEdit, TextureId, Ui, Vec2, Window,
+    Button, Color32, Frame, Id, InnerResponse, Label, Margin, Response, ScrollArea, TextEdit,
+    TextureId, Ui, Vec2, Widget, Window,
     collapsing_header::{CollapsingState, paint_default_icon},
 };
+use lucide_icons::Icon;
 
 use crate::{
+    assets::icons::MaterialIcon,
     inspection::{
         self, error,
         reflect_inspector::{Context, InspectorUi},
@@ -28,7 +43,20 @@ use crate::{
     },
     pane::{Pane, RegisterPane},
     selection::{EntitySelection, SelectionMap},
+    utils::paint_collapsing_button,
 };
+
+#[derive(Default, Resource)]
+pub struct ComponentIgnore {
+    ids: HashSet<TypeId>,
+}
+
+impl ComponentIgnore {
+    fn insert<C: Component>(&mut self) -> &mut Self {
+        self.ids.insert(TypeId::of::<C>());
+        self
+    }
+}
 
 pub struct PropertiesPane;
 
@@ -52,9 +80,11 @@ impl Pane for PropertiesPane {
                 .of_type::<EntitySelection>()
                 .map(|selected| selected.map(|item| item.entity).collect::<Vec<_>>())
             {
+                let id = ui.id();
+
                 match selected.as_slice() {
-                    &[entity] => ui_for_entity(ui, world, entity)?,
-                    entities => ui_for_entities(ui, world, entities)?,
+                    &[entity] => ui_for_entity(ui, world, entity, id)?,
+                    entities => ui_for_entities(ui, world, entities, id)?,
                 }
             }
         }
@@ -65,181 +95,268 @@ impl Pane for PropertiesPane {
 
 fn ui_for_entity_name(ui: &mut Ui, world: &mut World, entity: Entity) -> Result {
     ui.horizontal(|ui| {
+        Label::new(MaterialIcon::new(Icon::Box).rich_text().size(26.0))
+            .selectable(false)
+            .ui(ui);
+
         let mut entity_mut = world.entity_mut(entity);
 
         if entity_mut.contains::<Name>() {
-            if ui.small_button("-").clicked() {
+            if Button::new(MaterialIcon::new(Icon::Minus).rich_text().size(12.0))
+                .small()
+                .min_size(Vec2::new(18.0, 18.0))
+                .ui(ui)
+                .clicked()
+            {
                 entity_mut.remove::<Name>();
             }
         } else {
-            if ui.small_button("+").clicked() {
+            if Button::new(MaterialIcon::new(Icon::Plus).rich_text().size(12.0))
+                .small()
+                .min_size(Vec2::new(18.0, 18.0))
+                .ui(ui)
+                .clicked()
+            {
                 entity_mut.insert(Name::new("Entity"));
             }
         }
-
-        ui.label("Name: ");
 
         if let Some(mut name) = entity_mut.get_mut::<Name>() {
             name.mutate(|name| {
                 TextEdit::singleline(name)
                     .desired_width(f32::INFINITY)
+                    .margin(Margin::symmetric(8, 4))
                     .show(ui);
             });
         } else {
-            ui.label("Entity");
+            ui.add_enabled_ui(false, |ui| {
+                let mut name = String::from("Entity");
+                TextEdit::singleline(&mut name)
+                    .desired_width(f32::INFINITY)
+                    .margin(Margin::symmetric(8, 4))
+                    .show(ui);
+            });
         }
     });
 
     Ok(())
 }
 
-fn ui_for_entity(ui: &mut Ui, world: &mut World, entity: Entity) -> Result {
+fn ui_for_entity(ui: &mut Ui, world: &mut World, entity: Entity, id: Id) -> Result {
     let type_registry = world.resource::<AppTypeRegistry>().0.clone();
     let type_registry = type_registry.read();
+
+    let id = id.with(entity);
 
     ui_for_entity_name(ui, world, entity)?;
     ui.separator();
 
     let mut queue = CommandQueue::default();
-    ui_for_entity_components(&mut world.into(), &mut queue, entity, ui, &type_registry)?;
+    ui_for_entity_components(
+        &mut world.into(),
+        &mut queue,
+        entity,
+        ui,
+        id,
+        &type_registry,
+    )?;
 
     queue.apply(world);
 
     Ok(())
 }
 
-fn ui_for_entities(ui: &mut Ui, world: &mut World, entities: &[Entity]) -> Result {
-    let type_registry = world.resource::<AppTypeRegistry>().0.clone();
-    let type_registry = type_registry.read();
+fn ui_for_entities(ui: &mut Ui, world: &mut World, entities: &[Entity], id: Id) -> Result {
+    // let type_registry = world.resource::<AppTypeRegistry>().0.clone();
+    // let type_registry = type_registry.read();
 
-    let Some(&first) = entities.first() else {
-        return Ok(());
-    };
+    // let Some(&first) = entities.first() else {
+    //     return Ok(());
+    // };
 
-    let Ok(mut components) = components_of_entity(&mut world.into(), first) else {
-        error::nonexistent_entity(ui, first);
-        return Ok(());
-    };
+    // let Ok(mut components) = get_entity_component_data(&mut world.into(), first, &type_registry)
+    // else {
+    //     error::nonexistent_entity(ui, first);
+    //     return Ok(());
+    // };
 
-    for &entity in entities.iter().skip(1) {
-        components.retain(|(_, id, _, _)| {
-            world
-                .get_entity(entity)
-                .map_or(true, |entity| entity.contains_id(*id))
-        })
-    }
+    // for &entity in entities.iter().skip(1) {
+    //     components.retain(|data| {
+    //         world
+    //             .get_entity(entity)
+    //             .map_or(true, |entity| entity.contains_id(data.component_id))
+    //     })
+    // }
 
-    let (resources_view, components_view) = RestrictedWorldView::resources_components(world);
-    let mut queue = CommandQueue::default();
-    let mut cx = Context {
-        world: resources_view,
-        queue: &mut queue,
-    };
-    let mut env = InspectorUi::new(&type_registry, &mut cx);
+    // let (resources_view, components_view) = RestrictedWorldView::resources_components(world);
+    // let mut queue = CommandQueue::default();
+    // let mut cx = Context {
+    //     world: resources_view,
+    //     queue: &mut queue,
+    // };
+    // let mut env = InspectorUi::new(&type_registry, &mut cx);
 
-    let id = egui::Id::NULL;
-    for (name, component_id, component_type_id, size) in components {
-        let id = id.with(component_id);
-        let inner = egui::CollapsingHeader::new(&name)
-            .id_salt(id)
-            .show(ui, |ui| -> Result {
-                if size == 0 {
-                    return Ok(());
-                }
+    // let id = egui::Id::NULL;
+    // for data in components {
+    //     let id = id.with(data.component_id);
+    //     let inner = egui::CollapsingHeader::new(&data.name)
+    //         .id_salt(id)
+    //         .show(ui, |ui| -> Result {
+    //             if data.size == 0 {
+    //                 return Ok(());
+    //             }
 
-                let mut values = Vec::with_capacity(entities.len());
+    //             let mut values = Vec::with_capacity(entities.len());
 
-                for (i, &entity) in entities.iter().enumerate() {
-                    // skip duplicate entities
-                    if entities[0..i].contains(&entity) {
-                        continue;
-                    };
+    //             for (i, &entity) in entities.iter().enumerate() {
+    //                 // skip duplicate entities
+    //                 if entities[0..i].contains(&entity) {
+    //                     continue;
+    //                 };
 
-                    // SAFETY: entities are distinct, env has a context with just resources
-                    match unsafe {
-                        components_view.get_entity_component_reflect_unchecked(
-                            entity,
-                            component_type_id,
-                            &type_registry,
-                        )
-                    } {
-                        Ok(value) => {
-                            values.push(value);
-                        }
-                        Err(error) => {
-                            error::no_access(error, ui, &name);
-                            return Ok(());
-                        }
-                    }
-                }
+    //                 // SAFETY: entities are distinct, env has a context with just resources
+    //                 match unsafe {
+    //                     components_view.get_entity_component_reflect_unchecked(
+    //                         entity,
+    //                         data.type_id,
+    //                         &type_registry,
+    //                     )
+    //                 } {
+    //                     Ok(value) => {
+    //                         values.push(value);
+    //                     }
+    //                     Err(_) => {
+    //                         continue;
+    //                     }
+    //                 }
+    //             }
 
-                let mut values_reflect: Vec<_> = values
-                    .iter_mut()
-                    .map(|value| value.bypass_change_detection().as_partial_reflect_mut())
-                    .collect();
-                let changed = env.ui_for_reflect_many_with_options(
-                    component_type_id,
-                    &name,
-                    ui,
-                    id.with(component_id),
-                    &(),
-                    values_reflect.as_mut_slice(),
-                )?;
-                if changed {
-                    for value in values.iter_mut() {
-                        value.set_changed();
-                    }
-                }
+    //             let mut values_reflect: Vec<_> = values
+    //                 .iter_mut()
+    //                 .map(|value| value.bypass_change_detection().as_partial_reflect_mut())
+    //                 .collect();
+    //             let changed = env.ui_for_reflect_many_with_options(
+    //                 data.type_id,
+    //                 &data.name,
+    //                 ui,
+    //                 id.with(data.component_id),
+    //                 &(),
+    //                 values_reflect.as_mut_slice(),
+    //             )?;
+    //             if changed {
+    //                 for value in values.iter_mut() {
+    //                     value.set_changed();
+    //                 }
+    //             }
 
-                Ok(())
-            })
-            .body_returned;
+    //             Ok(())
+    //         })
+    //         .body_returned;
 
-        if let Some(inner) = inner {
-            inner?;
-        }
-    }
+    //     if let Some(inner) = inner {
+    //         inner?;
+    //     }
+    // }
 
-    queue.apply(world);
+    // queue.apply(world);
 
     Ok(())
 }
 
 fn ui_for_entity_components(
     world: &mut RestrictedWorldView<'_>,
-    mut queue: &mut CommandQueue,
+    queue: &mut CommandQueue,
     entity: Entity,
     ui: &mut egui::Ui,
+    id: Id,
     type_registry: &TypeRegistry,
 ) -> Result {
-    let Ok(components) = components_of_entity(world, entity) else {
+    let Ok(components) = get_entity_component_data(world, entity, type_registry) else {
         error::nonexistent_entity(ui, entity);
         return Ok(());
     };
 
-    ui.push_id(Id::new(entity), |ui| -> Result {
-        for (name, component_id, component_type_id, size) in components {
-            let id = Id::new(component_id);
+    let tags = components.iter().filter(|data| data.size == 0);
+    let components = components.iter().filter(|data| data.size != 0);
+
+    let mut tags_collapsing_state =
+        CollapsingState::load_with_default_open(ui.ctx(), id.with("tags_collapsing"), true);
+
+    Frame::new()
+        .fill(ui.style().visuals.widgets.inactive.bg_fill)
+        .inner_margin(Margin::symmetric(10, 5))
+        .corner_radius(5)
+        .show(ui, |ui| {
+            ui.take_available_width();
+            ui.horizontal(|ui| {
+                tags_collapsing_state.show_toggle_button(ui, paint_collapsing_button);
+                ui.heading("Tags");
+            });
+        });
+
+    let mut component_to_remove = None;
+
+    tags_collapsing_state.show_body_unindented(ui, |ui| {
+        ui.take_available_width();
+        ui.set_max_height(50.0);
+        ScrollArea::new([false, true]).show(ui, |ui| {
+            ui.horizontal_wrapped(|ui| {
+                for data in tags {
+                    Frame::new()
+                        .fill(ui.style().visuals.widgets.inactive.bg_fill)
+                        .inner_margin(Margin::same(5))
+                        .corner_radius(8)
+                        .show(ui, |ui| {
+                            #[cfg(feature = "documentation")]
+                            let type_docs = type_registry
+                                .get_type_info(data.type_id)
+                                .and_then(|info| info.docs());
+
+                            let _response = ui.label(&data.name);
+                            #[cfg(feature = "documentation")]
+                            crate::inspection::egui_utils::show_docs(_response, type_docs);
+
+                            if Button::new(MaterialIcon::new(Icon::X))
+                                .small()
+                                .ui(ui)
+                                .clicked()
+                            {
+                                component_to_remove = Some(data.type_id);
+                            }
+                        });
+                }
+            });
+        });
+    });
+
+    let mut components_collapsing_state =
+        CollapsingState::load_with_default_open(ui.ctx(), id.with("components_collapsing"), true);
+
+    Frame::new()
+        .fill(ui.style().visuals.widgets.inactive.bg_fill)
+        .inner_margin(Margin::symmetric(10, 5))
+        .corner_radius(5)
+        .show(ui, |ui| {
+            ui.take_available_width();
+            ui.horizontal(|ui| {
+                components_collapsing_state.show_toggle_button(ui, paint_collapsing_button);
+                ui.heading("Components");
+            });
+        });
+
+    let inner = components_collapsing_state.show_body_unindented(ui, |ui| -> Result {
+        for data in components {
+            let id = Id::new(data.component_id);
 
             #[cfg(feature = "documentation")]
             let type_docs = type_registry
-                .get_type_info(component_type_id)
+                .get_type_info(data.type_id)
                 .and_then(|info| info.docs());
-
-            if size == 0 {
-                ui.indent(id, |ui| {
-                    let _response = ui.label(&name);
-                    #[cfg(feature = "documentation")]
-                    crate::inspection::egui_utils::show_docs(_response, type_docs);
-                });
-                continue;
-            }
 
             let mut collapsing_state = CollapsingState::load_with_default_open(ui.ctx(), id, true);
 
             // create a context with access to the world except for the currently viewed component
-            let (mut component_view, world) =
-                world.split_off_component((entity, component_type_id));
+            let (mut component_view, world) = world.split_off_component((entity, data.type_id));
             let mut cx = Context {
                 world: world,
                 queue: queue,
@@ -247,15 +364,11 @@ fn ui_for_entity_components(
 
             let value = match component_view.get_entity_component_reflect(
                 entity,
-                component_type_id,
+                data.type_id,
                 type_registry,
             ) {
                 Ok(value) => value,
-                Err(e) => {
-                    ui.indent(id, |ui| {
-                        let response = ui.label(egui::RichText::new(&name).underline());
-                        response.on_hover_ui(|ui| error::no_access(e, ui, &name));
-                    });
+                Err(_) => {
                     continue;
                 }
             };
@@ -282,7 +395,7 @@ fn ui_for_entity_components(
                             ui.horizontal(|ui| {
                                 collapsing_state.show_toggle_button(ui, paint_default_icon);
                                 ui.vertical_centered(|ui| {
-                                    ui.label(name);
+                                    ui.label(&data.name);
                                 });
                             });
                         });
@@ -292,7 +405,7 @@ fn ui_for_entity_components(
                             .inner_margin(ui.style().spacing.button_padding)
                             .show(ui, |ui| -> Result {
                                 let mut env = InspectorUi::new(type_registry, &mut cx);
-                                let id = id.with(component_id);
+                                let id = id.with(data.component_id);
                                 let options = &();
 
                                 match value {
@@ -362,40 +475,100 @@ fn ui_for_entity_components(
         }
 
         Ok(())
-    })
-    .inner
+    });
+
+    if let Some(inner) = inner {
+        inner.inner?;
+    }
+
+    Ok(())
 }
 
-fn components_of_entity(
+struct ComponentData {
+    name: String,
+    component_id: ComponentId,
+    type_id: TypeId,
+    size: usize,
+}
+
+fn get_entity_component_data(
     world: &mut RestrictedWorldView<'_>,
     entity: Entity,
-) -> Result<Vec<(String, ComponentId, TypeId, usize)>> {
+    type_registry: &TypeRegistry,
+) -> Result<Vec<ComponentData>> {
+    let mut split = world.split_off_resource(TypeId::of::<ComponentIgnore>());
+
+    let component_ignore = split.0.get_resource_mut::<ComponentIgnore>()?;
+    let world = split.1;
+
     let entity_ref = world.world().get_entity(entity)?;
 
     let archetype = entity_ref.archetype();
     let mut components: Vec<_> = archetype
         .components()
         .iter()
-        .map(|component_id| {
-            let info = world.world().components().get_info(*component_id).unwrap();
+        .filter_map(|component_id| {
+            let info = world.world().components().get_info(*component_id)?;
+
+            let type_id = info.type_id()?;
+
+            if !type_registry.contains(type_id.clone()) {
+                return None;
+            }
+
+            if component_ignore.ids.contains(&type_id.clone()) {
+                return None;
+            }
+
             let name = pretty_type_name_str(&info.name().to_string());
 
-            (
+            Some(ComponentData {
                 name,
-                *component_id,
-                info.type_id().unwrap(),
-                info.layout().size(),
-            )
+                component_id: *component_id,
+                type_id: type_id,
+                size: info.layout().size(),
+            })
         })
         .collect();
-    components.sort_by(|(name_a, ..), (name_b, ..)| name_a.cmp(name_b));
+
+    components.sort_by(|a, b| a.name.cmp(&b.name));
+
     Ok(components)
+}
+
+pub trait PropertiesApp {
+    fn ignore_component<C: Component>(&mut self) -> &mut Self;
+}
+
+impl PropertiesApp for App {
+    fn ignore_component<C: Component>(&mut self) -> &mut Self {
+        self.world_mut()
+            .resource_mut::<ComponentIgnore>()
+            .insert::<C>();
+        self
+    }
 }
 
 pub struct PropertiesPlugin;
 
 impl Plugin for PropertiesPlugin {
     fn build(&self, app: &mut App) {
-        app.register_pane(PropertiesPane);
+        app.init_resource::<ComponentIgnore>()
+            .ignore_component::<Name>()
+            .ignore_component::<ChildOf>()
+            .ignore_component::<Children>()
+            .ignore_component::<Aabb>()
+            .ignore_component::<GlobalTransform>()
+            .ignore_component::<Visibility>()
+            .ignore_component::<InheritedVisibility>()
+            .ignore_component::<PickingInteraction>()
+            .ignore_component::<RenderEntity>()
+            .ignore_component::<ViewVisibility>()
+            .ignore_component::<VisibilityClass>()
+            .ignore_component::<CubemapFrusta>()
+            .ignore_component::<CubemapVisibleEntities>()
+            .ignore_component::<SyncToRenderWorld>()
+            .ignore_component::<TransformTreeChanged>()
+            .register_pane(PropertiesPane);
     }
 }

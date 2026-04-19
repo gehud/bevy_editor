@@ -268,9 +268,9 @@ impl InspectorUi<'_, '_> {
         values: &mut [&mut dyn PartialReflect],
     ) -> Result<bool> {
         let Some(registration) = self.type_registry.get(type_id) else {
-            error::not_in_type_registry(ui, name);
             return Ok(false);
         };
+
         let info = registration.type_info();
 
         let mut options = options;

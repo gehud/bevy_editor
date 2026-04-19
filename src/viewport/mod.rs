@@ -70,6 +70,7 @@ use egui::{
 
 use crate::{
     pane::{Pane, RegisterPane},
+    properties::PropertiesApp,
     selection::{Deselect, EntitySelection, Select, SelectionMap},
     viewport::{
         camera::{FreeCamera, FreeCameraPlugin, FreeCameraState},
@@ -345,6 +346,8 @@ impl Plugin for ViewportPlugin {
             .add_plugins(OutlinePlugin)
             .add_plugins(FreeCameraPlugin)
             .register_pane(ViewportPane)
+            .ignore_component::<OutlineVolume>()
+            .ignore_component::<OutlineMode>()
             .add_systems(Startup, setup)
             .add_systems(Update, deselect_all)
             .add_systems(First, viewport_picking.in_set(PickingSystems::PostInput))

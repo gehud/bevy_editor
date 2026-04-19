@@ -302,7 +302,6 @@ impl<'w> RestrictedWorldView<'w> {
     pub fn contains_entity(&self, entity: Entity) -> bool {
         self.world().entities().contains(entity)
     }
-
     /// Gets a mutable reference to the resource of the given type
     pub fn get_resource_mut<R: Resource>(&mut self) -> Result<Mut<'_, R>, Error> {
         // SAFETY: &mut self

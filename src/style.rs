@@ -1,7 +1,9 @@
 use crate::dock::Style as DockStyle;
 
 use bevy::utils::default;
-use egui::{Color32, CornerRadius, FontFamily, FontId, Margin, Shadow, Stroke, Style, TextStyle};
+use egui::{
+    Color32, CornerRadius, FontFamily, FontId, Margin, Shadow, Stroke, Style, TextStyle, Vec2,
+};
 
 pub const ACCENT: Color32 = Color32::from_rgb(32, 110, 201);
 
@@ -28,6 +30,8 @@ pub fn set_dark_style(style: &mut Style) {
         ),
     ]
     .into();
+
+    style.visuals.text_edit_bg_color = Some(Color32::from_rgb(63, 63, 63));
 
     style.visuals.widgets.active.fg_stroke.color = Color32::from_rgb(242, 242, 242);
     style.visuals.widgets.inactive.fg_stroke.color = Color32::from_rgb(242, 242, 242);
