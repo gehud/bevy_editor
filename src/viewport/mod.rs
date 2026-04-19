@@ -202,6 +202,7 @@ fn setup(
         },
         RenderTarget::Image(viewport_target_handle.clone().into()),
         Transform::from_xyz(3.0, 3.0, 3.0).looking_at(Vec3::ZERO, Vec3::Y),
+        PointerId::Custom(Uuid::new_v4()),
     ));
 
     commands.spawn((
@@ -217,27 +218,43 @@ fn setup(
 }
 
 fn viewport_picking(
-    mut viewport_camera: Single<(&Viewport, &mut FreeCameraState, &RenderTarget)>,
-    pointer_map: Res<PointerMap>,
-    mut pointers: Query<&mut PointerLocation>,
+    mut viewport_camera: Single<(
+        &PointerId,
+        &mut PointerLocation,
+        &Viewport,
+        &mut FreeCameraState,
+        &RenderTarget,
+    )>,
+    mut pointer_inputs: MessageReader<PointerInput>,
+    mut commands: Commands,
 ) -> Result {
-    let (picking, state, render_target) = viewport_camera.deref_mut();
+    let (pointer_id, pointer_location, picking, state, render_target) = viewport_camera.deref_mut();
 
     let Some(position) = picking.position() else {
+        pointer_location.location = None;
         state.enabled = false;
         return Ok(());
     };
 
     state.enabled = true;
-    let pointer_entity = &pointer_map.get_entity(PointerId::Mouse).unwrap();
-    let mut pointer_location = pointers.get_mut(*pointer_entity)?;
 
-    let location = Location {
-        position,
-        target: NormalizedRenderTarget::Image(render_target.as_image().unwrap().clone().into()),
-    };
+    for input in pointer_inputs
+        .read()
+        .filter(|input| input.pointer_id == PointerId::Mouse)
+    {
+        let location = Location {
+            position,
+            target: NormalizedRenderTarget::Image(render_target.as_image().unwrap().clone().into()),
+        };
 
-    pointer_location.location = Some(location.clone());
+        pointer_location.location = Some(location.clone());
+
+        commands.write_message(PointerInput {
+            action: input.action,
+            location,
+            pointer_id: **pointer_id,
+        });
+    }
 
     Ok(())
 }
@@ -279,13 +296,20 @@ fn select(
 fn deselect_all(
     mouse_input: Res<ButtonInput<MouseButton>>,
     hover_map: Res<HoverMap>,
+    viewport: Single<(&PointerId, &Viewport)>,
     mut selection_map: ResMut<SelectionMap>,
 ) {
+    let (pointer_id, viewport) = viewport.deref();
+
+    if viewport.hover_pos.is_none() {
+        return;
+    }
+
     if !mouse_input.just_released(MouseButton::Left) {
         return;
     }
 
-    if hover_map[&PointerId::Mouse].is_empty() {
+    if hover_map[*pointer_id].is_empty() {
         selection_map.clear();
     }
 }
@@ -323,12 +347,7 @@ impl Plugin for ViewportPlugin {
             .register_pane(ViewportPane)
             .add_systems(Startup, setup)
             .add_systems(Update, deselect_all)
-            .add_systems(
-                PreUpdate,
-                viewport_picking
-                    .after(PointerInput::receive)
-                    .after(RayMap::repopulate),
-            )
+            .add_systems(First, viewport_picking.in_set(PickingSystems::PostInput))
             .add_observer(select)
             .add_observer(on_select)
             .add_observer(on_deselect);
