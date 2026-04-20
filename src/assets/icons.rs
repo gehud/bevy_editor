@@ -1,4 +1,4 @@
-use egui::{FontFamily, Label, Response, RichText, TextStyle, Ui, Widget};
+use egui::{Atoms, FontFamily, Label, Response, RichText, TextStyle, Ui, Widget};
 pub use lucide_icons::Icon;
 
 use crate::assets::{ICON_TEXT_STYLE, LUCIDE_FONT_FAMILY};

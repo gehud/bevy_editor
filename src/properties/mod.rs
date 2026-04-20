@@ -1,7 +1,7 @@
 use std::{any::TypeId, f32, ops::DerefMut, path::Path};
 
 use bevy::{
-    app::{App, Plugin},
+    app::{App, Plugin, Startup},
     camera::{
         primitives::{Aabb, CubemapFrusta},
         visibility::{
@@ -18,20 +18,19 @@ use bevy::{
         name::Name,
         reflect::{AppTypeRegistry, ReflectComponent},
         resource::Resource,
+        system::{Commands, Res},
         world::{CommandQueue, World},
     },
     picking::{events::Scroll, hover::PickingInteraction},
     platform::collections::{HashMap, HashSet},
-    reflect::{TypeRegistry, prelude::ReflectDefault},
+    reflect::{TypePathTable, TypeRegistry, prelude::ReflectDefault},
     render::sync_world::{RenderEntity, SyncToRenderWorld},
     transform::components::{GlobalTransform, TransformTreeChanged},
 };
 use egui::{
-    Align, Button, Color32, Frame, Grid, Id, InnerResponse, Label, Layout, Margin, Popup, Response,
-    ScrollArea, Sense, SetOpenCommand, TextEdit, TextWrapMode, TextureId, Ui, Vec2, Widget, Window,
-    collapsing_header::{CollapsingState, paint_default_icon},
-    vec2,
+    Align, Button, Color32, Frame, Grid, Id, InnerResponse, Label, Layout, Margin, Popup, Response, ScrollArea, Sense, SetOpenCommand, TextEdit, TextWrapMode, TextureId, Ui, Vec2, Widget, Window, collapsing_header::{CollapsingState, paint_default_icon}, output::OutputEvent, vec2
 };
+use fuzzy_matcher::{FuzzyMatcher, skim::SkimMatcherV2};
 use lucide_icons::Icon;
 
 use crate::{
@@ -293,36 +292,43 @@ fn add_component_ui(
         .response
         .interact(Sense::click());
 
-    let component_ignore = world.resource::<ComponentIgnore>();
+    let mut menu = world.resource_mut::<AddComponentMenu>();
 
+    let clicked = response.clicked();
     Popup::menu(&response)
-        .open_memory(if response.clicked() {
+        .open_memory(if clicked {
             Some(SetOpenCommand::Bool(true))
         } else {
             None
         })
         .at_pointer_fixed()
         .show(|ui| {
+            let search_response = TextEdit::singleline(&mut menu.search)
+                .prefix(Icon::Search.unicode().to_string())
+                .ui(ui);
+
+            if clicked {
+                menu.search = String::new();
+                search_response.request_focus();
+            }
+
             ScrollArea::vertical().max_height(500.0).show(ui, |ui| {
-                for (path, component, default) in type_registry.iter().filter_map(|registration| {
-                    let component = registration.data::<ReflectComponent>()?;
+                let matcher = SkimMatcherV2::default();
 
-                    if component_ignore.ids.contains(&registration.type_id()) {
-                        return None;
-                    }
+                let mut items = menu.items.clone();
 
-                    let default = registration.data::<ReflectDefault>()?;
+                items.sort_by(|a, b| {
+                    let a = matcher.fuzzy_match(a, &menu.search).unwrap_or_default();
+                    let b = matcher.fuzzy_match(b, &menu.search).unwrap_or_default();
+                    b.cmp(&a)
+                });
 
-                    Some((
-                        registration.type_info().type_path().to_string(),
-                        component,
-                        default,
-                    ))
-                }) {
-                    if ui.button(path).clicked() {
+                for path in items {
+                    if ui.button(&path).clicked() {
                         let entity = entity;
-                        let component = component.clone();
-                        let default = default.clone();
+                        let data = &menu.map[&path];
+                        let component = data.component.clone();
+                        let default = data.default.clone();
                         queue.push(move |world: &mut World| {
                             let type_registry = world.resource::<AppTypeRegistry>().clone();
                             let type_registry = type_registry.read();
@@ -457,7 +463,7 @@ fn ui_for_entity_components(
 
                                         ui[2].with_layout(Layout::top_down(Align::Max), |ui| {
                                             if ui
-                                                .label(MaterialIcon::new(Icon::X))
+                                                .add(MaterialIcon::new(Icon::X))
                                                 .interact(Sense::click())
                                                 .clicked()
                                             {
@@ -578,6 +584,57 @@ fn get_entity_component_data(
     Ok(components)
 }
 
+#[derive(Clone)]
+struct AddComponentItem {
+    default: ReflectDefault,
+    component: ReflectComponent,
+}
+
+#[derive(Resource)]
+struct AddComponentMenu {
+    search: String,
+    items: Vec<String>,
+    map: HashMap<String, AddComponentItem>,
+}
+
+fn collect_add_component_tree(
+    type_registry: Res<AppTypeRegistry>,
+    component_ignore: Res<ComponentIgnore>,
+    mut commands: Commands,
+) {
+    let type_registry = type_registry.read();
+
+    let map = type_registry
+        .iter()
+        .filter_map(|registration| {
+            let component = registration.data::<ReflectComponent>()?;
+
+            if component_ignore.ids.contains(&registration.type_id()) {
+                return None;
+            }
+
+            let default = registration.data::<ReflectDefault>()?;
+
+            Some((
+                registration.type_info().type_path().to_string(),
+                AddComponentItem {
+                    default: default.clone(),
+                    component: component.clone(),
+                },
+            ))
+        })
+        .collect::<HashMap<_, _>>();
+
+    let mut items = map.keys().cloned().collect::<Vec<_>>();
+    items.sort_by(|a, b| a.cmp(b));
+
+    commands.insert_resource(AddComponentMenu {
+        search: String::new(),
+        map,
+        items,
+    });
+}
+
 pub trait PropertiesApp {
     fn ignore_component<C: Component>(&mut self) -> &mut Self;
 }
@@ -611,6 +668,7 @@ impl Plugin for PropertiesPlugin {
             .ignore_component::<CubemapVisibleEntities>()
             .ignore_component::<SyncToRenderWorld>()
             .ignore_component::<TransformTreeChanged>()
-            .register_pane(PropertiesPane);
+            .register_pane(PropertiesPane)
+            .add_systems(Startup, collect_add_component_tree);
     }
 }

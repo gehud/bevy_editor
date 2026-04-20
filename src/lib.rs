@@ -20,7 +20,7 @@ use std::env;
 
 use bevy::{
     DefaultPlugins,
-    app::{App, Plugin, PluginGroup, Startup},
+    app::{App, Plugin, PluginGroup, PostStartup, Startup},
     asset::AssetPlugin,
     camera::{Camera, Camera2d},
     ecs::{
@@ -105,7 +105,8 @@ impl Plugin for EditorPlugin {
             .add_plugins(SceneTreePlugin)
             .add_plugins(AssetBrowserPlugin)
             .register_pref::<EguiMemory>()
-            .add_systems(Startup, (load_context, maximize_window))
+            .add_systems(Startup, load_context)
+            .add_systems(PostStartup, maximize_window)
             .add_systems(EguiPrimaryContextPass, ui)
             .add_observer(on_save);
     }
