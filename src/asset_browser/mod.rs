@@ -9,14 +9,19 @@ use std::{
 use bevy::{
     app::{App, Plugin},
     asset::{AssetPath, AssetServer, Assets, Handle, LoadedUntypedAsset, UntypedHandle},
+    camera::visibility::Visibility,
     ecs::{
         error::{BevyError, Result},
+        name::Name,
         resource::Resource,
         world::World,
     },
+    gltf::Gltf,
     log::{info, info_once},
     platform::collections::{HashMap, HashSet},
+    scene::{Scene, SceneRoot},
     tasks::block_on,
+    transform::components::Transform,
     utils::default,
 };
 use egui::{
@@ -35,6 +40,7 @@ use crate::{
     assets::icons::MaterialIcon,
     pane::{Pane, RegisterPane},
     prefs::RegisterPref,
+    scene_tree::{DraggedSceneRoot, scene_name},
     utils::paint_collapsing_button,
 };
 
@@ -284,8 +290,47 @@ fn ui_for_asset<'a>(
                                             );
                                         }
                                     }
-                                    AssetState::Ready(handle) => header_response
-                                        .dnd_set_drag_payload(AssetPayload(handle.clone())),
+                                    AssetState::Ready(handle) => {
+                                        header_response
+                                            .dnd_set_drag_payload(AssetPayload(handle.clone()));
+
+                                        if is_dragged {
+                                            let scene =
+                                                handle.clone().try_typed::<Scene>().ok().or_else(
+                                                    || {
+                                                        handle
+                                                            .clone()
+                                                            .try_typed::<Gltf>()
+                                                            .ok()
+                                                            .and_then(|handle| {
+                                                                world
+                                                                    .resource::<Assets<Gltf>>()
+                                                                    .get(&handle)
+                                                                    .and_then(|gltf| {
+                                                                        gltf.default_scene.clone()
+                                                                    })
+                                                            })
+                                                    },
+                                                );
+
+                                            if let Some(scene) = scene {
+                                                if world.resource::<DraggedSceneRoot>().0.is_none()
+                                                {
+                                                    let root = world
+                                                        .spawn((
+                                                            Transform::IDENTITY,
+                                                            Visibility::Hidden,
+                                                            Name::new(scene_name(scene.path())),
+                                                            SceneRoot(scene),
+                                                        ))
+                                                        .id();
+
+                                                    world.resource_mut::<DraggedSceneRoot>().0 =
+                                                        Some(root);
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             } else {
                                 let handle = world

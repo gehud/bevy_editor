@@ -46,14 +46,14 @@ use egui::{
 
 use crate::{
     asset::AssetWatcherPlugin,
-    asset_browser::AssetBrowserPlugin,
+    asset_browser::{AssetBrowserPlugin, AssetPayload},
     assets::{AssetsPlugin, LUCIDE_FONT_FAMILY},
     dock::DockArea,
     inspection::DefaultInspectorConfigPlugin,
     pane::{PaneDocking, PanePlugin, PaneRegistry, PaneViewer},
     prefs::{PrefsPlugin, RegisterPref, Save},
     properties::PropertiesPlugin,
-    scene_tree::SceneTreePlugin,
+    scene_tree::{DraggedSceneRoot, SceneTreePlugin},
     selection::{SelectionMap, SelectionPlugin},
     style::{IntoDockStyle, set_dark_style},
     viewport::ViewportPlugin,
@@ -251,6 +251,16 @@ fn ui(
             })
         })
         .inner?;
+
+    if ui
+        .response()
+        .dnd_release_payload::<AssetPayload>()
+        .is_some()
+    {
+        if let Some(scene_root) = world.resource_mut::<DraggedSceneRoot>().0.take() {
+            world.entity_mut(scene_root).despawn();
+        }
+    }
 
     Ok(())
 }

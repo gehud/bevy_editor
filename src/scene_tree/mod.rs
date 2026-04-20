@@ -104,37 +104,21 @@ impl Pane for SceneTreePane {
             }
         });
 
-        let scene = response
-            .dnd_hover_payload::<AssetPayload>()
-            .and_then(|payload| {
-                payload.0.clone().try_typed::<Scene>().ok().or_else(|| {
-                    payload
-                        .0
-                        .clone()
-                        .try_typed::<Gltf>()
-                        .ok()
-                        .and_then(|handle| {
-                            world
-                                .resource::<Assets<Gltf>>()
-                                .get(&handle)
-                                .and_then(|gltf| gltf.default_scene.clone())
-                        })
-                })
-            });
+        let is_dragging_scene = response.dnd_hover_payload::<AssetPayload>().is_some()
+            && world.resource::<DraggedSceneRoot>().0.is_some();
 
-        if let Some(scene) = scene {
+        if is_dragging_scene {
             frame.frame.fill = ui.style().visuals.widgets.active.bg_fill;
             frame.frame.stroke = ui.style().visuals.widgets.active.bg_stroke;
 
             if response.dnd_release_payload::<AssetPayload>().is_some() {
                 world.entity_mut(root).despawn();
-                world.spawn((
-                    InspectedScene,
-                    Name::new(scene_name(scene.path())),
-                    Visibility::Visible,
-                    Transform::IDENTITY,
-                    SceneRoot(scene),
-                ));
+                let root = world.resource_mut::<DraggedSceneRoot>().0.take().unwrap();
+                world
+                    .entity_mut(root)
+                    .insert(InspectedScene)
+                    .insert(Visibility::Visible)
+                    .insert(Transform::IDENTITY);
             }
         }
 
@@ -380,9 +364,12 @@ fn despawn_selected(world: &mut World) {
 struct OpenedScene(Option<PathBuf>);
 
 #[derive(Component)]
-struct InspectedScene;
+pub(crate) struct InspectedScene;
 
-fn scene_name<'a>(asset_path: Option<&AssetPath<'a>>) -> String {
+#[derive(Default, Resource)]
+pub(crate) struct DraggedSceneRoot(pub Option<Entity>);
+
+pub(crate) fn scene_name<'a>(asset_path: Option<&AssetPath<'a>>) -> String {
     asset_path
         .and_then(|path| {
             path.path()
@@ -442,7 +429,8 @@ pub struct SceneTreePlugin;
 
 impl Plugin for SceneTreePlugin {
     fn build(&self, app: &mut App) {
-        app.register_pref::<OpenedScene>()
+        app.init_resource::<DraggedSceneRoot>()
+            .register_pref::<OpenedScene>()
             .register_pane(SceneTreePane)
             .add_systems(Startup, setup);
     }

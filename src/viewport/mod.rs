@@ -7,22 +7,18 @@ use std::{
 };
 
 use bevy::{
-    app::{App, First, Plugin, PostUpdate, PreUpdate, Startup, Update},
-    asset::{Assets, Handle, RenderAssetUsages, uuid::Uuid},
-    camera::{
+    app::{App, First, Plugin, PostUpdate, PreUpdate, Propagate, Startup, Update}, asset::{Assets, Handle, RenderAssetUsages, uuid::Uuid}, camera::{
         Camera, Camera3d, ClearColorConfig, NormalizedRenderTarget, Projection, RenderTarget,
-        visibility::InheritedVisibility,
-    },
-    color::{
+        visibility::{InheritedVisibility, Visibility},
+    }, color::{
         Color,
         palettes::tailwind::{PINK_100, RED_500},
-    },
-    ecs::{
+    }, ecs::{
         component::Component,
         entity::Entity,
         error::Result,
         event::EntityEvent,
-        hierarchy::ChildOf,
+        hierarchy::{ChildOf, Children},
         lifecycle::{Add, Remove},
         message::{Message, MessageReader, MessageWriter},
         observer::On,
@@ -31,46 +27,37 @@ use bevy::{
         schedule::IntoScheduleConfigs,
         system::{Commands, In, Local, Query, Res, ResMut, Single},
         world::World,
-    },
-    gizmos::gizmos::Gizmos,
-    image::{BevyDefault, Image},
-    input::{
+    }, gizmos::gizmos::Gizmos, image::{BevyDefault, Image}, input::{
         ButtonInput,
         keyboard::KeyCode,
         mouse::{AccumulatedMouseMotion, MouseButton},
-    },
-    log::info,
-    math::{EulerRot, Quat, Rect, Vec2, Vec3, VectorSpace},
-    mesh::{Mesh2d, Mesh3d},
-    picking::{
+    }, log::{info, warn}, math::{EulerRot, FloatOrd, Quat, Rect, Vec2, Vec3, VectorSpace, primitives::InfinitePlane3d}, mesh::{Mesh2d, Mesh3d}, picking::{
         Pickable, PickingSystems,
-        backend::ray::RayMap,
+        backend::ray::{RayId, RayMap},
         events::{Click, Drag, DragEnd, DragStart, Move, Pointer, PointerState, Release},
         hover::HoverMap,
-        mesh_picking::{MeshPickingPlugin, MeshPickingSettings, ray_cast::RayCastVisibility},
+        mesh_picking::{
+            MeshPickingPlugin, MeshPickingSettings,
+            ray_cast::{MeshRayCast, MeshRayCastSettings, RayCastVisibility},
+        },
         pointer::{
             Location, PointerButton, PointerId, PointerInput, PointerInteraction, PointerLocation,
             PointerMap,
         },
-    },
-    platform::collections::HashMap,
-    render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages},
-    time::Time,
-    transform::components::{GlobalTransform, Transform},
-    ui::{Node, UiTargetCamera, percent, widget::ViewportNode},
-    utils::default,
-    window::PrimaryWindow,
+    }, platform::collections::HashMap, render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages}, scene::SceneRoot, time::Time, transform::components::{GlobalTransform, Transform}, ui::{Node, UiTargetCamera, percent, widget::ViewportNode}, utils::default, window::PrimaryWindow
 };
 use bevy_egui::{EguiContexts, EguiTextureHandle, EguiUserTextures};
 use bevy_mod_outline::{OutlineMode, OutlinePlugin, OutlineVolume};
 use egui::{
     Color32, CornerRadius, Frame, InnerResponse, Margin, Sense, TextureId, Ui, Widget,
-    load::SizedTexture,
+    load::SizedTexture, response,
 };
 
 use crate::{
+    asset_browser::AssetPayload,
     pane::{Pane, RegisterPane},
     properties::PropertiesApp,
+    scene_tree::{DraggedSceneRoot, InspectedScene},
     selection::{Deselect, EntitySelection, Select, SelectionMap},
     viewport::{
         camera::{FreeCamera, FreeCameraPlugin, FreeCameraState},
@@ -103,9 +90,24 @@ impl Pane for ViewportPane {
             .ui(ui)
             .interact(Sense::click_and_drag());
 
+        if response.dnd_release_payload::<AssetPayload>().is_some() {
+            if let Some(dragged) = world.resource_mut::<DraggedSceneRoot>().0.take() {
+                let root = world.query_filtered::<Entity, With<InspectedScene>>().single(world)?;
+                world.entity_mut(root).add_child(dragged);
+            }
+        }
+
         let viewport = world
             .query_filtered::<Entity, With<Viewport>>()
             .single(world)?;
+
+        let hover_pos = if response.contains_pointer() {
+            ui.ctx()
+                .pointer_hover_pos()
+                .map(|pos| Vec2::new(pos.x, pos.y))
+        } else {
+            None
+        };
 
         world.entity_mut(viewport).insert(Viewport {
             rect: Rect::from_corners(
@@ -115,15 +117,61 @@ impl Pane for ViewportPane {
             interact_pos: response
                 .interact_pointer_pos()
                 .map(|position| Vec2::new(position.x, position.y)),
-            hover_pos: response
-                .hover_pos()
-                .map(|position| Vec2::new(position.x, position.y)),
+            hover_pos,
         });
 
         world.run_system_cached_with(resize_viewport, Vec2::new(size.x, size.y))?;
 
         Ok(())
     }
+}
+
+fn set_dragged_scene_position(
+    dragged_scene: Res<DraggedSceneRoot>,
+    mut ray_cast: MeshRayCast,
+    camera: Single<(&Camera, &GlobalTransform, &Viewport)>,
+    parents: Query<&ChildOf>,
+    mut commands: Commands,
+) -> Result {
+    let Some(root) = dragged_scene.0 else {
+        return Ok(());
+    };
+
+    let (camera, transform, viewport) = *camera.deref();
+
+    let Some(viewport_position) = viewport.position() else {
+        commands.entity(root).insert(Visibility::Hidden);
+        return Ok(());
+    };
+
+    let ray = camera.viewport_to_world(transform, viewport_position)?;
+
+    let settings = MeshRayCastSettings {
+        visibility: RayCastVisibility::VisibleInView,
+        filter: &|entity| {
+            !parents
+                .iter_ancestors(entity)
+                .any(|ancestor| ancestor == root)
+        },
+        early_exit_test: &|_| true,
+    };
+
+    let hits = ray_cast.cast_ray(ray, &settings);
+
+    let position = hits.get(0).map(|(_, hit)| hit.point).unwrap_or_else(|| {
+        ray.plane_intersection_point(Vec3::ZERO, InfinitePlane3d::new(Vec3::Y))
+            .unwrap_or_default()
+    });
+
+    commands
+        .entity(root)
+        .insert(Visibility::Visible)
+        .entry::<Transform>()
+        .and_modify(move |mut transform| {
+            transform.translation = position;
+        });
+
+    Ok(())
 }
 
 fn get_viewport_texture_id(contexts: EguiContexts, target: Res<ViewportRenderTarget>) -> TextureId {
@@ -227,6 +275,7 @@ fn viewport_picking(
         &RenderTarget,
     )>,
     mut pointer_inputs: MessageReader<PointerInput>,
+
     mut commands: Commands,
 ) -> Result {
     let (pointer_id, pointer_location, picking, state, render_target) = viewport_camera.deref_mut();
@@ -349,7 +398,7 @@ impl Plugin for ViewportPlugin {
             .ignore_component::<OutlineVolume>()
             .ignore_component::<OutlineMode>()
             .add_systems(Startup, setup)
-            .add_systems(Update, deselect_all)
+            .add_systems(Update, (deselect_all, set_dragged_scene_position))
             .add_systems(First, viewport_picking.in_set(PickingSystems::PostInput))
             .add_observer(select)
             .add_observer(on_select)
