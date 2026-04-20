@@ -7,7 +7,7 @@ use bevy::{
     asset::{Handle, ReflectHandle, uuid},
     mesh::{Mesh, Mesh3d},
     pbr::StandardMaterial,
-    platform::time::Instant,
+    platform::time::Instant, transform::components::Transform,
 };
 use bevy::{
     ecs::error::Result,
@@ -276,6 +276,7 @@ pub fn register_glam_impls(type_registry: &mut TypeRegistry) {
 #[rustfmt::skip]
 pub fn register_bevy_impls(type_registry: &mut TypeRegistry) {
     type_registry.register_type_data::<bevy::ecs::entity::Entity, ReflectInspector>();
+    type_registry.register_type_data::<Transform, ReflectInspector>();
     type_registry.register_type_data::<bevy::color::Color, ReflectInspector>();
     type_registry.register_type_data::<bevy::color::Srgba, ReflectInspector>();
     type_registry.register_type_data::<bevy::color::LinearRgba, ReflectInspector>();

@@ -5,8 +5,11 @@ use bevy::camera::visibility::RenderLayers;
 use bevy::color::{Color, Hsla, Hsva, LinearRgba, Srgba};
 use bevy::ecs::entity::Entity;
 use bevy::ecs::error::Result;
+use bevy::math::{EulerRot, Quat, Vec3};
 use bevy::reflect::PartialReflect;
-use egui::Color32;
+use bevy::transform::components::Transform;
+use bevy::utils::default;
+use egui::{Color32, CornerRadius, DragValue, Frame, Label, Margin, Ui, Widget, vec2};
 
 use crate::inspection::reflect_inspector::InspectorUi;
 
@@ -59,6 +62,141 @@ impl Inspector for Entity {
         let value = value.try_downcast_ref::<Self>().unwrap();
         ui.label(format!("{value:?}"));
         Ok(())
+    }
+}
+
+const TRANSFORM_COMPONENT_LABELS: &'static [&'static str] = &["X", "Y", "Z"];
+const TRANSFORM_COMPONENT_COLORS: &'static [Color32] = &[
+    Color32::from_rgb(204, 67, 65),
+    Color32::from_rgb(38, 156, 51),
+    Color32::from_rgb(36, 102, 233),
+];
+
+fn transform_component_ui(ui: &mut Ui, index: usize, value: &mut f32) -> Result<bool> {
+    let response = ui
+        .allocate_ui(vec2(20.0, 22.0), |ui| {
+            ui.spacing_mut().item_spacing.x = 0.0;
+            ui.horizontal(|ui| {
+                Frame::new()
+                    .fill(TRANSFORM_COMPONENT_COLORS[index])
+                    .corner_radius(CornerRadius {
+                        nw: 2,
+                        sw: 2,
+                        ..default()
+                    })
+                    .inner_margin(Margin {
+                        left: 2,
+                        ..default()
+                    })
+                    .show(ui, |ui| {
+                        Frame::new()
+                            .fill(ui.style().visuals.widgets.hovered.bg_fill)
+                            .corner_radius(CornerRadius {
+                                nw: 2,
+                                sw: 2,
+                                ..default()
+                            })
+                            .inner_margin(Margin::symmetric(6, 2))
+                            .show(ui, |ui| {
+                                Label::new(TRANSFORM_COMPONENT_LABELS[index])
+                                    .selectable(false)
+                                    .ui(ui);
+                            });
+                    });
+
+                ui.spacing_mut().interact_size = ui.available_size();
+                ui.visuals_mut().widgets.inactive.corner_radius.nw = 0;
+                ui.visuals_mut().widgets.inactive.corner_radius.sw = 0;
+                ui.visuals_mut().widgets.hovered.corner_radius.nw = 0;
+                ui.visuals_mut().widgets.hovered.corner_radius.sw = 0;
+                ui.visuals_mut().widgets.active.corner_radius.nw = 0;
+                ui.visuals_mut().widgets.active.corner_radius.sw = 0;
+                DragValue::new(value).speed(0.1).ui(ui)
+            })
+            .inner
+        })
+        .inner;
+
+    Ok(response.changed())
+}
+
+impl Inspector for Transform {
+    fn ui(
+        ui: &mut egui::Ui,
+        options: &dyn Any,
+        id: egui::Id,
+        mut env: InspectorUi<'_, '_>,
+        value: &mut dyn PartialReflect,
+    ) -> Result<bool> {
+        let mut changed = false;
+
+        let value = value.try_downcast_mut::<Transform>().unwrap();
+
+        ui.vertical(|ui| -> Result {
+            ui.weak("Translation");
+
+            ui.horizontal(|ui| -> Result {
+                ui.take_available_width();
+                ui.columns(3, |ui| {
+                    for (i, ui) in ui.iter_mut().enumerate() {
+                        changed |= transform_component_ui(ui, i, &mut value.translation[i])?;
+                    }
+
+                    Ok(())
+                })
+            })
+            .inner?;
+
+            ui.weak("Rotation");
+
+            ui.horizontal(|ui| -> Result {
+                let id = id.with("euler_angles");
+
+                let mut rotation = ui.memory_mut(|memory| {
+                    *memory.data.get_temp_mut_or_insert_with(id, || {
+                        Vec3::from(value.rotation.to_euler(EulerRot::XYZ))
+                            .map(|component| component.to_degrees())
+                    })
+                });
+
+                ui.take_available_width();
+                ui.columns(3, |ui| -> Result {
+                    for (i, ui) in ui.iter_mut().enumerate() {
+                        changed |= transform_component_ui(ui, i, &mut rotation[i])?;
+                    }
+
+                    Ok(())
+                })?;
+
+                ui.memory_mut(|memory| memory.data.insert_temp(id, rotation));
+
+                let rotation = rotation.map(|component| component.to_radians());
+                value.rotation =
+                    Quat::from_euler(EulerRot::XYZ, rotation.x, rotation.y, rotation.z);
+
+                Ok(())
+            })
+            .inner?;
+
+            ui.weak("Scale");
+
+            ui.horizontal(|ui| -> Result {
+                ui.take_available_width();
+                ui.columns(3, |ui| {
+                    for (i, ui) in ui.iter_mut().enumerate() {
+                        changed |= transform_component_ui(ui, i, &mut value.scale[i])?;
+                    }
+
+                    Ok(())
+                })
+            })
+            .inner?;
+
+            Ok(())
+        })
+        .inner?;
+
+        Ok(changed)
     }
 }
 

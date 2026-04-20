@@ -25,10 +25,14 @@ use bevy::{
     platform::collections::{HashMap, HashSet},
     reflect::{TypePathTable, TypeRegistry, prelude::ReflectDefault},
     render::sync_world::{RenderEntity, SyncToRenderWorld},
-    transform::components::{GlobalTransform, TransformTreeChanged},
+    transform::components::{GlobalTransform, Transform, TransformTreeChanged},
 };
 use egui::{
-    Align, Button, Color32, Frame, Grid, Id, InnerResponse, Label, Layout, Margin, Popup, Response, ScrollArea, Sense, SetOpenCommand, TextEdit, TextWrapMode, TextureId, Ui, Vec2, Widget, Window, collapsing_header::{CollapsingState, paint_default_icon}, output::OutputEvent, vec2
+    Align, Button, Color32, Frame, Grid, Id, InnerResponse, Label, Layout, Margin, Popup, Response,
+    ScrollArea, Sense, SetOpenCommand, TextEdit, TextWrapMode, TextureId, Ui, Vec2, Widget, Window,
+    collapsing_header::{CollapsingState, paint_default_icon},
+    output::OutputEvent,
+    vec2,
 };
 use fuzzy_matcher::{FuzzyMatcher, skim::SkimMatcherV2};
 use lucide_icons::Icon;
@@ -485,34 +489,40 @@ fn ui_for_entity_components(
                 let inner = collapsing_state.show_body_unindented(ui, |ui| -> Result {
                     Frame::new()
                         .inner_margin(7)
-                        .show(ui, |ui| -> Result {
-                            let mut ctx = Context { world, queue };
-                            let mut env = InspectorUi::new(type_registry, &mut ctx);
-                            let options = &();
+                        .show(ui, |ui| {
+                            ScrollArea::horizontal()
+                                .show(ui, |ui| -> Result {
+                                    let mut ctx = Context { world, queue };
+                                    let mut env = InspectorUi::new(type_registry, &mut ctx);
+                                    let options = &();
 
-                            match value {
-                                ReflectBorrow::Mutable(mut value) => {
-                                    let changed = env.ui_for_reflect_with_options(
-                                        value.bypass_change_detection().as_partial_reflect_mut(),
-                                        ui,
-                                        id,
-                                        options,
-                                    )?;
+                                    match value {
+                                        ReflectBorrow::Mutable(mut value) => {
+                                            let changed = env.ui_for_reflect_with_options(
+                                                value
+                                                    .bypass_change_detection()
+                                                    .as_partial_reflect_mut(),
+                                                ui,
+                                                id,
+                                                options,
+                                            )?;
 
-                                    if changed {
-                                        value.set_changed();
-                                    }
-                                }
-                                ReflectBorrow::Immutable(value) => env
-                                    .ui_for_reflect_readonly_with_options(
-                                        value.as_partial_reflect(),
-                                        ui,
-                                        id,
-                                        options,
-                                    )?,
-                            };
+                                            if changed {
+                                                value.set_changed();
+                                            }
+                                        }
+                                        ReflectBorrow::Immutable(value) => env
+                                            .ui_for_reflect_readonly_with_options(
+                                                value.as_partial_reflect(),
+                                                ui,
+                                                id,
+                                                options,
+                                            )?,
+                                    };
 
-                            Ok(())
+                                    Ok(())
+                                })
+                                .inner
                         })
                         .inner
                 });
@@ -580,6 +590,13 @@ fn get_entity_component_data(
         .collect();
 
     components.sort_by(|a, b| a.name.cmp(&b.name));
+
+    if let Some(transform_index) = components
+        .iter()
+        .position(|item| item.type_id == TypeId::of::<Transform>())
+    {
+        components.swap(transform_index, 0);
+    }
 
     Ok(components)
 }
