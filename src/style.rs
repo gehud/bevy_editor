@@ -1,9 +1,10 @@
-use crate::dock::Style as DockStyle;
+use crate::{
+    assets::{ICON_TEXT_STYLE, LUCIDE_FONT_FAMILY},
+    dock::Style as DockStyle,
+};
 
 use bevy::utils::default;
-use egui::{
-    Color32, CornerRadius, FontFamily, FontId, Margin, Shadow, Stroke, Style, TextStyle, Vec2,
-};
+use egui::{Color32, CornerRadius, FontFamily, FontId, Margin, Shadow, Stroke, Style, TextStyle};
 
 pub const ACCENT: Color32 = Color32::from_rgb(32, 110, 201);
 
@@ -27,6 +28,10 @@ pub fn set_dark_style(style: &mut Style) {
         (
             TextStyle::Heading,
             FontId::new(13.5, FontFamily::Proportional),
+        ),
+        (
+            TextStyle::Name(ICON_TEXT_STYLE.into()),
+            FontId::new(15.0, FontFamily::Name(LUCIDE_FONT_FAMILY.into())),
         ),
     ]
     .into();

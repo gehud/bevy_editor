@@ -16,20 +16,21 @@ use bevy::{
         error::Result,
         hierarchy::{ChildOf, Children},
         name::Name,
-        reflect::AppTypeRegistry,
+        reflect::{AppTypeRegistry, ReflectComponent},
         resource::Resource,
         world::{CommandQueue, World},
     },
     picking::{events::Scroll, hover::PickingInteraction},
     platform::collections::{HashMap, HashSet},
-    reflect::TypeRegistry,
+    reflect::{TypeRegistry, prelude::ReflectDefault},
     render::sync_world::{RenderEntity, SyncToRenderWorld},
     transform::components::{GlobalTransform, TransformTreeChanged},
 };
 use egui::{
-    Button, Color32, Frame, Id, InnerResponse, Label, Margin, Response, ScrollArea, TextEdit,
-    TextureId, Ui, Vec2, Widget, Window,
+    Align, Button, Color32, Frame, Grid, Id, InnerResponse, Label, Layout, Margin, Popup, Response,
+    ScrollArea, Sense, SetOpenCommand, TextEdit, TextWrapMode, TextureId, Ui, Vec2, Widget, Window,
     collapsing_header::{CollapsingState, paint_default_icon},
+    vec2,
 };
 use lucide_icons::Icon;
 
@@ -152,6 +153,8 @@ fn ui_for_entity(ui: &mut Ui, world: &mut World, entity: Entity, id: Id) -> Resu
     ui.separator();
 
     let mut queue = CommandQueue::default();
+
+    add_component_ui(world, &mut queue, entity, ui, &type_registry);
     ui_for_entity_components(
         &mut world.into(),
         &mut queue,
@@ -263,6 +266,79 @@ fn ui_for_entities(ui: &mut Ui, world: &mut World, entities: &[Entity], id: Id) 
     Ok(())
 }
 
+fn add_component_ui(
+    world: &mut World,
+    queue: &mut CommandQueue,
+    entity: Entity,
+    ui: &mut Ui,
+    type_registry: &TypeRegistry,
+) {
+    let response = ui
+        .allocate_ui(vec2(ui.available_width(), 24.0), |ui| {
+            Frame::new()
+                .fill(ui.style().visuals.widgets.inactive.bg_fill)
+                .inner_margin(Margin::symmetric(10, 5))
+                .corner_radius(5)
+                .show(ui, |ui| {
+                    ui.vertical_centered_justified(|ui| {
+                        ui.columns(3, |ui| {
+                            ui[1].horizontal_centered(|ui| {
+                                ui.add(MaterialIcon::new(Icon::PackagePlus));
+                                ui.add(Label::new("Add Component").selectable(false));
+                            });
+                        });
+                    });
+                });
+        })
+        .response
+        .interact(Sense::click());
+
+    let component_ignore = world.resource::<ComponentIgnore>();
+
+    Popup::menu(&response)
+        .open_memory(if response.clicked() {
+            Some(SetOpenCommand::Bool(true))
+        } else {
+            None
+        })
+        .at_pointer_fixed()
+        .show(|ui| {
+            ScrollArea::vertical().max_height(500.0).show(ui, |ui| {
+                for (path, component, default) in type_registry.iter().filter_map(|registration| {
+                    let component = registration.data::<ReflectComponent>()?;
+
+                    if component_ignore.ids.contains(&registration.type_id()) {
+                        return None;
+                    }
+
+                    let default = registration.data::<ReflectDefault>()?;
+
+                    Some((
+                        registration.type_info().type_path().to_string(),
+                        component,
+                        default,
+                    ))
+                }) {
+                    if ui.button(path).clicked() {
+                        let entity = entity;
+                        let component = component.clone();
+                        let default = default.clone();
+                        queue.push(move |world: &mut World| {
+                            let type_registry = world.resource::<AppTypeRegistry>().clone();
+                            let type_registry = type_registry.read();
+                            let mut entity = world.entity_mut(entity);
+                            component.insert(
+                                &mut entity,
+                                default.default().as_partial_reflect(),
+                                &type_registry,
+                            );
+                        });
+                    }
+                }
+            });
+        });
+}
+
 fn ui_for_entity_components(
     world: &mut RestrictedWorldView<'_>,
     queue: &mut CommandQueue,
@@ -282,19 +358,20 @@ fn ui_for_entity_components(
     let mut tags_collapsing_state =
         CollapsingState::load_with_default_open(ui.ctx(), id.with("tags_collapsing"), true);
 
-    Frame::new()
-        .fill(ui.style().visuals.widgets.inactive.bg_fill)
-        .inner_margin(Margin::symmetric(10, 5))
-        .corner_radius(5)
-        .show(ui, |ui| {
-            ui.take_available_width();
-            ui.horizontal(|ui| {
-                tags_collapsing_state.show_toggle_button(ui, paint_collapsing_button);
-                ui.heading("Tags");
+    ui.allocate_ui(vec2(ui.available_width(), 24.0), |ui| {
+        Frame::new()
+            .fill(ui.style().visuals.widgets.inactive.bg_fill)
+            .inner_margin(Margin::symmetric(10, 5))
+            .corner_radius(5)
+            .show(ui, |ui| {
+                ui.horizontal_centered(|ui| {
+                    tags_collapsing_state.show_toggle_button(ui, paint_collapsing_button);
+                    ui.vertical_centered(|ui| {
+                        ui.label("Tags");
+                    });
+                });
             });
-        });
-
-    let mut component_to_remove = None;
+    });
 
     tags_collapsing_state.show_body_unindented(ui, |ui| {
         ui.take_available_width();
@@ -321,7 +398,11 @@ fn ui_for_entity_components(
                                 .ui(ui)
                                 .clicked()
                             {
-                                component_to_remove = Some(data.type_id);
+                                let entity = entity;
+                                let component_id = data.component_id;
+                                queue.push(move |world: &mut World| {
+                                    world.entity_mut(entity).remove_by_id(component_id);
+                                });
                             }
                         });
                 }
@@ -329,156 +410,119 @@ fn ui_for_entity_components(
         });
     });
 
-    let mut components_collapsing_state =
-        CollapsingState::load_with_default_open(ui.ctx(), id.with("components_collapsing"), true);
+    for data in components {
+        let id = Id::new(data.component_id);
 
-    Frame::new()
-        .fill(ui.style().visuals.widgets.inactive.bg_fill)
-        .inner_margin(Margin::symmetric(10, 5))
-        .corner_radius(5)
-        .show(ui, |ui| {
-            ui.take_available_width();
-            ui.horizontal(|ui| {
-                components_collapsing_state.show_toggle_button(ui, paint_collapsing_button);
-                ui.heading("Components");
-            });
-        });
+        #[cfg(feature = "documentation")]
+        let type_docs = type_registry
+            .get_type_info(data.type_id)
+            .and_then(|info| info.docs());
 
-    let inner = components_collapsing_state.show_body_unindented(ui, |ui| -> Result {
-        for data in components {
-            let id = Id::new(data.component_id);
+        let mut collapsing_state =
+            CollapsingState::load_with_default_open(ui.ctx(), id.with("collapsing"), true);
 
-            #[cfg(feature = "documentation")]
-            let type_docs = type_registry
-                .get_type_info(data.type_id)
-                .and_then(|info| info.docs());
+        let (mut component_view, world) = world.split_off_component((entity, data.type_id));
 
-            let mut collapsing_state = CollapsingState::load_with_default_open(ui.ctx(), id, true);
-
-            // create a context with access to the world except for the currently viewed component
-            let (mut component_view, world) = world.split_off_component((entity, data.type_id));
-            let mut cx = Context {
-                world: world,
-                queue: queue,
-            };
-
-            let value = match component_view.get_entity_component_reflect(
-                entity,
-                data.type_id,
-                type_registry,
-            ) {
-                Ok(value) => value,
-                Err(_) => {
-                    continue;
-                }
-            };
-
-            let changed_by = match &value {
-                ReflectBorrow::Mutable(val) => val.changed_by().into_option(),
-                ReflectBorrow::Immutable(_) => None,
-            };
-
-            let InnerResponse {
-                inner: header_response,
-                ..
-            } = Frame::new()
-                .stroke(ui.style().visuals.widgets.open.bg_stroke)
-                .corner_radius(ui.style().visuals.widgets.active.corner_radius)
-                .show(ui, |ui| -> Result<Response> {
-                    let InnerResponse {
-                        response: header_response,
-                        ..
-                    } = Frame::new()
-                        .fill(ui.style().visuals.widgets.active.bg_fill)
-                        .inner_margin(ui.style().spacing.button_padding)
-                        .show(ui, |ui| {
-                            ui.horizontal(|ui| {
-                                collapsing_state.show_toggle_button(ui, paint_default_icon);
-                                ui.vertical_centered(|ui| {
-                                    ui.label(&data.name);
-                                });
-                            });
-                        });
-
-                    let inner = collapsing_state.show_body_unindented(ui, |ui| -> Result {
-                        Frame::new()
-                            .inner_margin(ui.style().spacing.button_padding)
-                            .show(ui, |ui| -> Result {
-                                let mut env = InspectorUi::new(type_registry, &mut cx);
-                                let id = id.with(data.component_id);
-                                let options = &();
-
-                                match value {
-                                    ReflectBorrow::Mutable(mut value) => {
-                                        let changed = env.ui_for_reflect_with_options(
-                                            value
-                                                .bypass_change_detection()
-                                                .as_partial_reflect_mut(),
-                                            ui,
-                                            id,
-                                            options,
-                                        )?;
-
-                                        if changed {
-                                            value.set_changed();
-                                        }
-                                    }
-                                    ReflectBorrow::Immutable(value) => env
-                                        .ui_for_reflect_readonly_with_options(
-                                            value.as_partial_reflect(),
-                                            ui,
-                                            id,
-                                            options,
-                                        )?,
-                                };
-
-                                Ok(())
-                            })
-                            .inner
-                    });
-
-                    if let Some(inner) = inner {
-                        inner.inner?;
-                    }
-
-                    Ok(header_response)
-                });
-
-            let response = header_response?;
-
-            if let Some(location) = changed_by {
-                response.context_menu(|ui| {
-                    ui.label("Last change:");
-                    let path = Path::new(location.file());
-                    let pretty = utils::trim_cargo_registry_path(path);
-
-                    if ui
-                        .button(format!(
-                            "{}:{}:{}",
-                            pretty.as_deref().unwrap_or(path).display(),
-                            location.line(),
-                            location.column()
-                        ))
-                        .clicked()
-                    {
-                        if let Err(e) = utils::open_file_at(location) {
-                            bevy::log::error!("Failed to open last change location: {}", e);
-                        } else {
-                            bevy::log::info!("Successfully opened {location}");
-                        }
-                    }
-                });
+        let value = match component_view.get_entity_component_reflect(
+            entity,
+            data.type_id,
+            type_registry,
+        ) {
+            Ok(value) => value,
+            Err(_) => {
+                continue;
             }
+        };
 
-            #[cfg(feature = "documentation")]
-            crate::inspection::egui_utils::show_docs(response, type_docs);
-        }
+        let header_response = Frame::new()
+            .stroke(ui.style().visuals.widgets.open.bg_stroke)
+            .corner_radius(5)
+            .show(ui, |ui| -> Result<Response> {
+                let header_response = ui
+                    .allocate_ui(vec2(ui.available_width(), 24.0), |ui| {
+                        Frame::new()
+                            .fill(ui.style().visuals.widgets.inactive.bg_fill)
+                            .inner_margin(Margin::symmetric(10, 5))
+                            .show(ui, |ui| {
+                                ui.horizontal_centered(|ui| {
+                                    ui.columns(3, |ui| {
+                                        ui[0].with_layout(Layout::top_down(Align::Min), |ui| {
+                                            collapsing_state
+                                                .show_toggle_button(ui, paint_collapsing_button);
+                                        });
 
-        Ok(())
-    });
+                                        ui[1].with_layout(Layout::top_down(Align::Center), |ui| {
+                                            Label::new(&data.name)
+                                                .wrap_mode(TextWrapMode::Truncate)
+                                                .ui(ui);
+                                        });
 
-    if let Some(inner) = inner {
-        inner.inner?;
+                                        ui[2].with_layout(Layout::top_down(Align::Max), |ui| {
+                                            if ui
+                                                .label(MaterialIcon::new(Icon::X))
+                                                .interact(Sense::click())
+                                                .clicked()
+                                            {
+                                                let entity = entity;
+                                                let component_id = data.component_id;
+                                                queue.push(move |world: &mut World| {
+                                                    world
+                                                        .entity_mut(entity)
+                                                        .remove_by_id(component_id);
+                                                });
+                                            }
+                                        });
+                                    });
+                                });
+                            })
+                    })
+                    .response;
+
+                let inner = collapsing_state.show_body_unindented(ui, |ui| -> Result {
+                    Frame::new()
+                        .inner_margin(7)
+                        .show(ui, |ui| -> Result {
+                            let mut ctx = Context { world, queue };
+                            let mut env = InspectorUi::new(type_registry, &mut ctx);
+                            let options = &();
+
+                            match value {
+                                ReflectBorrow::Mutable(mut value) => {
+                                    let changed = env.ui_for_reflect_with_options(
+                                        value.bypass_change_detection().as_partial_reflect_mut(),
+                                        ui,
+                                        id,
+                                        options,
+                                    )?;
+
+                                    if changed {
+                                        value.set_changed();
+                                    }
+                                }
+                                ReflectBorrow::Immutable(value) => env
+                                    .ui_for_reflect_readonly_with_options(
+                                        value.as_partial_reflect(),
+                                        ui,
+                                        id,
+                                        options,
+                                    )?,
+                            };
+
+                            Ok(())
+                        })
+                        .inner
+                });
+
+                if let Some(inner) = inner {
+                    inner.inner?;
+                }
+
+                Ok(header_response)
+            })
+            .inner?;
+
+        #[cfg(feature = "documentation")]
+        crate::inspection::egui_utils::show_docs(header_response, type_docs);
     }
 
     Ok(())

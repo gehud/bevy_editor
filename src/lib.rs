@@ -251,9 +251,5 @@ fn ui(
         })
         .inner?;
 
-    if ui.response().interact(Sense::click()).clicked() {
-        world.resource_mut::<SelectionMap>().clear();
-    }
-
     Ok(())
 }

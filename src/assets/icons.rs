@@ -1,7 +1,7 @@
-use egui::{FontFamily, RichText};
+use egui::{FontFamily, Label, Response, RichText, TextStyle, Ui, Widget};
 pub use lucide_icons::Icon;
 
-use crate::assets::LUCIDE_FONT_FAMILY;
+use crate::assets::{ICON_TEXT_STYLE, LUCIDE_FONT_FAMILY};
 
 #[derive(Clone, Copy, Debug)]
 pub struct MaterialIcon {
@@ -17,8 +17,14 @@ impl MaterialIcon {
         FontFamily::Name(LUCIDE_FONT_FAMILY.into())
     }
 
+    pub fn text_style(&self) -> TextStyle {
+        TextStyle::Name(ICON_TEXT_STYLE.into())
+    }
+
     pub fn rich_text(self) -> RichText {
-        RichText::new(self.icon.unicode()).family(self.font_family())
+        RichText::new(self.icon.unicode())
+            .family(self.font_family())
+            .text_style(self.text_style())
     }
 }
 
@@ -43,5 +49,11 @@ impl From<MaterialIcon> for char {
 impl From<MaterialIcon> for String {
     fn from(icon: MaterialIcon) -> Self {
         icon.icon.unicode().to_string()
+    }
+}
+
+impl Widget for MaterialIcon {
+    fn ui(self, ui: &mut Ui) -> Response {
+        Label::new(self).selectable(false).ui(ui)
     }
 }
