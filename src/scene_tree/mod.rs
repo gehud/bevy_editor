@@ -1,8 +1,8 @@
-use std::ops::Deref;
+use std::{ops::Deref, path::PathBuf};
 
 use bevy::{
     app::{App, Plugin, Startup},
-    asset::{Assets, Handle},
+    asset::{AssetPath, AssetServer, Assets, Handle},
     camera::visibility::Visibility,
     color::Color,
     ecs::{
@@ -12,7 +12,8 @@ use bevy::{
         hierarchy::{ChildOf, Children},
         name::Name,
         query::{Or, With, Without},
-        system::{Commands, Query, ResMut},
+        resource::Resource,
+        system::{Commands, Query, Res, ResMut},
         world::World,
     },
     gltf::Gltf,
@@ -34,11 +35,13 @@ use egui::{
     Widget, collapsing_header::CollapsingState, emath,
 };
 use lucide_icons::Icon;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     asset_browser::AssetPayload,
     assets::icons::MaterialIcon,
     pane::{Pane, RegisterPane},
+    prefs::RegisterPref,
     selection::{EntitySelection, SelectionMap},
     style::ACCENT,
     utils::paint_collapsing_button,
@@ -124,20 +127,10 @@ impl Pane for SceneTreePane {
             frame.frame.stroke = ui.style().visuals.widgets.active.bg_stroke;
 
             if response.dnd_release_payload::<AssetPayload>().is_some() {
-                let name = scene
-                    .path()
-                    .and_then(|path| {
-                        path.path()
-                            .with_extension("")
-                            .file_name()
-                            .map(|name| name.to_string_lossy().to_string())
-                    })
-                    .unwrap_or_else(|| "Untitled".into());
-
                 world.entity_mut(root).despawn();
                 world.spawn((
                     InspectedScene,
-                    Name::new(name),
+                    Name::new(scene_name(scene.path())),
                     Visibility::Visible,
                     Transform::IDENTITY,
                     SceneRoot(scene),
@@ -191,12 +184,7 @@ fn entity_ui_recurse(ui: &mut Ui, world: &mut World, entity: Entity, id: Id) {
                 response.dnd_set_drag_payload(EntityPayload { entity });
 
                 let mut frame = Frame::new()
-                    .inner_margin(Margin {
-                        top: 4,
-                        right: 8,
-                        bottom: 4,
-                        left: 8,
-                    })
+                    .inner_margin(Margin::symmetric(8, 4))
                     .stroke(Stroke::new(1.0, Color32::TRANSPARENT))
                     .corner_radius(CornerRadius::same(4));
 
@@ -388,60 +376,65 @@ fn despawn_selected(world: &mut World) {
     }
 }
 
+#[derive(Default, Resource, Serialize, Deserialize)]
+struct OpenedScene(Option<PathBuf>);
+
 #[derive(Component)]
 struct InspectedScene;
 
+fn scene_name<'a>(asset_path: Option<&AssetPath<'a>>) -> String {
+    asset_path
+        .and_then(|path| {
+            path.path()
+                .with_extension("")
+                .file_name()
+                .map(|name| name.to_string_lossy().to_string())
+        })
+        .unwrap_or_else(|| "Untitled".into())
+}
+
 fn setup(
+    opened_scene: Res<OpenedScene>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut scenes: ResMut<Assets<Scene>>,
     mut commands: Commands,
+    asset_server: Res<AssetServer>,
 ) {
-    let mut scene = Scene::new(World::new());
+    let handle = if let Some(path) = &opened_scene.0 {
+        asset_server.load(path.clone())
+    } else {
+        let mut scene = Scene::new(World::new());
 
-    scene.world.spawn((
-        Mesh3d(meshes.add(Circle::new(4.0))),
-        MeshMaterial3d(materials.add(Color::WHITE)),
-        Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
-    ));
+        scene.world.spawn((
+            Mesh3d(meshes.add(Circle::new(4.0))),
+            MeshMaterial3d(materials.add(Color::WHITE)),
+            Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
+        ));
 
-    scene.world.spawn((
-        Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
-        MeshMaterial3d(materials.add(Color::srgb_u8(124, 144, 255))),
-        Transform::from_xyz(0.0, 0.5, 0.0),
-    ));
+        scene.world.spawn((
+            Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
+            MeshMaterial3d(materials.add(Color::srgb_u8(124, 144, 255))),
+            Transform::from_xyz(0.0, 0.5, 0.0),
+        ));
 
-    scene.world.spawn((
-        PointLight {
-            shadows_enabled: true,
-            ..default()
-        },
-        Transform::from_xyz(4.0, 8.0, 4.0),
-    ));
+        scene.world.spawn((
+            PointLight {
+                shadows_enabled: true,
+                ..default()
+            },
+            Transform::from_xyz(4.0, 8.0, 4.0),
+        ));
 
-    for i in 0..3 {
-        let a = scene.world.spawn(Name::new(format!("A{}", i))).id();
-        for j in 0..3 {
-            let b = scene
-                .world
-                .spawn((ChildOf(a), Name::new(format!("B{}", j))))
-                .id();
-            for k in 0..3 {
-                scene
-                    .world
-                    .spawn((ChildOf(b), Name::new(format!("C{}", k))));
-            }
-        }
-    }
-
-    let scene_handle = scenes.add(scene);
+        scenes.add(scene)
+    };
 
     commands.spawn((
         InspectedScene,
         Visibility::Visible,
         Transform::IDENTITY,
-        Name::new("Sample"),
-        SceneRoot(scene_handle),
+        Name::new(scene_name(handle.path())),
+        SceneRoot(handle),
     ));
 }
 
@@ -449,6 +442,8 @@ pub struct SceneTreePlugin;
 
 impl Plugin for SceneTreePlugin {
     fn build(&self, app: &mut App) {
-        app.register_pane(SceneTreePane).add_systems(Startup, setup);
+        app.register_pref::<OpenedScene>()
+            .register_pane(SceneTreePane)
+            .add_systems(Startup, setup);
     }
 }

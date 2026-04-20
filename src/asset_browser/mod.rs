@@ -20,10 +20,10 @@ use bevy::{
     utils::default,
 };
 use egui::{
-    Align2, Color32, FontId, FontSelection, Frame, Id, InnerResponse, Label, Margin, RichText,
-    ScrollArea, Sense, Shape, Stroke, TextureOptions, Ui, UiBuilder,
+    Align2, Color32, CornerRadius, FontId, FontSelection, Frame, Id, InnerResponse, Label, LayerId,
+    Margin, Order, RichText, ScrollArea, Sense, Shape, Stroke, TextureOptions, Ui, UiBuilder,
     collapsing_header::{CollapsingState, paint_default_icon},
-    emath::Rot2,
+    emath::{Rot2, TSTransform},
     epaint::{PathShape, PathStroke, TextShape},
     load::SizedTexture,
     text::LayoutJob,
@@ -65,6 +65,8 @@ impl Pane for AssetBrowser {
 
         let mut inspected_assets = HashSet::new();
 
+        let id = ui.id();
+
         Frame::new()
             .inner_margin(Margin {
                 top: 8,
@@ -77,7 +79,7 @@ impl Pane for AssetBrowser {
                     .show(ui, |ui| -> Result {
                         for entry in read_dir("assets")? {
                             let asset_path = entry?.path().strip_prefix("assets")?.to_owned();
-                            ui_for_asset(ui, world, asset_path, &mut inspected_assets)?;
+                            ui_for_asset(ui, id, world, asset_path, &mut inspected_assets)?;
                         }
 
                         Ok(())
@@ -104,42 +106,24 @@ struct AssetTree(HashMap<String, AssetState>);
 
 pub(crate) struct AssetPayload(pub UntypedHandle);
 
+pub(crate) struct FilePayload(pub PathBuf);
+
 enum AssetBrowserEntry {
-    Directory {
-        file_name: String,
-        path: PathBuf,
-    },
-    File {
-        file_name: String,
-    },
-    Asset {
-        asset_path: String,
-        file_name: String,
-        labels: Option<HashSet<Box<str>>>,
-    },
-    LabeledAsset {
-        asset_path: String,
-        label: String,
-    },
+    Directory,
+    File,
+    Asset { labels: Option<HashSet<Box<str>>> },
+    LabeledAsset { label: String },
 }
 
 impl AssetBrowserEntry {
-    fn new<'a>(path: impl Into<AssetPath<'a>>, world: &mut World) -> Result<Self> {
-        let asset_path = path.into();
-        let path = Path::new("assets").join(asset_path.path().to_path_buf());
-
+    fn new<'a>(asset_path: &AssetPath<'a>, path: &PathBuf, world: &mut World) -> Result<Self> {
         if let Some(label) = asset_path.label() {
             Ok(Self::LabeledAsset {
-                asset_path: asset_path.to_string(),
                 label: label.to_string(),
             })
         } else {
-            let file_name = path
-                .file_name()
-                .map(|file_name| file_name.to_string_lossy().to_string())
-                .ok_or_else(|| BevyError::from("Wrong path"))?;
             if path.is_dir() {
-                Ok(Self::Directory { file_name, path })
+                Ok(Self::Directory)
             } else {
                 let extension = path
                     .extension()
@@ -149,206 +133,216 @@ impl AssetBrowserEntry {
                 let asset_server = world.resource::<AssetServer>();
 
                 if block_on(asset_server.get_asset_loader_with_extension(&extension)).is_ok() {
-                    let labels = asset_server.get_living_labeled_assets(&asset_path);
+                    let labels = asset_server.get_living_labeled_assets(asset_path);
 
-                    Ok(Self::Asset {
-                        asset_path: asset_path.to_string(),
-                        file_name,
-                        labels,
-                    })
+                    Ok(Self::Asset { labels })
                 } else {
-                    Ok(Self::File { file_name })
+                    Ok(Self::File)
                 }
             }
         }
-    }
-
-    fn header(
-        &self,
-        ui: &mut Ui,
-        state: &mut CollapsingState,
-        world: &mut World,
-        inspected_assets: &mut HashSet<String>,
-    ) -> Result {
-        match self {
-            AssetBrowserEntry::Directory { file_name, .. } => {
-                state.show_toggle_button(ui, paint_collapsing_button);
-                ui.label(file_name);
-            }
-            AssetBrowserEntry::File { file_name, .. } => {
-                ui.label(MaterialIcon::new(Icon::File).rich_text().size(15.0));
-                ui.label(file_name);
-            }
-            AssetBrowserEntry::Asset {
-                file_name,
-                labels,
-                asset_path,
-            } => {
-                inspected_assets.insert(asset_path.clone());
-
-                if labels.as_ref().is_some_and(|labels| !labels.is_empty()) {
-                    state.show_toggle_button(ui, paint_collapsing_button);
-                }
-
-                let state = world.resource::<AssetTree>().0.get(asset_path).cloned();
-
-                ui.label(MaterialIcon::new(Icon::Box).rich_text().size(15.0));
-
-                if let Some(state) = state {
-                    match state {
-                        AssetState::Loading(handle) => {
-                            ui.label("Loading...");
-
-                            if let Some(loaded) = world
-                                .resource::<Assets<LoadedUntypedAsset>>()
-                                .get(&handle)
-                                .map(|handle| handle.handle.clone())
-                            {
-                                world
-                                    .resource_mut::<AssetTree>()
-                                    .0
-                                    .insert(asset_path.clone(), AssetState::Ready(loaded));
-                            }
-                        }
-                        AssetState::Ready(untyped_handle) => {
-                            ui.dnd_drag_source(
-                                Id::new(asset_path).with("dnd_drag_source"),
-                                AssetPayload(untyped_handle),
-                                |ui| ui.label(file_name),
-                            );
-                        }
-                    }
-                } else {
-                    let handle = world.resource::<AssetServer>().load_untyped(asset_path);
-                    world
-                        .resource_mut::<AssetTree>()
-                        .0
-                        .insert(asset_path.clone(), AssetState::Loading(handle));
-                }
-            }
-            AssetBrowserEntry::LabeledAsset { label, asset_path } => {
-                inspected_assets.insert(asset_path.clone());
-                ui.label(MaterialIcon::new(Icon::Box).rich_text().size(15.0));
-
-                let state = world.resource::<AssetTree>().0.get(asset_path).cloned();
-
-                if let Some(state) = state {
-                    match state {
-                        AssetState::Loading(handle) => {
-                            ui.label("Loading...");
-
-                            if let Some(loaded) = world
-                                .resource::<Assets<LoadedUntypedAsset>>()
-                                .get(&handle)
-                                .map(|handle| handle.handle.clone())
-                            {
-                                world
-                                    .resource_mut::<AssetTree>()
-                                    .0
-                                    .insert(asset_path.clone(), AssetState::Ready(loaded));
-                            }
-                        }
-                        AssetState::Ready(untyped_handle) => {
-                            ui.dnd_drag_source(
-                                Id::new(asset_path).with("dnd_drag_source"),
-                                AssetPayload(untyped_handle),
-                                |ui| ui.label(label),
-                            );
-                        }
-                    }
-                } else {
-                    let handle = world.resource::<AssetServer>().load_untyped(asset_path);
-                    world
-                        .resource_mut::<AssetTree>()
-                        .0
-                        .insert(asset_path.clone(), AssetState::Loading(handle));
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    fn body(
-        &self,
-        ui: &mut Ui,
-        world: &mut World,
-        inspected_assets: &mut HashSet<String>,
-    ) -> Result {
-        match self {
-            AssetBrowserEntry::Directory { path, .. } => {
-                for entry in read_dir(path)? {
-                    let asset_path = entry?.path().strip_prefix("assets")?.to_owned();
-                    ui_for_asset(ui, world, asset_path, inspected_assets)?;
-                }
-            }
-            AssetBrowserEntry::Asset {
-                labels, asset_path, ..
-            } => {
-                if let Some(labels) = labels {
-                    for label in labels {
-                        ui_for_asset(
-                            ui,
-                            world,
-                            AssetPath::from(asset_path.clone()).with_label(label.to_string()),
-                            inspected_assets,
-                        )?;
-                    }
-                }
-            }
-            _ => {}
-        }
-
-        Ok(())
     }
 }
 
 fn ui_for_asset<'a>(
     ui: &mut Ui,
+    id: Id,
     world: &mut World,
     asset_path: impl Into<AssetPath<'a>>,
     inspected_assets: &mut HashSet<String>,
 ) -> Result {
     let asset_path = asset_path.into();
+    let path = Path::new("assets").join(asset_path.path().to_path_buf());
+    let file_name = path
+        .file_name()
+        .map(|file_name| file_name.to_string_lossy().to_string())
+        .ok_or_else(|| BevyError::from("Wrong path"))?;
 
     let mut collapsing_state =
         CollapsingState::load_with_default_open(ui.ctx(), Id::new(&asset_path), false);
 
-    let entry = AssetBrowserEntry::new(asset_path, world)?;
+    let entry = AssetBrowserEntry::new(&asset_path, &path, world)?;
 
-    let InnerResponse { inner, response } =
-        ui.scope_builder(UiBuilder::new().id_salt("frame"), |ui| -> Result {
-            let response = ui.response();
+    let asset_path = asset_path.to_string();
+    let global_id = id;
+    let id = global_id.with(&asset_path);
 
-            ui.set_height(24.0);
+    ui.scope_builder(
+        UiBuilder::new()
+            .id_salt("frame")
+            .sense(Sense::click_and_drag()),
+        |ui| -> Result {
+            let header_response = ui.response();
+
             let mut frame = Frame::new()
-                .inner_margin(Margin {
-                    top: 4,
-                    right: 6,
-                    bottom: 4,
-                    left: 6,
-                })
-                .corner_radius(ui.style().visuals.widgets.noninteractive.corner_radius);
+                .inner_margin(Margin::symmetric(8, 4))
+                .stroke(Stroke::new(1.0, Color32::TRANSPARENT))
+                .corner_radius(CornerRadius::same(4));
 
-            if ui.rect_contains_pointer(response.rect) {
+            if ui.rect_contains_pointer(header_response.rect) {
                 frame = frame.fill(ui.style().visuals.widgets.hovered.bg_fill);
             }
 
+            ui.set_height(24.0);
             frame
                 .show(ui, |ui| -> Result {
-                    ui.set_width(ui.available_width());
+                    ui.take_available_width();
                     ui.horizontal(|ui| -> Result {
-                        entry.header(ui, &mut collapsing_state, world, inspected_assets)
+                        let has_children = match &entry {
+                            AssetBrowserEntry::Directory => true,
+                            AssetBrowserEntry::Asset { labels } => {
+                                labels.as_ref().is_some_and(|assets| !assets.is_empty())
+                            }
+                            _ => false,
+                        };
+
+                        if has_children {
+                            collapsing_state.show_toggle_button(ui, paint_collapsing_button);
+                        } else {
+                            ui.add_space(ui.spacing().indent + ui.spacing().item_spacing.x);
+                        }
+
+                        let icon = match &entry {
+                            AssetBrowserEntry::Directory => {
+                                if collapsing_state.is_open() {
+                                    Icon::FolderOpen
+                                } else {
+                                    Icon::Folder
+                                }
+                            }
+                            AssetBrowserEntry::File => Icon::File,
+                            _ => Icon::Package,
+                        };
+
+                        let state = world.resource::<AssetTree>().0.get(&asset_path).cloned();
+                        let is_ready = state
+                            .as_ref()
+                            .is_some_and(|state| matches!(state, AssetState::Ready(_)));
+
+                        let label = match &entry {
+                            AssetBrowserEntry::Directory | AssetBrowserEntry::File => &file_name,
+                            AssetBrowserEntry::Asset { labels: _ } => {
+                                if is_ready {
+                                    &file_name
+                                } else {
+                                    "Loading..."
+                                }
+                            }
+                            AssetBrowserEntry::LabeledAsset { label } => {
+                                if is_ready {
+                                    label
+                                } else {
+                                    "Loading..."
+                                }
+                            }
+                        };
+
+                        let id = id.with("dnd");
+                        let mut ui_builder = UiBuilder::new().id(id);
+                        let layer_id = LayerId::new(Order::Tooltip, id);
+
+                        let is_dragged = header_response.dragged();
+
+                        if is_dragged {
+                            ui_builder.layer_id = Some(layer_id);
+                        }
+
+                        let dnd_response = ui
+                            .scope_builder(ui_builder, |ui| {
+                                ui.add(MaterialIcon::new(icon));
+                                ui.label(label);
+                            })
+                            .response;
+
+                        if is_dragged {
+                            if let Some(pointer_pos) = ui.ctx().pointer_interact_pos() {
+                                let delta = pointer_pos - dnd_response.rect.center();
+                                ui.ctx().transform_layer_shapes(
+                                    layer_id,
+                                    TSTransform::from_translation(delta),
+                                );
+                            }
+                        }
+
+                        if matches!(
+                            entry,
+                            AssetBrowserEntry::Asset { labels: _ }
+                                | AssetBrowserEntry::LabeledAsset { label: _ }
+                        ) {
+                            inspected_assets.insert(asset_path.clone());
+                            if let Some(state) = &state {
+                                match state {
+                                    AssetState::Loading(handle) => {
+                                        if let Some(loaded) = world
+                                            .resource::<Assets<LoadedUntypedAsset>>()
+                                            .get(handle)
+                                            .map(|handle| handle.handle.clone())
+                                        {
+                                            world.resource_mut::<AssetTree>().0.insert(
+                                                asset_path.clone(),
+                                                AssetState::Ready(loaded),
+                                            );
+                                        }
+                                    }
+                                    AssetState::Ready(handle) => header_response
+                                        .dnd_set_drag_payload(AssetPayload(handle.clone())),
+                                }
+                            } else {
+                                let handle = world
+                                    .resource::<AssetServer>()
+                                    .load_untyped(asset_path.clone());
+
+                                world
+                                    .resource_mut::<AssetTree>()
+                                    .0
+                                    .insert(asset_path.clone(), AssetState::Loading(handle));
+                            }
+                        }
+
+                        Ok(())
                     })
                     .inner
                 })
                 .inner
-        });
+        },
+    )
+    .inner?;
 
-    inner?;
-
-    let inner = collapsing_state.show_body_indented(&response, ui, |ui| -> Result {
-        entry.body(ui, world, inspected_assets)
+    let inner = collapsing_state.show_body_unindented(ui, |ui| -> Result {
+        ui.horizontal(|ui| {
+            ui.add_space(ui.spacing().item_spacing.x);
+            ui.vertical(|ui| {
+                ui.indent(id.with("body"), |ui| -> Result {
+                    match &entry {
+                        AssetBrowserEntry::Directory => {
+                            for entry in read_dir(path)? {
+                                let asset_path = entry?.path().strip_prefix("assets")?.to_owned();
+                                ui_for_asset(ui, global_id, world, asset_path, inspected_assets)?;
+                            }
+                        }
+                        AssetBrowserEntry::Asset { labels } => {
+                            if let Some(labels) = labels {
+                                for label in labels {
+                                    ui_for_asset(
+                                        ui,
+                                        global_id,
+                                        world,
+                                        AssetPath::from(asset_path.clone())
+                                            .with_label(label.to_string()),
+                                        inspected_assets,
+                                    )?;
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                    Ok(())
+                })
+                .inner
+            })
+            .inner
+        })
+        .inner
     });
 
     if let Some(inner) = inner {
