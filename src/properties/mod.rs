@@ -452,9 +452,7 @@ fn ui_for_entity_components(
                                         });
 
                                         ui[1].with_layout(Layout::top_down(Align::Center), |ui| {
-                                            Label::new(&data.name)
-                                                .wrap_mode(TextWrapMode::Truncate)
-                                                .ui(ui);
+                                            ui.label(&data.name)
                                         });
 
                                         ui[2].with_layout(Layout::top_down(Align::Max), |ui| {

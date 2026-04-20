@@ -36,6 +36,8 @@ pub fn set_dark_style(style: &mut Style) {
     ]
     .into();
 
+    style.wrap_mode = Some(egui::TextWrapMode::Truncate);
+
     style.visuals.text_edit_bg_color = Some(Color32::from_rgb(63, 63, 63));
 
     style.visuals.widgets.active.fg_stroke.color = Color32::from_rgb(242, 242, 242);
