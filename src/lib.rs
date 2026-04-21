@@ -1,6 +1,7 @@
 pub mod asset;
 mod asset_browser;
 pub mod assets;
+pub mod cursor;
 mod dock;
 pub mod inspection;
 pub mod pane;
@@ -45,18 +46,7 @@ use egui::{
 };
 
 use crate::{
-    asset::AssetWatcherPlugin,
-    asset_browser::{AssetBrowserPlugin, AssetPayload},
-    assets::{AssetsPlugin, LUCIDE_FONT_FAMILY},
-    dock::DockArea,
-    inspection::DefaultInspectorConfigPlugin,
-    pane::{PaneDocking, PanePlugin, PaneRegistry, PaneViewer},
-    prefs::{PrefsPlugin, RegisterPref, Save},
-    properties::PropertiesPlugin,
-    scene_tree::{DraggedSceneRoot, SceneTreePlugin},
-    selection::{SelectionMap, SelectionPlugin},
-    style::{IntoDockStyle, set_dark_style},
-    viewport::ViewportPlugin,
+    asset::AssetWatcherPlugin, asset_browser::{AssetBrowserPlugin, AssetPayload}, assets::{AssetsPlugin, LUCIDE_FONT_FAMILY}, cursor::CursorLockPlugin, dock::DockArea, inspection::DefaultInspectorConfigPlugin, pane::{PaneDocking, PanePlugin, PaneRegistry, PaneViewer}, prefs::{PrefsPlugin, RegisterPref, Save}, properties::PropertiesPlugin, scene_tree::{DraggedSceneRoot, SceneTreePlugin}, selection::{SelectionMap, SelectionPlugin}, style::{IntoDockStyle, set_dark_style}, viewport::ViewportPlugin
 };
 
 pub const PLAY_MODE_VAR: &'static str = "BEVY_EDITOR_PLAY";
@@ -97,6 +87,7 @@ impl Plugin for EditorPlugin {
                 ..default()
             })
             .add_plugins(AssetsPlugin)
+            .add_plugins(CursorLockPlugin)
             .add_plugins(DefaultInspectorConfigPlugin)
             .add_plugins(SelectionPlugin)
             .add_plugins(PanePlugin)

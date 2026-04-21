@@ -72,52 +72,54 @@ const TRANSFORM_COMPONENT_COLORS: &'static [Color32] = &[
     Color32::from_rgb(36, 102, 233),
 ];
 
-fn transform_component_ui(ui: &mut Ui, index: usize, value: &mut f32) -> Result<bool> {
-    let response = ui
-        .allocate_ui(vec2(20.0, 22.0), |ui| {
-            ui.spacing_mut().item_spacing.x = 0.0;
-            ui.horizontal(|ui| {
-                Frame::new()
-                    .fill(TRANSFORM_COMPONENT_COLORS[index])
-                    .corner_radius(CornerRadius {
-                        nw: 2,
-                        sw: 2,
-                        ..default()
-                    })
-                    .inner_margin(Margin {
-                        left: 2,
-                        ..default()
-                    })
-                    .show(ui, |ui| {
-                        Frame::new()
-                            .fill(ui.style().visuals.widgets.hovered.bg_fill)
-                            .corner_radius(CornerRadius {
-                                nw: 2,
-                                sw: 2,
-                                ..default()
-                            })
-                            .inner_margin(Margin::symmetric(6, 2))
-                            .show(ui, |ui| {
-                                Label::new(TRANSFORM_COMPONENT_LABELS[index])
-                                    .selectable(false)
-                                    .ui(ui);
-                            });
-                    });
+fn transform_component_ui(
+    env: &mut InspectorUi<'_, '_>,
+    ui: &mut Ui,
+    index: usize,
+    value: &mut f32,
+) -> Result<bool> {
+    ui.allocate_ui(vec2(20.0, 22.0), |ui| {
+        ui.spacing_mut().item_spacing.x = 0.0;
+        ui.horizontal(|ui| {
+            Frame::new()
+                .fill(TRANSFORM_COMPONENT_COLORS[index])
+                .corner_radius(CornerRadius {
+                    nw: 2,
+                    sw: 2,
+                    ..default()
+                })
+                .inner_margin(Margin {
+                    left: 2,
+                    ..default()
+                })
+                .show(ui, |ui| {
+                    Frame::new()
+                        .fill(ui.style().visuals.widgets.hovered.bg_fill)
+                        .corner_radius(CornerRadius {
+                            nw: 2,
+                            sw: 2,
+                            ..default()
+                        })
+                        .inner_margin(Margin::symmetric(6, 2))
+                        .show(ui, |ui| {
+                            Label::new(TRANSFORM_COMPONENT_LABELS[index])
+                                .selectable(false)
+                                .ui(ui);
+                        });
+                });
 
-                ui.spacing_mut().interact_size = ui.available_size();
-                ui.visuals_mut().widgets.inactive.corner_radius.nw = 0;
-                ui.visuals_mut().widgets.inactive.corner_radius.sw = 0;
-                ui.visuals_mut().widgets.hovered.corner_radius.nw = 0;
-                ui.visuals_mut().widgets.hovered.corner_radius.sw = 0;
-                ui.visuals_mut().widgets.active.corner_radius.nw = 0;
-                ui.visuals_mut().widgets.active.corner_radius.sw = 0;
-                DragValue::new(value).speed(0.1).ui(ui)
-            })
-            .inner
+            ui.spacing_mut().interact_size = ui.available_size();
+            ui.visuals_mut().widgets.inactive.corner_radius.nw = 0;
+            ui.visuals_mut().widgets.inactive.corner_radius.sw = 0;
+            ui.visuals_mut().widgets.hovered.corner_radius.nw = 0;
+            ui.visuals_mut().widgets.hovered.corner_radius.sw = 0;
+            ui.visuals_mut().widgets.active.corner_radius.nw = 0;
+            ui.visuals_mut().widgets.active.corner_radius.sw = 0;
+            env.ui_for_reflect(value, ui)
         })
-        .inner;
-
-    Ok(response.changed())
+        .inner
+    })
+    .inner
 }
 
 impl Inspector for Transform {
@@ -139,7 +141,8 @@ impl Inspector for Transform {
                 ui.take_available_width();
                 ui.columns(3, |ui| {
                     for (i, ui) in ui.iter_mut().enumerate() {
-                        changed |= transform_component_ui(ui, i, &mut value.translation[i])?;
+                        changed |=
+                            transform_component_ui(&mut env, ui, i, &mut value.translation[i])?;
                     }
 
                     Ok(())
@@ -162,7 +165,7 @@ impl Inspector for Transform {
                 ui.take_available_width();
                 ui.columns(3, |ui| -> Result {
                     for (i, ui) in ui.iter_mut().enumerate() {
-                        changed |= transform_component_ui(ui, i, &mut rotation[i])?;
+                        changed |= transform_component_ui(&mut env, ui, i, &mut rotation[i])?;
                     }
 
                     Ok(())
@@ -184,7 +187,7 @@ impl Inspector for Transform {
                 ui.take_available_width();
                 ui.columns(3, |ui| {
                     for (i, ui) in ui.iter_mut().enumerate() {
-                        changed |= transform_component_ui(ui, i, &mut value.scale[i])?;
+                        changed |= transform_component_ui(&mut env, ui, i, &mut value.scale[i])?;
                     }
 
                     Ok(())

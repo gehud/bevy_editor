@@ -26,9 +26,10 @@ use bevy::log::info;
 use bevy::math::{EulerRot, Quat, StableInterpolate, Vec2, Vec3};
 use bevy::time::{Real, Time};
 use bevy::transform::prelude::Transform;
-use bevy::window::{CursorGrabMode, CursorOptions, Window};
 
 use core::{f32::consts::*, fmt};
+
+use crate::cursor::CursorLock;
 
 /// A freecam-style camera controller plugin.
 ///
@@ -188,13 +189,12 @@ impl Default for FreeCameraState {
 /// This system is typically added via the [`FreeCameraPlugin`].
 pub fn run_freecamera_controller(
     time: Res<Time<Real>>,
-    mut windows: Query<(&mut Window, &mut CursorOptions)>,
     accumulated_mouse_motion: Res<AccumulatedMouseMotion>,
     accumulated_mouse_scroll: Res<AccumulatedMouseScroll>,
     mouse_button_input: Res<ButtonInput<MouseButton>>,
     key_input: Res<ButtonInput<KeyCode>>,
     mut mouse_cursor_grab: Local<bool>,
-    mut cursor_grab_position: Local<Option<Vec2>>,
+    mut cursor_lock: ResMut<CursorLock>,
     mut query: Query<(&mut Transform, &mut FreeCameraState, &FreeCamera), With<Camera>>,
 ) {
     let dt = time.delta_secs();
@@ -215,25 +215,19 @@ pub fn run_freecamera_controller(
         // don't keep the cursor grabbed if the camera controller was disabled.
         if *mouse_cursor_grab {
             *mouse_cursor_grab = false;
-
-            for (_, mut cursor_options) in &mut windows {
-                cursor_options.grab_mode = CursorGrabMode::None;
-                cursor_options.visible = true;
-            }
+            **cursor_lock = false;
         }
 
         return;
     }
 
-    let mut cursor_grab_change = false;
-
     if mouse_button_input.just_pressed(config.mouse_key_cursor_grab) {
         *mouse_cursor_grab = true;
-        cursor_grab_change = true;
+        **cursor_lock = true;
     }
     if mouse_button_input.just_released(config.mouse_key_cursor_grab) {
         *mouse_cursor_grab = false;
-        cursor_grab_change = true;
+        **cursor_lock = false;
     }
 
     let cursor_grab = *mouse_cursor_grab;
@@ -299,36 +293,6 @@ pub fn run_freecamera_controller(
         transform.translation += state.velocity.x * dt * right
             + state.velocity.y * dt * up
             + state.velocity.z * dt * forward;
-    }
-
-    // Handle cursor grab
-    if cursor_grab_change {
-        if cursor_grab {
-            for (window, mut cursor_options) in &mut windows {
-                if !window.focused {
-                    continue;
-                }
-
-                *cursor_grab_position = window.cursor_position();
-                cursor_options.grab_mode = CursorGrabMode::Locked;
-                cursor_options.visible = false;
-            }
-        } else {
-            for (_, mut cursor_options) in &mut windows {
-                cursor_options.grab_mode = CursorGrabMode::None;
-                cursor_options.visible = true;
-            }
-        }
-    }
-
-    if cursor_grab {
-        for (mut window, _) in &mut windows {
-            if !window.focused {
-                continue;
-            }
-
-            window.set_cursor_position(*cursor_grab_position);
-        }
     }
 
     // Handle mouse input

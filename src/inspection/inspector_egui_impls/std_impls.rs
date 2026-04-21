@@ -3,12 +3,14 @@ use std::ops::{Add, Sub};
 use std::{any::TypeId, borrow::Cow, path::PathBuf};
 
 use bevy::ecs::error::Result;
+use bevy::input::mouse::AccumulatedMouseMotion;
 use bevy::platform::time::Instant;
 use bevy::reflect::{PartialReflect, Reflect, TypePath};
 use bytemuck::Zeroable;
 use egui::{DragValue, RichText, TextBuffer};
 
 use super::{Inspector, InspectorUi};
+use crate::cursor::CursorLock;
 use crate::inspection::inspector_options::{
     InspectorOptionsType,
     std_options::{NumberDisplay, NumberOptions, RangeOptions},
@@ -33,7 +35,7 @@ impl<T: Reflect + Num + Debug> Inspector for T {
         ui: &mut egui::Ui,
         options: &dyn Any,
         _id: egui::Id,
-        _env: InspectorUi<'_, '_>,
+        mut env: InspectorUi<'_, '_>,
         value: &mut dyn PartialReflect,
     ) -> Result<bool> {
         let value = value.try_downcast_mut::<Self>().unwrap();
@@ -41,7 +43,7 @@ impl<T: Reflect + Num + Debug> Inspector for T {
             .downcast_ref::<NumberOptions<T>>()
             .cloned()
             .unwrap_or_default();
-        Ok(display_number(value, None, &options, ui, 0.1).0)
+        Ok(display_number(&mut env, value, None, &options, ui, 0.1).0)
     }
 
     fn ui_readonly(
@@ -78,7 +80,7 @@ impl<T: Reflect + Num + Debug> Inspector for T {
         ui: &mut egui::Ui,
         options: &dyn Any,
         _id: egui::Id,
-        _env: InspectorUi<'_, '_>,
+        mut env: InspectorUi<'_, '_>,
         values: &mut [&mut dyn PartialReflect],
     ) -> Result<bool> {
         let values = values
@@ -100,6 +102,7 @@ impl<T: Reflect + Num + Debug> Inspector for T {
 
         let prev_value = target_value;
         let result = display_number(
+            &mut env,
             &mut target_value,
             if same { None } else { Some("-".into()) },
             &options,
@@ -128,14 +131,14 @@ pub fn number_ui<T: egui::emath::Numeric>(
     ui: &mut egui::Ui,
     options: &dyn Any,
     _: egui::Id,
-    _: InspectorUi<'_, '_>,
+    mut env: InspectorUi<'_, '_>,
 ) -> bool {
     let value = value.downcast_mut::<T>().unwrap();
     let options = options
         .downcast_ref::<NumberOptions<T>>()
         .cloned()
         .unwrap_or_default();
-    display_number(value, None, &options, ui, 0.1).0
+    display_number(&mut env, value, None, &options, ui, 0.1).0
 }
 pub fn number_ui_readonly<T: egui::emath::Numeric>(
     value: &dyn Any,
@@ -166,6 +169,7 @@ pub fn number_ui_readonly<T: egui::emath::Numeric>(
 }
 
 fn display_number<T: egui::emath::Numeric>(
+    env: &mut InspectorUi<'_, '_>,
     value: &mut T,
     label: Option<String>,
     options: &NumberOptions<T>,
@@ -174,7 +178,8 @@ fn display_number<T: egui::emath::Numeric>(
 ) -> (bool, bool) {
     let (mut changed, dragged) = match options.display {
         NumberDisplay::Drag => {
-            let mut widget = egui::DragValue::new(value);
+            let mut copy = *value;
+            let mut widget = egui::DragValue::new(&mut copy);
             if let Some(label) = label {
                 widget = widget.custom_formatter(move |_, _| label.clone())
             }
@@ -190,13 +195,38 @@ fn display_number<T: egui::emath::Numeric>(
                 (None, Some(max)) => widget = widget.range(f64::MIN..=max.to_f64()),
                 (None, None) => {}
             }
-            if options.speed != 0.0 {
-                widget = widget.speed(options.speed);
-            } else {
-                widget = widget.speed(default_speed);
-            }
+
             let response = ui.add(widget);
-            (response.changed(), response.dragged())
+
+            if response.drag_started() {
+                **env.context.world.get_resource_mut::<CursorLock>().unwrap() = true;
+            } else if response.drag_stopped() {
+                **env.context.world.get_resource_mut::<CursorLock>().unwrap() = false;
+            }
+
+            let speed = if options.speed != 0.0 {
+                options.speed
+            } else {
+                default_speed
+            };
+
+            if response.dragged() {
+                let delta = env
+                    .context
+                    .world
+                    .get_resource_mut::<AccumulatedMouseMotion>()
+                    .unwrap()
+                    .delta;
+
+                let change = (delta.x * speed) as f64;
+
+                *value = T::from_f64(value.to_f64() + change);
+
+                (change != 0.0, response.dragged())
+            } else {
+                *value = copy;
+                (response.changed(), response.dragged())
+            }
         }
         NumberDisplay::Slider => {
             let min = options.min.unwrap_or_else(|| T::from_f64(0.0));
