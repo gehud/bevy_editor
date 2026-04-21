@@ -7,13 +7,18 @@ use std::{
 };
 
 use bevy::{
-    app::{App, First, Plugin, PostUpdate, PreUpdate, Propagate, Startup, Update}, asset::{Assets, Handle, RenderAssetUsages, uuid::Uuid}, camera::{
+    app::{App, First, Plugin, PostUpdate, PreUpdate, Propagate, Startup, Update},
+    asset::{Assets, Handle, RenderAssetUsages, uuid::Uuid},
+    camera::{
         Camera, Camera3d, ClearColorConfig, NormalizedRenderTarget, Projection, RenderTarget,
         visibility::{InheritedVisibility, Visibility},
-    }, color::{
+    },
+    color::{
         Color,
         palettes::tailwind::{PINK_100, RED_500},
-    }, ecs::{
+    },
+    ecs::{
+        bundle::Bundle,
         component::Component,
         entity::Entity,
         error::Result,
@@ -27,11 +32,18 @@ use bevy::{
         schedule::IntoScheduleConfigs,
         system::{Commands, In, Local, Query, Res, ResMut, Single},
         world::World,
-    }, gizmos::gizmos::Gizmos, image::{BevyDefault, Image}, input::{
+    },
+    gizmos::gizmos::Gizmos,
+    image::{BevyDefault, Image},
+    input::{
         ButtonInput,
         keyboard::KeyCode,
         mouse::{AccumulatedMouseMotion, MouseButton},
-    }, log::{info, warn}, math::{EulerRot, FloatOrd, Quat, Rect, Vec2, Vec3, VectorSpace, primitives::InfinitePlane3d}, mesh::{Mesh2d, Mesh3d}, picking::{
+    },
+    log::{info, warn},
+    math::{EulerRot, FloatOrd, Quat, Rect, Vec2, Vec3, VectorSpace, primitives::InfinitePlane3d},
+    mesh::{Mesh2d, Mesh3d},
+    picking::{
         Pickable, PickingSystems,
         backend::ray::{RayId, RayMap},
         events::{Click, Drag, DragEnd, DragStart, Move, Pointer, PointerState, Release},
@@ -44,10 +56,18 @@ use bevy::{
             Location, PointerButton, PointerId, PointerInput, PointerInteraction, PointerLocation,
             PointerMap,
         },
-    }, platform::collections::HashMap, render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages}, scene::SceneRoot, time::Time, transform::components::{GlobalTransform, Transform}, ui::{Node, UiTargetCamera, percent, widget::ViewportNode}, utils::default, window::PrimaryWindow
+    },
+    platform::collections::HashMap,
+    render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages},
+    scene::SceneRoot,
+    time::Time,
+    transform::components::{GlobalTransform, Transform},
+    ui::{Node, UiTargetCamera, percent, widget::ViewportNode},
+    utils::default,
+    window::PrimaryWindow,
 };
 use bevy_egui::{EguiContexts, EguiTextureHandle, EguiUserTextures};
-use bevy_mod_outline::{OutlineMode, OutlinePlugin, OutlineVolume};
+use bevy_mod_outline::{InheritOutline, OutlineMode, OutlinePlugin, OutlineVolume};
 use egui::{
     Color32, CornerRadius, Frame, InnerResponse, Margin, Sense, TextureId, Ui, Widget,
     load::SizedTexture, response,
@@ -92,7 +112,9 @@ impl Pane for ViewportPane {
 
         if response.dnd_release_payload::<AssetPayload>().is_some() {
             if let Some(dragged) = world.resource_mut::<DraggedSceneRoot>().0.take() {
-                let root = world.query_filtered::<Entity, With<InspectedScene>>().single(world)?;
+                let root = world
+                    .query_filtered::<Entity, With<InspectedScene>>()
+                    .single(world)?;
                 world.entity_mut(root).add_child(dragged);
             }
         }
@@ -364,26 +386,63 @@ fn deselect_all(
     }
 }
 
-fn on_select(trigger: On<Select>, mut commands: Commands) {
-    commands
-        .entity(trigger.event_target())
-        .insert(OutlineMode::FloodFlat)
-        .insert(OutlineVolume {
-            visible: true,
-            width: 2.0,
-            colour: Color::srgb(0.13, 0.43, 0.79),
-            ..default()
-        });
+#[derive(Bundle)]
+struct Outline {
+    mode: OutlineMode,
+    volume: OutlineVolume,
 }
 
-fn on_deselect(trigger: On<Deselect>, entities: Query<Entity>, mut commands: Commands) {
+impl Default for Outline {
+    fn default() -> Self {
+        Self {
+            mode: OutlineMode::FloodFlat,
+            volume: OutlineVolume {
+                visible: true,
+                width: 2.0,
+                colour: Color::srgb(0.13, 0.43, 0.79),
+                ..default()
+            },
+        }
+    }
+}
+
+fn on_select(trigger: On<Select>, children: Query<&Children>, mut commands: Commands) {
+    commands
+        .entity(trigger.event_target())
+        .insert(Outline::default());
+
+    for descendant in children.iter_descendants(trigger.event_target()) {
+        commands.entity(descendant).insert(InheritOutline);
+    }
+}
+
+fn on_deselect(
+    trigger: On<Deselect>,
+    entities: Query<Entity>,
+    parents: Query<&ChildOf>,
+    outlines: Query<Entity, With<InheritOutline>>,
+    children: Query<&Children>,
+    mut commands: Commands,
+) {
     if !entities.contains(trigger.event_target()) {
         return;
     }
 
-    commands
-        .entity(trigger.event_target())
-        .remove::<OutlineVolume>();
+    commands.entity(trigger.event_target()).remove::<Outline>();
+
+    if let Some(parent) = parents
+        .get(trigger.event_target())
+        .ok()
+        .map(|parent| parent.parent())
+    {
+        if outlines.contains(parent) {
+            return;
+        }
+    }
+
+    for descendant in children.iter_descendants(trigger.event_target()) {
+        commands.entity(descendant).remove::<InheritOutline>();
+    }
 }
 
 pub struct ViewportPlugin;
@@ -397,6 +456,7 @@ impl Plugin for ViewportPlugin {
             .register_pane(ViewportPane)
             .ignore_component::<OutlineVolume>()
             .ignore_component::<OutlineMode>()
+            .ignore_component::<InheritOutline>()
             .add_systems(Startup, setup)
             .add_systems(Update, (deselect_all, set_dragged_scene_position))
             .add_systems(First, viewport_picking.in_set(PickingSystems::PostInput))

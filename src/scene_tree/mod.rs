@@ -1,7 +1,7 @@
 use std::{ops::Deref, path::PathBuf};
 
 use bevy::{
-    app::{App, Plugin, Startup},
+    app::{App, Plugin, Startup, Update},
     asset::{AssetPath, AssetServer, Assets, Handle},
     camera::visibility::Visibility,
     color::Color,
@@ -13,7 +13,7 @@ use bevy::{
         name::Name,
         query::{Or, With, Without},
         resource::Resource,
-        system::{Commands, Query, Res, ResMut},
+        system::{Commands, Query, Res, ResMut, Single},
         world::World,
     },
     gltf::Gltf,
@@ -29,6 +29,7 @@ use bevy::{
     transform::components::Transform,
     utils::default,
 };
+use bevy_mod_outline::InheritOutline;
 use egui::{
     Button, Color32, CornerRadius, DragAndDrop, Frame, Id, InnerResponse, Key, KeyboardShortcut,
     Label, LayerId, Margin, Modal, Modifiers, Order, RichText, Sense, Stroke, Ui, UiBuilder,
