@@ -467,7 +467,7 @@ checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 [[package]]
 name = "bevy"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "bevy_internal",
 ]
@@ -475,7 +475,7 @@ dependencies = [
 [[package]]
 name = "bevy_a11y"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "accesskit 0.21.1",
  "bevy_app",
@@ -487,7 +487,7 @@ dependencies = [
 [[package]]
 name = "bevy_android"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "android-activity",
 ]
@@ -495,7 +495,7 @@ dependencies = [
 [[package]]
 name = "bevy_animation"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "bevy_animation_macros",
  "bevy_app",
@@ -527,7 +527,7 @@ dependencies = [
 [[package]]
 name = "bevy_animation_macros"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "bevy_macro_utils",
  "quote",
@@ -537,7 +537,7 @@ dependencies = [
 [[package]]
 name = "bevy_anti_alias"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -558,7 +558,7 @@ dependencies = [
 [[package]]
 name = "bevy_app"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "bevy_derive",
  "bevy_ecs",
@@ -580,7 +580,7 @@ dependencies = [
 [[package]]
 name = "bevy_asset"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "async-broadcast",
  "async-channel",
@@ -623,7 +623,7 @@ dependencies = [
 [[package]]
 name = "bevy_asset_macros"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "bevy_macro_utils",
  "proc-macro2",
@@ -634,7 +634,7 @@ dependencies = [
 [[package]]
 name = "bevy_audio"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -651,7 +651,7 @@ dependencies = [
 [[package]]
 name = "bevy_camera"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -676,7 +676,7 @@ dependencies = [
 [[package]]
 name = "bevy_color"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "bevy_math",
  "bevy_reflect",
@@ -691,7 +691,7 @@ dependencies = [
 [[package]]
 name = "bevy_core_pipeline"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -720,7 +720,7 @@ dependencies = [
 [[package]]
 name = "bevy_derive"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "bevy_macro_utils",
  "quote",
@@ -730,7 +730,7 @@ dependencies = [
 [[package]]
 name = "bevy_dev_tools"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -758,7 +758,7 @@ dependencies = [
 [[package]]
 name = "bevy_diagnostic"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "atomic-waker",
  "bevy_app",
@@ -775,7 +775,7 @@ dependencies = [
 [[package]]
 name = "bevy_ecs"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "arrayvec",
  "bevy_ecs_macros",
@@ -802,7 +802,7 @@ dependencies = [
 [[package]]
 name = "bevy_ecs_macros"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "bevy_macro_utils",
  "proc-macro2",
@@ -829,11 +829,13 @@ dependencies = [
  "opener",
  "paste",
  "platform-dirs",
+ "rfd",
  "ron",
  "rusqlite",
  "serde",
  "smallvec",
  "thiserror 2.0.18",
+ "uuid",
 ]
 
 [[package]]
@@ -885,7 +887,7 @@ dependencies = [
 [[package]]
 name = "bevy_encase_derive"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "bevy_macro_utils",
  "encase_derive_impl",
@@ -894,7 +896,7 @@ dependencies = [
 [[package]]
 name = "bevy_feathers"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "accesskit 0.21.1",
  "bevy_a11y",
@@ -923,7 +925,7 @@ dependencies = [
 [[package]]
 name = "bevy_gilrs"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
@@ -938,7 +940,7 @@ dependencies = [
 [[package]]
 name = "bevy_gizmos"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -957,7 +959,7 @@ dependencies = [
 [[package]]
 name = "bevy_gizmos_macros"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "bevy_macro_utils",
  "quote",
@@ -967,7 +969,7 @@ dependencies = [
 [[package]]
 name = "bevy_gizmos_render"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -991,7 +993,7 @@ dependencies = [
 [[package]]
 name = "bevy_gltf"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "async-lock",
  "base64",
@@ -1026,7 +1028,7 @@ dependencies = [
 [[package]]
 name = "bevy_image"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -1054,7 +1056,7 @@ dependencies = [
 [[package]]
 name = "bevy_input"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
@@ -1070,7 +1072,7 @@ dependencies = [
 [[package]]
 name = "bevy_input_focus"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
@@ -1086,7 +1088,7 @@ dependencies = [
 [[package]]
 name = "bevy_internal"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "bevy_a11y",
  "bevy_android",
@@ -1140,7 +1142,7 @@ dependencies = [
 [[package]]
 name = "bevy_light"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -1160,7 +1162,7 @@ dependencies = [
 [[package]]
 name = "bevy_log"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "android_log-sys",
  "bevy_app",
@@ -1177,7 +1179,7 @@ dependencies = [
 [[package]]
 name = "bevy_macro_utils"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1188,7 +1190,7 @@ dependencies = [
 [[package]]
 name = "bevy_math"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "approx",
  "arrayvec",
@@ -1207,7 +1209,7 @@ dependencies = [
 [[package]]
 name = "bevy_mesh"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -1251,7 +1253,7 @@ dependencies = [
 [[package]]
 name = "bevy_pbr"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -1287,7 +1289,7 @@ dependencies = [
 [[package]]
 name = "bevy_picking"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -1310,7 +1312,7 @@ dependencies = [
 [[package]]
 name = "bevy_platform"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "critical-section",
  "foldhash 0.2.0",
@@ -1329,7 +1331,7 @@ dependencies = [
 [[package]]
 name = "bevy_post_process"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -1358,12 +1360,12 @@ dependencies = [
 [[package]]
 name = "bevy_ptr"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 
 [[package]]
 name = "bevy_reflect"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "assert_type_match",
  "bevy_platform",
@@ -1391,7 +1393,7 @@ dependencies = [
 [[package]]
 name = "bevy_reflect_derive"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "bevy_macro_utils",
  "indexmap",
@@ -1404,7 +1406,7 @@ dependencies = [
 [[package]]
 name = "bevy_render"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "async-channel",
  "bevy_app",
@@ -1453,7 +1455,7 @@ dependencies = [
 [[package]]
 name = "bevy_render_macros"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "bevy_macro_utils",
  "proc-macro2",
@@ -1464,7 +1466,7 @@ dependencies = [
 [[package]]
 name = "bevy_scene"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -1485,7 +1487,7 @@ dependencies = [
 [[package]]
 name = "bevy_shader"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "bevy_asset",
  "bevy_platform",
@@ -1501,7 +1503,7 @@ dependencies = [
 [[package]]
 name = "bevy_sprite"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -1525,7 +1527,7 @@ dependencies = [
 [[package]]
 name = "bevy_sprite_render"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -1556,7 +1558,7 @@ dependencies = [
 [[package]]
 name = "bevy_state"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
@@ -1571,7 +1573,7 @@ dependencies = [
 [[package]]
 name = "bevy_state_macros"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "bevy_macro_utils",
  "quote",
@@ -1581,7 +1583,7 @@ dependencies = [
 [[package]]
 name = "bevy_tasks"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "async-channel",
  "async-executor",
@@ -1599,7 +1601,7 @@ dependencies = [
 [[package]]
 name = "bevy_text"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -1624,7 +1626,7 @@ dependencies = [
 [[package]]
 name = "bevy_time"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
@@ -1638,7 +1640,7 @@ dependencies = [
 [[package]]
 name = "bevy_transform"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
@@ -1655,7 +1657,7 @@ dependencies = [
 [[package]]
 name = "bevy_ui"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "accesskit 0.21.1",
  "bevy_a11y",
@@ -1688,7 +1690,7 @@ dependencies = [
 [[package]]
 name = "bevy_ui_render"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -1718,7 +1720,7 @@ dependencies = [
 [[package]]
 name = "bevy_ui_widgets"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "accesskit 0.21.1",
  "bevy_a11y",
@@ -1737,7 +1739,7 @@ dependencies = [
 [[package]]
 name = "bevy_utils"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "bevy_platform",
  "disqualified",
@@ -1747,7 +1749,7 @@ dependencies = [
 [[package]]
 name = "bevy_window"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -1765,7 +1767,7 @@ dependencies = [
 [[package]]
 name = "bevy_winit"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 dependencies = [
  "accesskit 0.21.1",
  "accesskit_winit",
@@ -3254,9 +3256,9 @@ dependencies = [
 
 [[package]]
 name = "grid"
-version = "1.0.0"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9e2d4c0a8296178d8802098410ca05d86b17a10bb5ab559b3fb404c1f948220"
+checksum = "b40ca9252762c466af32d0b1002e91e4e1bc5398f77455e55474deb466355ff5"
 
 [[package]]
 name = "guillotiere"
@@ -4421,6 +4423,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d49e936b501e5c5bf01fda3a9452ff86dc3ea98ad5f283e1455153142d97518c"
 dependencies = [
  "bitflags 2.11.1",
+ "block2 0.6.2",
  "objc2 0.6.4",
  "objc2-core-graphics",
  "objc2-foundation 0.3.2",
@@ -4900,6 +4903,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "pollster"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2f3a9f18d041e6d0e102a0a46750538147e5e8992d3b4873aaafee2520b00ce3"
+
+[[package]]
 name = "portable-atomic"
 version = "1.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5291,6 +5300,33 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "19b30a45b0cd0bcca8037f3d0dc3421eaf95327a17cad11964fb8179b4fc4832"
 
 [[package]]
+name = "rfd"
+version = "0.17.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "20dafead71c16a34e1ff357ddefc8afc11e7d51d6d2b9fbd07eaa48e3e540220"
+dependencies = [
+ "block2 0.6.2",
+ "dispatch2",
+ "js-sys",
+ "libc",
+ "log",
+ "objc2 0.6.4",
+ "objc2-app-kit 0.3.2",
+ "objc2-core-foundation",
+ "objc2-foundation 0.3.2",
+ "percent-encoding",
+ "pollster",
+ "raw-window-handle",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wayland-backend",
+ "wayland-client",
+ "wayland-protocols",
+ "web-sys",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "rgb"
 version = "0.8.53"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5653,9 +5689,9 @@ dependencies = [
 
 [[package]]
 name = "sqlite-wasm-rs"
-version = "0.5.2"
+version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2f4206ed3a67690b9c29b77d728f6acc3ce78f16bf846d83c94f76400320181b"
+checksum = "1b2c760607300407ddeaee518acf28c795661b7108c75421303dbefb237d3a36"
 dependencies = [
  "cc",
  "js-sys",
@@ -5925,7 +5961,7 @@ dependencies = [
  "indexmap",
  "toml_datetime 1.1.1+spec-1.1.0",
  "toml_parser",
- "winnow 1.0.1",
+ "winnow 1.0.2",
 ]
 
 [[package]]
@@ -5934,7 +5970,7 @@ version = "1.1.2+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2abe9b86193656635d2411dc43050282ca48aa31c2451210f4202550afb7526"
 dependencies = [
- "winnow 1.0.1",
+ "winnow 1.0.2",
 ]
 
 [[package]]
@@ -7232,9 +7268,9 @@ dependencies = [
 
 [[package]]
 name = "winnow"
-version = "1.0.1"
+version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09dac053f1cd375980747450bfc7250c264eaae0583872e845c0c7cd578872b5"
+checksum = "2ee1708bef14716a11bae175f579062d4554d95be2c6829f518df847b7b3fdd0"
 dependencies = [
  "memchr",
 ]
@@ -7550,19 +7586,19 @@ dependencies = [
 [[patch.unused]]
 name = "bevy_camera_controller"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 
 [[patch.unused]]
 name = "bevy_dylib"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 
 [[patch.unused]]
 name = "bevy_remote"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"
 
 [[patch.unused]]
 name = "bevy_solari"
 version = "0.18.1"
-source = "git+https://github.com/gehud/bevy.git?branch=editor#05d682dee8329c6f8c52f3cd096e7b28a77611d9"
+source = "git+https://github.com/gehud/bevy.git?branch=editor#26066eba193c231d08cfdec3bbd6fbbfe008d063"

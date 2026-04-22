@@ -297,12 +297,12 @@ fn viewport_picking(
         &RenderTarget,
     )>,
     mut pointer_inputs: MessageReader<PointerInput>,
-
     mut commands: Commands,
 ) -> Result {
-    let (pointer_id, pointer_location, picking, state, render_target) = viewport_camera.deref_mut();
+    let (pointer_id, pointer_location, viewport, state, render_target) =
+        viewport_camera.deref_mut();
 
-    let Some(position) = picking.position() else {
+    let Some(position) = viewport.position() else {
         pointer_location.location = None;
         state.enabled = false;
         return Ok(());

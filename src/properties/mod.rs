@@ -25,6 +25,7 @@ use bevy::{
     platform::collections::{HashMap, HashSet},
     reflect::{TypePathTable, TypeRegistry, prelude::ReflectDefault},
     render::sync_world::{RenderEntity, SyncToRenderWorld},
+    scene::{DynamicSceneBuilder, SceneRoot},
     transform::components::{GlobalTransform, Transform, TransformTreeChanged},
 };
 use egui::{
@@ -52,7 +53,7 @@ use crate::{
 
 #[derive(Default, Resource)]
 pub struct ComponentIgnore {
-    ids: HashSet<TypeId>,
+    pub(crate) ids: HashSet<TypeId>,
 }
 
 impl ComponentIgnore {
@@ -157,7 +158,7 @@ fn ui_for_entity(ui: &mut Ui, world: &mut World, entity: Entity, id: Id) -> Resu
 
     let mut queue = CommandQueue::default();
 
-    add_component_ui(world, &mut queue, entity, ui, &type_registry);
+    add_component_ui(world, &mut queue, entity, ui);
     ui_for_entity_components(
         &mut world.into(),
         &mut queue,
@@ -269,13 +270,7 @@ fn ui_for_entities(ui: &mut Ui, world: &mut World, entities: &[Entity], id: Id) 
     Ok(())
 }
 
-fn add_component_ui(
-    world: &mut World,
-    queue: &mut CommandQueue,
-    entity: Entity,
-    ui: &mut Ui,
-    type_registry: &TypeRegistry,
-) {
+fn add_component_ui(world: &mut World, queue: &mut CommandQueue, entity: Entity, ui: &mut Ui) {
     let response = ui
         .allocate_ui(vec2(ui.available_width(), 24.0), |ui| {
             Frame::new()
@@ -671,6 +666,7 @@ impl Plugin for PropertiesPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ComponentIgnore>()
             .ignore_component::<Name>()
+            .ignore_component::<SceneRoot>()
             .ignore_component::<ChildOf>()
             .ignore_component::<Children>()
             .ignore_component::<Aabb>()
