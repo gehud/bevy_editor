@@ -22,7 +22,7 @@ use bevy::{
     },
     gltf::Gltf,
     light::PointLight,
-    log::info,
+    log::{error, info},
     math::{
         Quat,
         primitives::{Circle, Cuboid},
@@ -31,9 +31,10 @@ use bevy::{
     pbr::{MeshMaterial3d, StandardMaterial},
     platform::collections::HashSet,
     scene::{
-        DynamicScene, DynamicSceneBuilder, InstanceId, Scene, SceneFilter, SceneInstance,
-        SceneRoot, SceneSpawner,
+        DynamicScene, DynamicSceneBuilder, DynamicSceneRoot, InstanceId, Scene, SceneFilter,
+        SceneInstance, SceneRoot, SceneSpawner,
     },
+    tasks::block_on,
     transform::components::Transform,
     utils::default,
 };
@@ -54,7 +55,7 @@ use crate::{
     pane::{Pane, RegisterPane},
     prefs::{RegisterPref, Save},
     properties::ComponentIgnore,
-    scene::serde::AssetSceneSerializer,
+    scene::{AssetScene, serde::AssetSceneSerializer},
     selection::{EntitySelection, SelectionMap},
     style::ACCENT,
     utils::paint_collapsing_button,
@@ -402,47 +403,34 @@ pub(crate) fn scene_name<'a>(asset_path: Option<&AssetPath<'a>>) -> String {
 }
 
 fn setup(
-    mut opened_scene: ResMut<OpenedScene>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut scenes: ResMut<Assets<Scene>>,
     mut commands: Commands,
-    asset_server: Res<AssetServer>,
 ) {
-    let handle = if let Some(path) = &opened_scene.0 {
-        asset_server.load(path.clone())
-    } else {
-        let mut scene = Scene::new(World::new());
+    let mut world = World::new();
 
-        scene.world.spawn((
-            Mesh3d(meshes.add(Circle::new(4.0))),
-            MeshMaterial3d(materials.add(Color::WHITE)),
-            Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
-        ));
+    world.spawn((
+        Mesh3d(meshes.add(Circle::new(4.0))),
+        MeshMaterial3d(materials.add(Color::WHITE)),
+        Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
+    ));
 
-        scene.world.spawn((
-            Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
-            MeshMaterial3d(materials.add(Color::srgb_u8(124, 144, 255))),
-            Transform::from_xyz(0.0, 0.5, 0.0),
-        ));
+    world.spawn((
+        Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
+        MeshMaterial3d(materials.add(Color::srgb_u8(124, 144, 255))),
+        Transform::from_xyz(0.0, 0.5, 0.0),
+    ));
 
-        scene.world.spawn((
-            PointLight {
-                shadows_enabled: true,
-                ..default()
-            },
-            Transform::from_xyz(4.0, 8.0, 4.0),
-        ));
+    world.spawn((
+        PointLight {
+            shadows_enabled: true,
+            ..default()
+        },
+        Transform::from_xyz(4.0, 8.0, 4.0),
+    ));
 
-        scenes.add(scene)
-    };
-
-    if asset_server
-        .get_load_state(&handle)
-        .is_some_and(|state| state.is_failed())
-    {
-        opened_scene.0 = None;
-    }
+    let handle = scenes.add(Scene::new(world));
 
     commands.spawn((
         InspectedScene { dirty: false },
@@ -453,12 +441,12 @@ fn setup(
     ));
 }
 
-fn open_scene(
-    mut requests: MessageReader<OpenScene>,
-    asset_server: Res<AssetServer>,
-    inspected_scene: Single<Entity, With<InspectedScene>>,
-    mut commands: Commands,
-) -> Result {
+#[derive(Default, Resource)]
+struct WaitingScene(Option<Handle<AssetScene>>);
+
+fn open_scene(world: &mut World, state: &mut SystemState<MessageReader<OpenScene>>) -> Result {
+    let mut requests = state.get_mut(world);
+
     if requests.is_empty() {
         return Ok(());
     }
@@ -475,7 +463,53 @@ fn open_scene(
         return Ok(());
     };
 
-    // commands.entity(*inspected_scene).despawn();
+    let asset_path = path.strip_prefix(current_dir.join("assets"))?.to_path_buf();
+
+    let asset_scene = world
+        .resource::<AssetServer>()
+        .load::<AssetScene>(asset_path);
+
+    world.resource_mut::<WaitingScene>().0.replace(asset_scene);
+
+    state.apply(world);
+
+    Ok(())
+}
+
+fn wait_scene(world: &mut World) -> Result {
+    let Some(waiting_scene) = world.resource::<WaitingScene>().0.clone() else {
+        return Ok(());
+    };
+
+    let Some(asset_scene) = world
+        .resource_mut::<Assets<AssetScene>>()
+        .remove(&waiting_scene)
+    else {
+        return Ok(());
+    };
+
+    world.resource_mut::<WaitingScene>().0 = None;
+
+    let name = scene_name(waiting_scene.path());
+    let scene = asset_scene.scene;
+
+    let handle = world.resource_mut::<Assets<DynamicScene>>().add(scene);
+
+    let inspected_scene = world
+        .query_filtered::<Entity, With<InspectedScene>>()
+        .single(world)?;
+    world.entity_mut(inspected_scene).despawn();
+    world.spawn((
+        InspectedScene { dirty: false },
+        Visibility::Visible,
+        Transform::IDENTITY,
+        Name::new(name),
+        DynamicSceneRoot(handle),
+    ));
+
+    let path = waiting_scene.path().unwrap().path().to_path_buf();
+
+    world.resource_mut::<OpenedScene>().0 = Some(path);
 
     Ok(())
 }
@@ -491,11 +525,18 @@ fn save_scene(world: &mut World, state: &mut SystemState<MessageReader<SaveScene
 
     let current_dir = env::current_dir()?;
 
-    let Some(path) = FileDialog::new()
-        .add_filter("Scene", &["asn"])
-        .set_file_name("my_scene.asn")
-        .set_directory(current_dir.join("assets"))
-        .save_file()
+    let Some(path) = world
+        .resource::<OpenedScene>()
+        .0
+        .clone()
+        .map(|path| current_dir.join("assets").join(path))
+        .or_else(|| {
+            FileDialog::new()
+                .add_filter("Scene", &["asn"])
+                .set_file_name("my_scene.asn")
+                .set_directory(current_dir.join("assets"))
+                .save_file()
+        })
     else {
         return Ok(());
     };
@@ -541,7 +582,11 @@ fn save_scene(world: &mut World, state: &mut SystemState<MessageReader<SaveScene
         ron::ser::to_string_pretty(&serializer, PrettyConfig::default())?
     };
 
-    fs::write(path, output)?;
+    fs::write(&path, output)?;
+
+    let asset_path = path.strip_prefix(current_dir.join("assets"))?.to_path_buf();
+
+    world.resource_mut::<OpenedScene>().0 = Some(asset_path);
 
     state.apply(world);
 
@@ -553,12 +598,12 @@ pub struct SceneTreePlugin;
 impl Plugin for SceneTreePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DraggedSceneRoot>()
+            .init_resource::<WaitingScene>()
             .register_pref::<OpenedScene>()
             .register_pane(SceneTreePane)
             .add_message::<OpenScene>()
             .add_message::<SaveScene>()
             .add_systems(Startup, setup)
-            .add_systems(PostUpdate, open_scene)
-            .add_systems(PostUpdate, save_scene);
+            .add_systems(PostUpdate, (open_scene, save_scene, wait_scene));
     }
 }

@@ -33,6 +33,7 @@ pub struct AssetScenePlugin;
 
 impl Plugin for AssetScenePlugin {
     fn build(&self, app: &mut App) {
-        app.init_asset_loader::<AssetSceneLoader>();
+        app.init_asset::<AssetScene>()
+            .init_asset_loader::<AssetSceneLoader>();
     }
 }
