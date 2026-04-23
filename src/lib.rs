@@ -22,21 +22,14 @@ use serde::{Deserialize, Serialize};
 use std::env;
 
 use bevy::{
-    DefaultPlugins,
-    app::{App, Plugin, PluginGroup, Startup},
-    asset::AssetPlugin,
-    camera::{Camera, Camera2d},
-    ecs::{
+    DefaultPlugins, app::{App, Plugin, PluginGroup, Startup}, asset::{AssetApp, AssetPlugin, Handle, ReflectHandle}, camera::{Camera, Camera2d}, ecs::{
         error::Result,
         observer::On,
         query::With,
         resource::Resource,
         system::{ResMut, Single, SystemState},
         world::World,
-    },
-    picking::Pickable,
-    utils::default,
-    window::{PrimaryWindow, Window, WindowPlugin},
+    }, picking::Pickable, scene::{DynamicScene, Scene}, utils::default, window::{PrimaryWindow, Window, WindowPlugin}
 };
 use bevy_egui::{
     EguiContext, EguiContexts, EguiGlobalSettings, EguiPlugin, EguiPrimaryContextPass,
@@ -91,13 +84,15 @@ impl Plugin for EditorPlugin {
             .add_plugins(AssetsPlugin)
             .add_plugins(AssetScenePlugin)
             .add_plugins(CursorLockPlugin)
-            .add_plugins(DefaultInspectorConfigPlugin)
             .add_plugins(SelectionPlugin)
             .add_plugins(PanePlugin)
             .add_plugins(PropertiesPlugin)
             .add_plugins(ViewportPlugin)
             .add_plugins(SceneTreePlugin)
             .add_plugins(AssetBrowserPlugin)
+            .register_type_data::<Handle<Scene>, ReflectHandle>()
+            .register_type_data::<Handle<DynamicScene>, ReflectHandle>()
+            .add_plugins(DefaultInspectorConfigPlugin)
             .register_pref::<EguiMemory>()
             .add_systems(Startup, (load_context, maximize_window))
             .add_systems(EguiPrimaryContextPass, ui)

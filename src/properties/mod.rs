@@ -25,7 +25,7 @@ use bevy::{
     platform::collections::{HashMap, HashSet},
     reflect::{TypePathTable, TypeRegistry, prelude::ReflectDefault},
     render::sync_world::{RenderEntity, SyncToRenderWorld},
-    scene::{DynamicSceneBuilder, SceneRoot},
+    scene::{DynamicSceneBuilder, DynamicSceneRoot, SceneRoot},
     transform::components::{GlobalTransform, Transform, TransformTreeChanged},
 };
 use egui::{
@@ -718,6 +718,7 @@ impl Plugin for PropertiesPlugin {
         app.init_resource::<ComponentIgnore>()
             .ignore_component_inspection::<Name>()
             .ignore_component_inspection::<SceneRoot>()
+            .ignore_component_inspection::<DynamicSceneRoot>()
             .ignore_component_inspection::<ChildOf>()
             .ignore_component_inspection::<Children>()
             .ignore_component::<Aabb>()

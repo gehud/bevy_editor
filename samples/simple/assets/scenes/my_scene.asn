@@ -1,35 +1,86 @@
 (
     resources: {},
     entities: {
-        4294967259: (
-            components: {
-                "bevy_ecs::hierarchy::ChildOf": (12884901857),
-                "bevy_ecs::name::Name": "B",
-            },
-        ),
         4294967260: (
             components: {
-                "bevy_ecs::hierarchy::ChildOf": (12884901857),
-                "bevy_ecs::name::Name": "A",
+                "bevy_camera::visibility::InheritedVisibility": (true),
+                "bevy_camera::visibility::Visibility": Inherited,
+                "bevy_ecs::hierarchy::ChildOf": (8589934560),
+                "bevy_ecs::name::Name": "Mesh tile.foliage",
+                "bevy_gltf::assets::GltfMaterialName": ("foliage"),
+                "bevy_gltf::assets::GltfMeshName": ("Mesh tile"),
+                "bevy_mesh::components::Mesh3d": (AssetPath("models/tile.glb#Mesh0/Primitive1")),
+                "bevy_pbr::mesh_material::MeshMaterial3d<bevy_pbr::pbr_material::StandardMaterial>": (AssetPath("models/tile.glb#Material1")),
+                "bevy_transform::components::transform::Transform": (
+                    translation: (0.0, 0.0, 0.0),
+                    rotation: (0.0, 0.0, 0.0, 1.0),
+                    scale: (1.0, 1.0, 1.0),
+                ),
             },
         ),
         4294967261: (
             components: {
-                "bevy_ecs::name::Name": "C",
+                "bevy_camera::visibility::InheritedVisibility": (true),
+                "bevy_camera::visibility::Visibility": Inherited,
+                "bevy_ecs::hierarchy::ChildOf": (8589934560),
+                "bevy_ecs::name::Name": "Mesh tile.dirt",
+                "bevy_gltf::assets::GltfMaterialName": ("dirt"),
+                "bevy_gltf::assets::GltfMeshName": ("Mesh tile"),
+                "bevy_mesh::components::Mesh3d": (AssetPath("models/tile.glb#Mesh0/Primitive0")),
+                "bevy_pbr::mesh_material::MeshMaterial3d<bevy_pbr::pbr_material::StandardMaterial>": (AssetPath("models/tile.glb#Material0")),
+                "bevy_transform::components::transform::Transform": (
+                    translation: (0.0, 0.0, 0.0),
+                    rotation: (0.0, 0.0, 0.0, 1.0),
+                    scale: (1.0, 1.0, 1.0),
+                ),
             },
         ),
         8589934560: (
             components: {
-                "bevy_ecs::name::Name": "B",
+                "bevy_camera::visibility::InheritedVisibility": (true),
+                "bevy_camera::visibility::Visibility": Inherited,
+                "bevy_ecs::hierarchy::ChildOf": (8589934561),
+                "bevy_ecs::hierarchy::Children": ([
+                    4294967261,
+                    4294967260,
+                ]),
+                "bevy_ecs::name::Name": "tile",
+                "bevy_transform::components::transform::Transform": (
+                    translation: (0.0, 0.0, 0.0),
+                    rotation: (0.0, 0.0, 0.0, 1.0),
+                    scale: (1.0, 1.0, 1.0),
+                ),
             },
         ),
-        12884901857: (
+        8589934561: (
             components: {
+                "bevy_camera::visibility::InheritedVisibility": (true),
+                "bevy_camera::visibility::Visibility": Inherited,
+                "bevy_ecs::hierarchy::ChildOf": (12884901858),
                 "bevy_ecs::hierarchy::Children": ([
-                    4294967260,
-                    4294967259,
+                    8589934560,
                 ]),
-                "bevy_ecs::name::Name": "A",
+                "bevy_transform::components::transform::Transform": (
+                    translation: (0.0, 0.0, 0.0),
+                    rotation: (0.0, 0.0, 0.0, 1.0),
+                    scale: (1.0, 1.0, 1.0),
+                ),
+            },
+        ),
+        12884901858: (
+            components: {
+                "bevy_camera::visibility::InheritedVisibility": (true),
+                "bevy_camera::visibility::Visibility": Visible,
+                "bevy_ecs::hierarchy::Children": ([
+                    8589934561,
+                ]),
+                "bevy_ecs::name::Name": "tile",
+                "bevy_scene::components::SceneRoot": (AssetPath("models/tile.glb#Scene0")),
+                "bevy_transform::components::transform::Transform": (
+                    translation: (0.0, 0.0, 0.0),
+                    rotation: (0.0, -0.0, 0.0, 1.0),
+                    scale: (1.0, 1.0, 1.0),
+                ),
             },
         ),
     },
