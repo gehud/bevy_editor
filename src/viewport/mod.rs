@@ -33,7 +33,11 @@ use bevy::{
         system::{Commands, In, Local, Query, Res, ResMut, Single},
         world::World,
     },
-    gizmos::gizmos::Gizmos,
+    gizmos::{
+        config::GizmoConfigStore,
+        gizmos::Gizmos,
+        light::{LightGizmoConfigGroup, LightGizmoPlugin, ShowLightGizmo},
+    },
     image::{BevyDefault, Image},
     input::{
         ButtonInput,
@@ -240,7 +244,11 @@ fn setup(
     mut images: ResMut<Assets<Image>>,
     mut user_textures: ResMut<EguiUserTextures>,
     mut commands: Commands,
+    mut config_store: ResMut<GizmoConfigStore>
 ) {
+    let (_, light_config) = config_store.config_mut::<LightGizmoConfigGroup>();
+    light_config.draw_all = true;
+
     let mut viewport_target = Image::new_uninit(
         default(),
         TextureDimension::D2,

@@ -1,84 +1,68 @@
 (
     resources: {},
     entities: {
-        4294967260: (
-            components: {
-                "bevy_camera::visibility::InheritedVisibility": (true),
-                "bevy_camera::visibility::Visibility": Inherited,
-                "bevy_ecs::hierarchy::ChildOf": (8589934560),
-                "bevy_ecs::name::Name": "Mesh tile.foliage",
-                "bevy_gltf::assets::GltfMaterialName": ("foliage"),
-                "bevy_gltf::assets::GltfMeshName": ("Mesh tile"),
-                "bevy_mesh::components::Mesh3d": (AssetPath("models/tile.glb#Mesh0/Primitive1")),
-                "bevy_pbr::mesh_material::MeshMaterial3d<bevy_pbr::pbr_material::StandardMaterial>": (AssetPath("models/tile.glb#Material1")),
-                "bevy_transform::components::transform::Transform": (
-                    translation: (0.0, 0.0, 0.0),
-                    rotation: (0.0, 0.0, 0.0, 1.0),
-                    scale: (1.0, 1.0, 1.0),
-                ),
-            },
-        ),
-        4294967261: (
-            components: {
-                "bevy_camera::visibility::InheritedVisibility": (true),
-                "bevy_camera::visibility::Visibility": Inherited,
-                "bevy_ecs::hierarchy::ChildOf": (8589934560),
-                "bevy_ecs::name::Name": "Mesh tile.dirt",
-                "bevy_gltf::assets::GltfMaterialName": ("dirt"),
-                "bevy_gltf::assets::GltfMeshName": ("Mesh tile"),
-                "bevy_mesh::components::Mesh3d": (AssetPath("models/tile.glb#Mesh0/Primitive0")),
-                "bevy_pbr::mesh_material::MeshMaterial3d<bevy_pbr::pbr_material::StandardMaterial>": (AssetPath("models/tile.glb#Material0")),
-                "bevy_transform::components::transform::Transform": (
-                    translation: (0.0, 0.0, 0.0),
-                    rotation: (0.0, 0.0, 0.0, 1.0),
-                    scale: (1.0, 1.0, 1.0),
-                ),
-            },
-        ),
         8589934560: (
             components: {
                 "bevy_camera::visibility::InheritedVisibility": (true),
-                "bevy_camera::visibility::Visibility": Inherited,
-                "bevy_ecs::hierarchy::ChildOf": (8589934561),
-                "bevy_ecs::hierarchy::Children": ([
-                    4294967261,
-                    4294967260,
-                ]),
-                "bevy_ecs::name::Name": "tile",
+                "bevy_camera::visibility::Visibility": Visible,
+                "bevy_ecs::name::Name": "Tile",
+                "bevy_scene::components::SceneRoot": (AssetPath("models/tile.glb#Scene0")),
                 "bevy_transform::components::transform::Transform": (
                     translation: (0.0, 0.0, 0.0),
-                    rotation: (0.0, 0.0, 0.0, 1.0),
+                    rotation: (0.0, -0.0, 0.0, 1.0),
                     scale: (1.0, 1.0, 1.0),
                 ),
             },
         ),
         8589934561: (
             components: {
+                "bevy_camera::primitives::CascadesFrusta": (),
+                "bevy_camera::visibility::CascadesVisibleEntities": (),
                 "bevy_camera::visibility::InheritedVisibility": (true),
                 "bevy_camera::visibility::Visibility": Inherited,
-                "bevy_ecs::hierarchy::ChildOf": (12884901858),
-                "bevy_ecs::hierarchy::Children": ([
-                    8589934560,
-                ]),
+                "bevy_ecs::name::Name": "Light",
+                "bevy_light::cascade::CascadeShadowConfig": (
+                    bounds: [
+                        10.0,
+                        24.66212,
+                        60.82202,
+                        149.99998,
+                    ],
+                    overlap_proportion: 0.2,
+                    minimum_distance: 0.1,
+                ),
+                "bevy_light::cascade::Cascades": (
+                    cascades: ({}),
+                ),
+                "bevy_light::directional_light::DirectionalLight": (
+                    color: LinearRgba((
+                        red: 1.0,
+                        green: 1.0,
+                        blue: 1.0,
+                        alpha: 1.0,
+                    )),
+                    illuminance: 10000.0,
+                    shadows_enabled: false,
+                    affects_lightmapped_mesh_diffuse: true,
+                    shadow_depth_bias: 0.02,
+                    shadow_normal_bias: 1.8,
+                ),
                 "bevy_transform::components::transform::Transform": (
                     translation: (0.0, 0.0, 0.0),
-                    rotation: (0.0, 0.0, 0.0, 1.0),
+                    rotation: (-0.07815904, -0.22337838, -0.9714269, -0.01797257),
                     scale: (1.0, 1.0, 1.0),
                 ),
             },
         ),
-        12884901858: (
+        8589934562: (
             components: {
                 "bevy_camera::visibility::InheritedVisibility": (true),
                 "bevy_camera::visibility::Visibility": Visible,
-                "bevy_ecs::hierarchy::Children": ([
-                    8589934561,
-                ]),
-                "bevy_ecs::name::Name": "tile",
-                "bevy_scene::components::SceneRoot": (AssetPath("models/tile.glb#Scene0")),
+                "bevy_ecs::name::Name": "Alien",
+                "bevy_scene::components::SceneRoot": (AssetPath("models/alien.glb#Scene0")),
                 "bevy_transform::components::transform::Transform": (
-                    translation: (0.0, 0.0, 0.0),
-                    rotation: (0.0, -0.0, 0.0, 1.0),
+                    translation: (0.0, 0.2, 0.0),
+                    rotation: (0.0, 1.0, 0.0, -0.00000004371139),
                     scale: (1.0, 1.0, 1.0),
                 ),
             },

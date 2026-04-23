@@ -29,7 +29,7 @@ use bevy::{
     },
     mesh::{Mesh, Mesh3d},
     pbr::{MeshMaterial3d, StandardMaterial},
-    platform::collections::HashSet,
+    platform::collections::{HashMap, HashSet},
     scene::{
         DynamicScene, DynamicSceneBuilder, DynamicSceneRoot, InstanceId, Scene, SceneFilter,
         SceneInstance, SceneRoot, SceneSpawner,
@@ -506,11 +506,35 @@ fn wait_scene(world: &mut World) -> Result {
     Ok(())
 }
 
-fn save_scene(
+fn collect_scene_entities(
+    entities: &mut Vec<Entity>,
+    restore_children: &mut HashMap<Entity, Children>,
+    root: Entity,
     world: &mut World,
-    state: &mut SystemState<MessageReader<SaveScene>>,
-    children: &mut QueryState<&Children>,
-) -> Result {
+) {
+    for child in world
+        .query::<&Children>()
+        .get(world, root)
+        .ok()
+        .map(|children| children.to_vec())
+        .unwrap_or_default()
+    {
+        entities.push(child);
+
+        let child_ref = world.entity(child);
+        if child_ref.contains::<SceneRoot>() || child_ref.contains::<DynamicSceneRoot>() {
+            if let Some(children) = world.entity_mut(child).take::<Children>() {
+                restore_children.insert(child, children);
+            }
+
+            continue;
+        }
+
+        collect_scene_entities(entities, restore_children, child, world);
+    }
+}
+
+fn save_scene(world: &mut World, state: &mut SystemState<MessageReader<SaveScene>>) -> Result {
     let mut requests = state.get_mut(world);
 
     if requests.is_empty() {
@@ -541,16 +565,16 @@ fn save_scene(
         .query_filtered::<Entity, With<InspectedScene>>()
         .single(world)?;
 
-    let roots = children
+    let roots = world.query::<&Children>()
         .get(world, root)
         .ok()
         .map(|children| children.to_vec())
         .unwrap_or_default();
 
-    let entities = children
-        .query(world)
-        .iter_descendants(root)
-        .collect::<Vec<_>>();
+    let mut entities = Vec::new();
+    let mut restore_children = HashMap::new();
+
+    collect_scene_entities(&mut entities, &mut restore_children, root, world);
 
     world.entity_mut(root).detach_all_children();
 
@@ -583,6 +607,9 @@ fn save_scene(
     let scene = builder.extract_entities(entities.iter().cloned()).build();
 
     world.entity_mut(root).add_children(&roots);
+    for (entity, children) in restore_children {
+        world.entity_mut(entity).insert(children);
+    }
 
     let output = {
         let type_registry = world.resource::<AppTypeRegistry>().read();
