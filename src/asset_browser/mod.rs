@@ -318,7 +318,6 @@ fn ui_for_asset<'a>(
                                                 {
                                                     let root = world
                                                         .spawn((
-                                                            Transform::IDENTITY,
                                                             Visibility::Hidden,
                                                             Name::new(scene_name(scene.path())),
                                                             SceneRoot(scene),

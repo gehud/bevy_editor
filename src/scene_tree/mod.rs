@@ -14,7 +14,7 @@ use bevy::{
         message::{Message, MessageReader},
         name::Name,
         observer::On,
-        query::{Or, With, Without},
+        query::{Or, QueryState, With, Without},
         reflect::{AppTypeRegistry, ReflectComponent},
         resource::Resource,
         system::{Commands, Query, Res, ResMut, Single, SystemState},
@@ -88,11 +88,6 @@ impl Pane for SceneTreePane {
         ui.heading(format!("{}{}", name, if is_dirty { "*" } else { "" }));
 
         ui.separator();
-
-        if !world.entity(root).contains::<SceneInstance>() {
-            ui.label("Loading...");
-            return Ok(());
-        }
 
         let children = world
             .entity(root)
@@ -380,7 +375,7 @@ pub struct OpenScene;
 #[derive(Message)]
 pub struct SaveScene;
 
-#[derive(Default, Resource, Serialize, Deserialize)]
+#[derive(Default, Resource)]
 struct OpenedScene(Option<PathBuf>);
 
 #[derive(Default, Component)]
@@ -406,6 +401,7 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut scenes: ResMut<Assets<Scene>>,
+    opened_scene: Res<OpenedScene>,
     mut commands: Commands,
 ) {
     let mut world = World::new();
@@ -434,8 +430,6 @@ fn setup(
 
     commands.spawn((
         InspectedScene { dirty: false },
-        Visibility::Visible,
-        Transform::IDENTITY,
         Name::new(scene_name(handle.path())),
         SceneRoot(handle),
     ));
@@ -501,8 +495,6 @@ fn wait_scene(world: &mut World) -> Result {
     world.entity_mut(inspected_scene).despawn();
     world.spawn((
         InspectedScene { dirty: false },
-        Visibility::Visible,
-        Transform::IDENTITY,
         Name::new(name),
         DynamicSceneRoot(handle),
     ));
@@ -514,7 +506,11 @@ fn wait_scene(world: &mut World) -> Result {
     Ok(())
 }
 
-fn save_scene(world: &mut World, state: &mut SystemState<MessageReader<SaveScene>>) -> Result {
+fn save_scene(
+    world: &mut World,
+    state: &mut SystemState<MessageReader<SaveScene>>,
+    children: &mut QueryState<&Children>,
+) -> Result {
     let mut requests = state.get_mut(world);
 
     if requests.is_empty() {
@@ -545,6 +541,19 @@ fn save_scene(world: &mut World, state: &mut SystemState<MessageReader<SaveScene
         .query_filtered::<Entity, With<InspectedScene>>()
         .single(world)?;
 
+    let roots = children
+        .get(world, root)
+        .ok()
+        .map(|children| children.to_vec())
+        .unwrap_or_default();
+
+    let entities = children
+        .query(world)
+        .iter_descendants(root)
+        .collect::<Vec<_>>();
+
+    world.entity_mut(root).detach_all_children();
+
     let mut builder = DynamicSceneBuilder::from_world(world);
 
     let component_ignore = world.resource::<ComponentIgnore>();
@@ -555,7 +564,10 @@ fn save_scene(world: &mut World, state: &mut SystemState<MessageReader<SaveScene
         .iter()
         .filter_map(|registration| {
             if registration.data::<ReflectComponent>().is_some() {
-                if component_ignore.ids.contains(&registration.type_id()) {
+                if component_ignore
+                    .serialization_ignore()
+                    .contains(&registration.type_id())
+                {
                     None
                 } else {
                     Some(registration.type_id())
@@ -568,13 +580,9 @@ fn save_scene(world: &mut World, state: &mut SystemState<MessageReader<SaveScene
 
     builder.component_filter = SceneFilter::Allowlist(allowed_components);
 
-    let entities = world
-        .entity(root)
-        .get::<Children>()
-        .map(|children| children.to_vec())
-        .unwrap_or_default();
-
     let scene = builder.extract_entities(entities.iter().cloned()).build();
+
+    world.entity_mut(root).add_children(&roots);
 
     let output = {
         let type_registry = world.resource::<AppTypeRegistry>().read();
@@ -599,7 +607,7 @@ impl Plugin for SceneTreePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DraggedSceneRoot>()
             .init_resource::<WaitingScene>()
-            .register_pref::<OpenedScene>()
+            .init_resource::<OpenedScene>()
             .register_pane(SceneTreePane)
             .add_message::<OpenScene>()
             .add_message::<SaveScene>()

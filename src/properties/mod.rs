@@ -53,13 +53,43 @@ use crate::{
 
 #[derive(Default, Resource)]
 pub struct ComponentIgnore {
-    pub(crate) ids: HashSet<TypeId>,
+    inspection: HashSet<TypeId>,
+    serialization: HashSet<TypeId>,
 }
 
 impl ComponentIgnore {
-    fn insert<C: Component>(&mut self) -> &mut Self {
-        self.ids.insert(TypeId::of::<C>());
+    pub fn ignore_inspection<C: Component>(&mut self) -> &mut Self {
+        self.inspection.insert(TypeId::of::<C>());
         self
+    }
+
+    pub fn ignore_serialization<C: Component>(&mut self) -> &mut Self {
+        self.serialization.insert(TypeId::of::<C>());
+        self
+    }
+
+    pub fn ignore_all<C: Component>(&mut self) -> &mut Self {
+        self.serialization.insert(TypeId::of::<C>());
+        self.inspection.insert(TypeId::of::<C>());
+        self
+    }
+
+    pub fn ignore<C: Component>(&mut self) -> &mut Self {
+        self.inspection.insert(TypeId::of::<C>());
+        self.serialization.insert(TypeId::of::<C>());
+        self
+    }
+
+    pub fn serialization_ignore(&self) -> &HashSet<TypeId> {
+        &self.serialization
+    }
+
+    pub fn inspection_ignore(&self) -> &HashSet<TypeId> {
+        &self.inspection
+    }
+
+    pub fn is_ignored(&self, type_id: &TypeId) -> bool {
+        self.inspection.contains(type_id) || self.serialization.contains(type_id)
     }
 }
 
@@ -569,7 +599,10 @@ fn get_entity_component_data(
                 return None;
             }
 
-            if component_ignore.ids.contains(&type_id.clone()) {
+            if component_ignore
+                .inspection_ignore()
+                .contains(&type_id.clone())
+            {
                 return None;
             }
 
@@ -621,7 +654,7 @@ fn collect_add_component_tree(
         .filter_map(|registration| {
             let component = registration.data::<ReflectComponent>()?;
 
-            if component_ignore.ids.contains(&registration.type_id()) {
+            if component_ignore.is_ignored(&registration.type_id()) {
                 return None;
             }
 
@@ -648,14 +681,32 @@ fn collect_add_component_tree(
 }
 
 pub trait PropertiesApp {
+    fn ignore_component_inspection<C: Component>(&mut self) -> &mut Self;
+
+    fn ignore_component_serialization<C: Component>(&mut self) -> &mut Self;
+
     fn ignore_component<C: Component>(&mut self) -> &mut Self;
 }
 
 impl PropertiesApp for App {
+    fn ignore_component_inspection<C: Component>(&mut self) -> &mut Self {
+        self.world_mut()
+            .resource_mut::<ComponentIgnore>()
+            .ignore_inspection::<C>();
+        self
+    }
+
+    fn ignore_component_serialization<C: Component>(&mut self) -> &mut Self {
+        self.world_mut()
+            .resource_mut::<ComponentIgnore>()
+            .ignore_serialization::<C>();
+        self
+    }
+
     fn ignore_component<C: Component>(&mut self) -> &mut Self {
         self.world_mut()
             .resource_mut::<ComponentIgnore>()
-            .insert::<C>();
+            .ignore_all::<C>();
         self
     }
 }
@@ -665,14 +716,14 @@ pub struct PropertiesPlugin;
 impl Plugin for PropertiesPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ComponentIgnore>()
-            .ignore_component::<Name>()
-            .ignore_component::<SceneRoot>()
-            .ignore_component::<ChildOf>()
-            .ignore_component::<Children>()
+            .ignore_component_inspection::<Name>()
+            .ignore_component_inspection::<SceneRoot>()
+            .ignore_component_inspection::<ChildOf>()
+            .ignore_component_inspection::<Children>()
             .ignore_component::<Aabb>()
             .ignore_component::<GlobalTransform>()
-            .ignore_component::<Visibility>()
-            .ignore_component::<InheritedVisibility>()
+            .ignore_component_inspection::<Visibility>()
+            .ignore_component_inspection::<InheritedVisibility>()
             .ignore_component::<PickingInteraction>()
             .ignore_component::<RenderEntity>()
             .ignore_component::<ViewVisibility>()
