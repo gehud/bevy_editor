@@ -47,6 +47,7 @@ use crate::{
         utils::{self, pretty_type_name, pretty_type_name_str},
     },
     pane::{Pane, RegisterPane},
+    scene_tree::MarkSceneDirty,
     selection::{EntitySelection, SelectionMap},
     utils::paint_collapsing_button,
 };
@@ -134,16 +135,15 @@ fn ui_for_entity_name(ui: &mut Ui, world: &mut World, entity: Entity) -> Result 
             .selectable(false)
             .ui(ui);
 
-        let mut entity_mut = world.entity_mut(entity);
-
-        if entity_mut.contains::<Name>() {
+        if world.entity(entity).contains::<Name>() {
             if Button::new(MaterialIcon::new(Icon::Minus).rich_text().size(12.0))
                 .small()
                 .min_size(Vec2::new(18.0, 18.0))
                 .ui(ui)
                 .clicked()
             {
-                entity_mut.remove::<Name>();
+                world.entity_mut(entity).remove::<Name>();
+                world.write_message(MarkSceneDirty);
             }
         } else {
             if Button::new(MaterialIcon::new(Icon::Plus).rich_text().size(12.0))
@@ -152,17 +152,24 @@ fn ui_for_entity_name(ui: &mut Ui, world: &mut World, entity: Entity) -> Result 
                 .ui(ui)
                 .clicked()
             {
-                entity_mut.insert(Name::new("Entity"));
+                world.entity_mut(entity).insert(Name::new("Entity"));
+                world.write_message(MarkSceneDirty);
             }
         }
 
-        if let Some(mut name) = entity_mut.get_mut::<Name>() {
+        let changed = if let Some(mut name) = world.entity_mut(entity).get_mut::<Name>() {
+            let mut changed = false;
+
             name.mutate(|name| {
-                TextEdit::singleline(name)
+                changed = TextEdit::singleline(name)
                     .desired_width(f32::INFINITY)
                     .margin(Margin::symmetric(8, 4))
-                    .show(ui);
+                    .show(ui)
+                    .response
+                    .changed();
             });
+
+            changed
         } else {
             ui.add_enabled_ui(false, |ui| {
                 let mut name = String::from("Entity");
@@ -171,6 +178,12 @@ fn ui_for_entity_name(ui: &mut Ui, world: &mut World, entity: Entity) -> Result 
                     .margin(Margin::symmetric(8, 4))
                     .show(ui);
             });
+
+            false
+        };
+
+        if changed {
+            world.write_message(MarkSceneDirty);
         }
     });
 
@@ -367,6 +380,7 @@ fn add_component_ui(world: &mut World, queue: &mut CommandQueue, entity: Entity,
                                 default.default().as_partial_reflect(),
                                 &type_registry,
                             );
+                            world.write_message(MarkSceneDirty);
                         });
                     }
                 }
@@ -437,6 +451,7 @@ fn ui_for_entity_components(
                                 let component_id = data.component_id;
                                 queue.push(move |world: &mut World| {
                                     world.entity_mut(entity).remove_by_id(component_id);
+                                    world.write_message(MarkSceneDirty);
                                 });
                             }
                         });
@@ -502,6 +517,7 @@ fn ui_for_entity_components(
                                                     world
                                                         .entity_mut(entity)
                                                         .remove_by_id(component_id);
+                                                    world.write_message(MarkSceneDirty);
                                                 });
                                             }
                                         });
@@ -534,6 +550,9 @@ fn ui_for_entity_components(
 
                                             if changed {
                                                 value.set_changed();
+                                                queue.push(|world: &mut World| {
+                                                    world.write_message(MarkSceneDirty);
+                                                });
                                             }
                                         }
                                         ReflectBorrow::Immutable(value) => env

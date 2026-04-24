@@ -2,7 +2,10 @@ use bevy::ecs::{
     error::Result,
     world::{Mut, World},
 };
-use egui::{CentralPanel, Frame, MenuBar, Panel, Ui, WidgetText};
+use egui::{
+    Button, CentralPanel, Frame, Key, KeyboardShortcut, MenuBar, Modifiers, Panel, Ui, Widget,
+    WidgetText,
+};
 
 use crate::{
     asset_browser::AssetPayload,
@@ -12,15 +15,26 @@ use crate::{
     style::IntoDockStyle,
 };
 
+const FILE_OPEN_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::O);
+const FILE_SAVE_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::S);
+
 fn menu_bar(ui: &mut Ui, world: &mut World) -> Result {
     MenuBar::new()
         .ui(ui, |ui| {
             ui.menu_button("File", |ui| {
-                if ui.button("Open").clicked() {
+                if Button::new("Open")
+                    .shortcut_text(ui.format_shortcut(&FILE_OPEN_SHORTCUT))
+                    .ui(ui)
+                    .clicked()
+                {
                     world.write_message(OpenScene);
                 }
 
-                if ui.button("Save").clicked() {
+                if Button::new("Save")
+                    .shortcut_text(ui.format_shortcut(&FILE_SAVE_SHORTCUT))
+                    .ui(ui)
+                    .clicked()
+                {
                     world.write_message(SaveScene);
                 }
             });
@@ -112,6 +126,14 @@ pub(super) fn root(ui: &mut Ui, world: &mut World) -> Result {
         if let Some(scene_root) = world.resource_mut::<DraggedSceneRoot>().0.take() {
             world.entity_mut(scene_root).despawn();
         }
+    }
+
+    if ui.input_mut(|input| input.consume_shortcut(&FILE_OPEN_SHORTCUT)) {
+        world.write_message(OpenScene);
+    }
+
+    if ui.input_mut(|input| input.consume_shortcut(&FILE_SAVE_SHORTCUT)) {
+        world.write_message(SaveScene);
     }
 
     Ok(())

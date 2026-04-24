@@ -63,6 +63,9 @@ use crate::{
 
 pub const DESPAWN_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::NONE, Key::Delete);
 
+#[derive(Message)]
+pub struct MarkSceneDirty;
+
 pub struct EntityPayload {
     pub entity: Entity,
 }
@@ -128,6 +131,7 @@ impl Pane for SceneTreePane {
                     .insert(Transform::IDENTITY);
 
                 world.entity_mut(root).add_child(dragged);
+                world.write_message(MarkSceneDirty);
             }
         }
 
@@ -346,6 +350,8 @@ fn entity_ui_recurse(ui: &mut Ui, world: &mut World, entity: Entity, id: Id) {
                         .entity_mut(drop_target)
                         .insert_child(drop_index, payload.entity);
                 }
+
+                world.write_message(MarkSceneDirty);
             }
         }
     }
@@ -364,6 +370,7 @@ fn despawn_selected(world: &mut World) {
         for entity in selected {
             if let Ok(entity) = world.get_entity_mut(entity) {
                 entity.despawn();
+                world.write_message(MarkSceneDirty);
             }
         }
     }
@@ -542,6 +549,10 @@ fn save_scene(world: &mut World, state: &mut SystemState<MessageReader<SaveScene
 
     requests.clear();
 
+    if !world.query::<&InspectedScene>().single(world)?.dirty {
+        return Ok(());
+    }
+
     let current_dir = env::current_dir()?;
 
     let Some(path) = world
@@ -564,7 +575,8 @@ fn save_scene(world: &mut World, state: &mut SystemState<MessageReader<SaveScene
         .query_filtered::<Entity, With<InspectedScene>>()
         .single(world)?;
 
-    let roots = world.query::<&Children>()
+    let roots = world
+        .query::<&Children>()
         .get(world, root)
         .ok()
         .map(|children| children.to_vec())
@@ -620,11 +632,28 @@ fn save_scene(world: &mut World, state: &mut SystemState<MessageReader<SaveScene
 
     let asset_path = path.strip_prefix(current_dir.join("assets"))?.to_path_buf();
 
+    world
+        .query::<&mut InspectedScene>()
+        .single_mut(world)?
+        .dirty = false;
     world.resource_mut::<OpenedScene>().0 = Some(asset_path);
 
     state.apply(world);
 
     Ok(())
+}
+
+fn mark_scene_dirty(
+    mut requests: MessageReader<MarkSceneDirty>,
+    mut inspected_scene: Single<&mut InspectedScene>,
+) {
+    if requests.is_empty() {
+        return;
+    }
+
+    requests.clear();
+
+    inspected_scene.dirty = true;
 }
 
 pub struct SceneTreePlugin;
@@ -637,7 +666,11 @@ impl Plugin for SceneTreePlugin {
             .register_pane(SceneTreePane)
             .add_message::<OpenScene>()
             .add_message::<SaveScene>()
+            .add_message::<MarkSceneDirty>()
             .add_systems(Startup, setup)
-            .add_systems(PostUpdate, (open_scene, save_scene, wait_scene));
+            .add_systems(
+                PostUpdate,
+                (open_scene, save_scene, wait_scene, mark_scene_dirty),
+            );
     }
 }
