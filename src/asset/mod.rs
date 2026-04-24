@@ -1,5 +1,3 @@
-pub mod serde;
-
 use std::{
     path::Path,
     sync::{

@@ -1,14 +1,15 @@
 //! `serde` serialization and deserialization implementation for Bevy scenes.
 
 use bevy::{
-    asset::{AssetServer, UntypedAssetId},
+    asset::{AssetPath, AssetServer, ReflectHandle, UntypedAssetId, UntypedHandle},
     ecs::entity::Entity,
     platform::collections::HashSet,
     reflect::{
-        PartialReflect, ReflectFromReflect, TypeRegistry,
+        PartialReflect, ReflectFromReflect, TypePath, TypeRegistration, TypeRegistry,
+        prelude::ReflectDefault,
         serde::{
-            ReflectDeserializer, TypeRegistrationDeserializer, TypedReflectDeserializer,
-            TypedReflectSerializer,
+            ReflectDeserializer, ReflectDeserializerProcessor, ReflectSerializerProcessor,
+            TypeRegistrationDeserializer, TypedReflectDeserializer, TypedReflectSerializer,
         },
     },
     scene::{DynamicEntity, DynamicScene},
@@ -19,16 +20,124 @@ use serde::{
     de::{DeserializeSeed, Error, MapAccess, SeqAccess, Visitor},
     ser::{SerializeMap, SerializeStruct},
 };
+use uuid::Uuid;
 
-use crate::{
-    asset::serde::{AssetHandleDeserializerProcessor, AssetHandleSerializerProcessor},
-    scene::AssetScene,
-};
+use crate::scene::AssetScene;
+
+#[derive(TypePath, Serialize, Deserialize)]
+pub enum AssetRef {
+    Empty,
+    AssetPath(AssetPath<'static>),
+    Uuid(Uuid),
+}
+
+#[derive(Default)]
+pub struct SceneSerializerProcessor;
+
+impl SceneSerializerProcessor {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl ReflectSerializerProcessor for SceneSerializerProcessor {
+    fn try_serialize<S>(
+        &self,
+        value: &dyn PartialReflect,
+        registry: &TypeRegistry,
+        serializer: S,
+    ) -> Result<Result<S::Ok, S>, S::Error>
+    where
+        S: Serializer,
+    {
+        let Some(value) = value.try_as_reflect() else {
+            // we don't have any info on this type; do the default serialization logic
+            return Ok(Err(serializer));
+        };
+
+        let type_id = value.reflect_type_info().type_id();
+        let Some(reflect_handle) = registry.get_type_data::<ReflectHandle>(type_id) else {
+            // this isn't a `Handle<T>`
+            return Ok(Err(serializer));
+        };
+
+        let untyped_handle = reflect_handle
+            .downcast_handle_untyped(value.as_any())
+            .unwrap();
+
+        let asset_ref = match untyped_handle {
+            UntypedHandle::Strong(..) => {
+                if let Some(path) = untyped_handle.path() {
+                    AssetRef::AssetPath(path.clone())
+                } else {
+                    AssetRef::Empty
+                }
+            }
+            UntypedHandle::Uuid { uuid, .. } => AssetRef::Uuid(uuid),
+        };
+
+        Ok(Ok(asset_ref.serialize(serializer)?))
+    }
+}
+
+pub struct SceneDeserializerProcessor<'a> {
+    pub asset_server: &'a AssetServer,
+    pub collector: &'a mut HashSet<UntypedAssetId>,
+}
+
+impl<'a> SceneDeserializerProcessor<'a> {
+    pub fn new(asset_server: &'a AssetServer, collector: &'a mut HashSet<UntypedAssetId>) -> Self {
+        Self {
+            asset_server,
+            collector,
+        }
+    }
+}
+
+impl ReflectDeserializerProcessor for SceneDeserializerProcessor<'_> {
+    fn try_deserialize<'de, D>(
+        &mut self,
+        registration: &TypeRegistration,
+        _registry: &TypeRegistry,
+        deserializer: D,
+    ) -> Result<Result<Box<dyn PartialReflect>, D>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let Some(reflect_handle) = registration.data::<ReflectHandle>() else {
+            // we don't want to deserialize this - give the deserializer back
+            return Ok(Err(deserializer));
+        };
+
+        let Some(reflect_default) = registration.data::<ReflectDefault>() else {
+            // we don't want to deserialize this - give the deserializer back
+            return Ok(Err(deserializer));
+        };
+
+        let asset_ref = AssetRef::deserialize(deserializer)?;
+
+        let handle = match asset_ref {
+            AssetRef::Empty => reflect_default.default(),
+            AssetRef::AssetPath(asset_path) => reflect_handle.load(self.asset_server, asset_path),
+            AssetRef::Uuid(uuid) => reflect_handle.typed(UntypedHandle::Uuid {
+                type_id: reflect_handle.asset_type_id(),
+                uuid,
+            }),
+        };
+
+        self.collector.insert(
+            reflect_handle
+                .downcast_handle_untyped(handle.as_any())
+                .unwrap()
+                .id(),
+        );
+
+        Ok(Ok(handle))
+    }
+}
 
 /// Name of the serialized scene struct type.
 pub const SCENE_STRUCT: &str = "Scene";
-/// Name of the serialized resources field in a scene struct.
-pub const SCENE_RESOURCES: &str = "resources";
 /// Name of the serialized entities field in a scene struct.
 pub const SCENE_ENTITIES: &str = "entities";
 
@@ -87,13 +196,6 @@ impl<'a> Serialize for AssetSceneSerializer<'a> {
         S: Serializer,
     {
         let mut state = serializer.serialize_struct(SCENE_STRUCT, 2)?;
-        state.serialize_field(
-            SCENE_RESOURCES,
-            &SceneMapSerializer {
-                entries: &self.scene.resources,
-                registry: self.registry,
-            },
-        )?;
         state.serialize_field(
             SCENE_ENTITIES,
             &EntitiesSerializer {
@@ -192,7 +294,7 @@ impl<'a> Serialize for SceneMapSerializer<'a> {
             entries
         };
 
-        let mut processor = AssetHandleSerializerProcessor::new();
+        let mut processor = SceneSerializerProcessor::new();
 
         for (type_path, partial_reflect) in sorted_entries {
             state.serialize_entry(
@@ -211,7 +313,6 @@ impl<'a> Serialize for SceneMapSerializer<'a> {
 #[derive(Deserialize)]
 #[serde(field_identifier, rename_all = "lowercase")]
 enum SceneField {
-    Resources,
     Entities,
 }
 
@@ -247,7 +348,7 @@ impl<'a, 'de> DeserializeSeed<'de> for AssetSceneDeserializer<'a> {
         let mut dependencies = HashSet::new();
         let scene = deserializer.deserialize_struct(
             SCENE_STRUCT,
-            &[SCENE_RESOURCES, SCENE_ENTITIES],
+            &[SCENE_ENTITIES],
             SceneVisitor {
                 type_registry: self.type_registry,
                 asset_server: self.asset_server,
@@ -279,14 +380,6 @@ impl<'a, 'de> Visitor<'de> for SceneVisitor<'a> {
     where
         A: SeqAccess<'de>,
     {
-        let resources = seq
-            .next_element_seed(SceneMapDeserializer {
-                registry: self.type_registry,
-                asset_server: self.asset_server,
-                dependencies: self.dependencies,
-            })?
-            .ok_or_else(|| Error::missing_field(SCENE_RESOURCES))?;
-
         let entities = seq
             .next_element_seed(SceneEntitiesDeserializer {
                 type_registry: self.type_registry,
@@ -296,7 +389,7 @@ impl<'a, 'de> Visitor<'de> for SceneVisitor<'a> {
             .ok_or_else(|| Error::missing_field(SCENE_ENTITIES))?;
 
         Ok(DynamicScene {
-            resources,
+            resources: Vec::new(),
             entities,
         })
     }
@@ -305,20 +398,9 @@ impl<'a, 'de> Visitor<'de> for SceneVisitor<'a> {
     where
         A: MapAccess<'de>,
     {
-        let mut resources = None;
         let mut entities = None;
         while let Some(key) = map.next_key()? {
             match key {
-                SceneField::Resources => {
-                    if resources.is_some() {
-                        return Err(Error::duplicate_field(SCENE_RESOURCES));
-                    }
-                    resources = Some(map.next_value_seed(SceneMapDeserializer {
-                        registry: self.type_registry,
-                        asset_server: self.asset_server,
-                        dependencies: self.dependencies,
-                    })?);
-                }
                 SceneField::Entities => {
                     if entities.is_some() {
                         return Err(Error::duplicate_field(SCENE_ENTITIES));
@@ -332,11 +414,10 @@ impl<'a, 'de> Visitor<'de> for SceneVisitor<'a> {
             }
         }
 
-        let resources = resources.ok_or_else(|| Error::missing_field(SCENE_RESOURCES))?;
         let entities = entities.ok_or_else(|| Error::missing_field(SCENE_ENTITIES))?;
 
         Ok(DynamicScene {
-            resources,
+            resources: Vec::new(),
             entities,
         })
     }
@@ -531,8 +612,7 @@ impl<'a, 'de> Visitor<'de> for SceneMapVisitor<'a> {
         A: SeqAccess<'de>,
     {
         let mut dynamic_properties = Vec::new();
-        let mut processor =
-            AssetHandleDeserializerProcessor::new(self.asset_server, self.dependencies);
+        let mut processor = SceneDeserializerProcessor::new(self.asset_server, self.dependencies);
         while let Some(entity) = seq.next_element_seed(ReflectDeserializer::with_processor(
             self.registry,
             &mut processor,
@@ -560,7 +640,7 @@ impl<'a, 'de> Visitor<'de> for SceneMapVisitor<'a> {
             }
 
             let mut processor =
-                AssetHandleDeserializerProcessor::new(self.asset_server, self.dependencies);
+                SceneDeserializerProcessor::new(self.asset_server, self.dependencies);
 
             let value = map.next_value_seed(TypedReflectDeserializer::with_processor(
                 registration,

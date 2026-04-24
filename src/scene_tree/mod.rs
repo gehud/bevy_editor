@@ -401,7 +401,6 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut scenes: ResMut<Assets<Scene>>,
-    opened_scene: Res<OpenedScene>,
     mut commands: Commands,
 ) {
     let mut world = World::new();
@@ -608,7 +607,7 @@ fn save_scene(world: &mut World, state: &mut SystemState<MessageReader<SaveScene
 
     world.entity_mut(root).add_children(&roots);
     for (entity, children) in restore_children {
-        world.entity_mut(entity).insert(children);
+        world.entity_mut(entity).add_children(&children);
     }
 
     let output = {

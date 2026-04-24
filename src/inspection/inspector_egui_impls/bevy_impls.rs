@@ -125,7 +125,7 @@ fn transform_component_ui(
 impl Inspector for Transform {
     fn ui(
         ui: &mut egui::Ui,
-        options: &dyn Any,
+        _options: &dyn Any,
         id: egui::Id,
         mut env: InspectorUi<'_, '_>,
         value: &mut dyn PartialReflect,
@@ -153,29 +153,47 @@ impl Inspector for Transform {
             ui.weak("Rotation");
 
             ui.horizontal(|ui| -> Result {
-                let id = id.with("euler_angles");
+                let id = id.with("euler_rotation");
 
-                let mut rotation = ui.memory_mut(|memory| {
+                let mut euler_radians = ui.memory_mut(|memory| {
                     *memory.data.get_temp_mut_or_insert_with(id, || {
                         Vec3::from(value.rotation.to_euler(EulerRot::XYZ))
-                            .map(|component| component.to_degrees())
                     })
                 });
+
+                let externally_changed = !Quat::from_euler(
+                    EulerRot::XYZ,
+                    euler_radians.x,
+                    euler_radians.y,
+                    euler_radians.z,
+                )
+                .abs_diff_eq(value.rotation, f32::EPSILON);
+
+                if externally_changed {
+                    euler_radians = Vec3::from(value.rotation.to_euler(EulerRot::XYZ));
+                }
+
+                let mut euler_degreees = euler_radians.map(|component| component.to_degrees());
 
                 ui.take_available_width();
                 ui.columns(3, |ui| -> Result {
                     for (i, ui) in ui.iter_mut().enumerate() {
-                        changed |= transform_component_ui(&mut env, ui, i, &mut rotation[i])?;
+                        changed |= transform_component_ui(&mut env, ui, i, &mut euler_degreees[i])?;
                     }
 
                     Ok(())
                 })?;
 
-                ui.memory_mut(|memory| memory.data.insert_temp(id, rotation));
+                let euler_radians = euler_degreees.map(|component| component.to_radians());
 
-                let rotation = rotation.map(|component| component.to_radians());
-                value.rotation =
-                    Quat::from_euler(EulerRot::XYZ, rotation.x, rotation.y, rotation.z);
+                ui.memory_mut(|memory| memory.data.insert_temp(id, euler_radians));
+
+                value.rotation = Quat::from_euler(
+                    EulerRot::XYZ,
+                    euler_radians.x,
+                    euler_radians.y,
+                    euler_radians.z,
+                );
 
                 Ok(())
             })
