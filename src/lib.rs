@@ -41,7 +41,7 @@ use egui::{
 };
 
 use crate::{
-    asset::AssetWatcherPlugin, asset_browser::AssetBrowserPlugin, assets::{AssetsPlugin, LUCIDE_FONT_FAMILY}, cursor::CursorLockPlugin, inspection::DefaultInspectorConfigPlugin, pane::PanePlugin, prefs::{PrefsPlugin, RegisterPref, Save}, properties::PropertiesPlugin, scene::AssetScenePlugin, scene_tree::SceneTreePlugin, selection::SelectionPlugin, style::set_dark_style, ui::root, viewport::ViewportPlugin
+    asset::AssetIndexPlugin, asset_browser::AssetBrowserPlugin, assets::{AssetsPlugin, LUCIDE_FONT_FAMILY}, cursor::CursorLockPlugin, inspection::DefaultInspectorConfigPlugin, pane::PanePlugin, prefs::{PrefsPlugin, RegisterPref, Save}, properties::PropertiesPlugin, scene::AssetScenePlugin, scene_tree::SceneTreePlugin, selection::SelectionPlugin, style::set_dark_style, ui::root, viewport::ViewportPlugin
 };
 
 pub const PLAY_MODE_VAR: &'static str = "BEVY_EDITOR_PLAY";
@@ -63,7 +63,7 @@ pub struct EditorPlugin;
 
 impl Plugin for EditorPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(AssetWatcherPlugin)
+        app.add_plugins(AssetIndexPlugin)
             .add_plugins(
                 DefaultPlugins
                     .set(WindowPlugin {
