@@ -50,6 +50,7 @@ fuzzy-matcher = "0.3.7"
 rfd = "0.17.2"
 async-channel = "2.5.0"
 uuid = { version = "1.23.1", features = ["v4"] }
+async-fs = "2.2.0"
 
 [patch.crates-io]
 bevy = { git = "https://github.com/gehud/bevy.git", branch = "editor" }

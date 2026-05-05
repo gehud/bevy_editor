@@ -1,23 +1,28 @@
 use std::{
     borrow::Cow,
+    cell::{Cell, RefCell},
     fs::{self, File},
+    marker::PhantomData,
     ops::Index,
     path::{Path, PathBuf},
+    pin::Pin,
+    str::FromStr,
     sync::{
-        Mutex, MutexGuard, PoisonError,
+        Arc, LazyLock, Mutex, MutexGuard, PoisonError, RwLock,
         mpsc::{Receiver, channel},
     },
     time::Duration,
 };
 
 use async_channel::Sender;
+use async_fs::ReadDir;
 use bevy::{
     app::{App, Plugin, PreStartup, Startup, Update},
     asset::{
         AssetApp, AssetMetaCheck, AssetMode, AssetPlugin, AssetServer,
         io::{
-            AssetReader, AssetSource, AssetSourceBuilder, AssetSourceEvent, AssetSourceId,
-            AssetWatcher, AssetWriter,
+            AssetReader, AssetReaderError, AssetSource, AssetSourceBuilder, AssetSourceEvent,
+            AssetSourceId, AssetWatcher, AssetWriter, PathStream, Reader,
             file::{FileAssetReader, FileAssetWriter, FileWatcher},
         },
     },
@@ -28,7 +33,8 @@ use bevy::{
         system::{Commands, Res},
     },
     log::{info, warn},
-    tasks::block_on,
+    platform::collections::HashSet,
+    tasks::{IoTaskPool, Task, block_on, futures, futures_lite::stream},
     utils::default,
 };
 use ron::ser::PrettyConfig;
@@ -36,48 +42,55 @@ use rusqlite::{Connection, Error as SqliteError, params};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-struct AssetDatabaseReader(FileAssetReader);
+thread_local! {
+    static READING_PATHS: RefCell<HashSet<PathBuf>> = RefCell::default();
+}
+
+struct AssetDatabaseReader {
+    db: AssetDatabase,
+    inner: FileAssetReader,
+}
 
 impl AssetDatabaseReader {
     pub fn new() -> Self {
-        Self(FileAssetReader::new("assets"))
+        Self {
+            db: AssetDatabase::open().unwrap(),
+            inner: FileAssetReader::new("assets"),
+        }
+    }
+
+    fn get_asset_path<'a>(&'a self, path: PathBuf) -> Option<PathBuf> {
+        let uuid = Uuid::from_str(&path.to_string_lossy().to_string()).ok()?;
+        self.db.get_path(&uuid).ok()?
     }
 }
 
 impl AssetReader for AssetDatabaseReader {
-    fn read<'a>(
-        &'a self,
-        path: &'a Path,
-    ) -> impl bevy::asset::io::AssetReaderFuture<Value: bevy::asset::io::Reader + 'a> {
-        self.0.read(path)
+    async fn read<'a>(&'a self, path: PathBuf) -> Result<impl Reader + 'a, AssetReaderError> {
+        let asset_path = self
+            .get_asset_path(path.clone())
+            .ok_or_else(|| AssetReaderError::NotFound(path))?;
+        self.inner.read(asset_path).await
     }
 
-    fn read_meta<'a>(
-        &'a self,
-        path: &'a Path,
-    ) -> impl bevy::asset::io::AssetReaderFuture<Value: bevy::asset::io::Reader + 'a> {
-        self.0.read_meta(path)
+    async fn read_meta<'a>(&'a self, path: PathBuf) -> Result<impl Reader + 'a, AssetReaderError> {
+        let asset_path = self
+            .get_asset_path(path.clone())
+            .ok_or_else(|| AssetReaderError::NotFound(path))?;
+        self.inner
+            .read(asset_path.with_added_extension("meta"))
+            .await
     }
 
-    fn read_directory<'a>(
+    async fn read_directory<'a>(
         &'a self,
-        path: &'a Path,
-    ) -> impl bevy::tasks::ConditionalSendFuture<
-        Output = std::result::Result<
-            Box<bevy::asset::io::PathStream>,
-            bevy::asset::io::AssetReaderError,
-        >,
-    > {
-        self.0.read_directory(path)
+        _path: PathBuf,
+    ) -> Result<Box<PathStream>, bevy::asset::io::AssetReaderError> {
+        Ok(Box::new(stream::empty()))
     }
 
-    fn is_directory<'a>(
-        &'a self,
-        path: &'a Path,
-    ) -> impl bevy::tasks::ConditionalSendFuture<
-        Output = std::result::Result<bool, bevy::asset::io::AssetReaderError>,
-    > {
-        self.0.is_directory(path)
+    async fn is_directory<'a>(&'a self, _path: PathBuf) -> Result<bool, AssetReaderError> {
+        Ok(false)
     }
 }
 
@@ -91,121 +104,11 @@ impl AssetDatabaseWatcher {
 
 impl AssetWatcher for AssetDatabaseWatcher {}
 
-pub struct AssetDatabaseWriter(FileAssetWriter);
-
-impl AssetDatabaseWriter {
-    pub fn new(create_root: bool) -> Self {
-        Self(FileAssetWriter::new("assets", create_root))
-    }
-}
-
-impl AssetWriter for AssetDatabaseWriter {
-    fn write<'a>(
-        &'a self,
-        path: &'a Path,
-    ) -> impl bevy::tasks::ConditionalSendFuture<
-        Output = std::result::Result<
-            Box<bevy::asset::io::Writer>,
-            bevy::asset::io::AssetWriterError,
-        >,
-    > {
-        self.0.write(path)
-    }
-
-    fn write_meta<'a>(
-        &'a self,
-        path: &'a Path,
-    ) -> impl bevy::tasks::ConditionalSendFuture<
-        Output = std::result::Result<
-            Box<bevy::asset::io::Writer>,
-            bevy::asset::io::AssetWriterError,
-        >,
-    > {
-        self.0.write_meta(path)
-    }
-
-    fn remove<'a>(
-        &'a self,
-        path: &'a Path,
-    ) -> impl bevy::tasks::ConditionalSendFuture<
-        Output = std::result::Result<(), bevy::asset::io::AssetWriterError>,
-    > {
-        self.0.remove(path)
-    }
-
-    fn remove_meta<'a>(
-        &'a self,
-        path: &'a Path,
-    ) -> impl bevy::tasks::ConditionalSendFuture<
-        Output = std::result::Result<(), bevy::asset::io::AssetWriterError>,
-    > {
-        self.0.remove_meta(path)
-    }
-
-    fn rename<'a>(
-        &'a self,
-        old_path: &'a Path,
-        new_path: &'a Path,
-    ) -> impl bevy::tasks::ConditionalSendFuture<
-        Output = std::result::Result<(), bevy::asset::io::AssetWriterError>,
-    > {
-        self.0.rename(old_path, new_path)
-    }
-
-    fn rename_meta<'a>(
-        &'a self,
-        old_path: &'a Path,
-        new_path: &'a Path,
-    ) -> impl bevy::tasks::ConditionalSendFuture<
-        Output = std::result::Result<(), bevy::asset::io::AssetWriterError>,
-    > {
-        self.0.rename_meta(old_path, new_path)
-    }
-
-    fn create_directory<'a>(
-        &'a self,
-        path: &'a Path,
-    ) -> impl bevy::tasks::ConditionalSendFuture<
-        Output = std::result::Result<(), bevy::asset::io::AssetWriterError>,
-    > {
-        self.0.create_directory(path)
-    }
-
-    fn remove_directory<'a>(
-        &'a self,
-        path: &'a Path,
-    ) -> impl bevy::tasks::ConditionalSendFuture<
-        Output = std::result::Result<(), bevy::asset::io::AssetWriterError>,
-    > {
-        self.0.remove_directory(path)
-    }
-
-    fn remove_empty_directory<'a>(
-        &'a self,
-        path: &'a Path,
-    ) -> impl bevy::tasks::ConditionalSendFuture<
-        Output = std::result::Result<(), bevy::asset::io::AssetWriterError>,
-    > {
-        self.0.remove_empty_directory(path)
-    }
-
-    fn remove_assets_in_directory<'a>(
-        &'a self,
-        path: &'a Path,
-    ) -> impl bevy::tasks::ConditionalSendFuture<
-        Output = std::result::Result<(), bevy::asset::io::AssetWriterError>,
-    > {
-        self.0.remove_assets_in_directory(path)
-    }
-}
-
 fn watch(asset_server: Res<AssetServer>) -> Result {
     let source = asset_server.get_source(SOURCE_NAME)?;
 
     let receiver = source.event_receiver().unwrap();
-    while let Ok(event) = receiver.try_recv() {
-
-    }
+    while let Ok(event) = receiver.try_recv() {}
 
     Ok(())
 }
@@ -213,7 +116,10 @@ fn watch(asset_server: Res<AssetServer>) -> Result {
 pub const SOURCE_NAME: &'static str = "db";
 
 #[derive(Resource)]
-pub struct AssetDatabase(Mutex<Connection>);
+pub struct AssetDatabase(Connection);
+
+unsafe impl Send for AssetDatabase {}
+unsafe impl Sync for AssetDatabase {}
 
 impl AssetDatabase {
     fn path() -> PathBuf {
@@ -228,7 +134,7 @@ impl AssetDatabase {
 
     fn open() -> Result<Self> {
         fs::create_dir_all(Self::path().parent().unwrap())?;
-        let db = Self(Mutex::new(Connection::open(Self::path())?));
+        let db = Self(Connection::open(Self::path())?);
         db.connection().execute(
             "create table if not exists assets (
             uuid blob not null primary key,
@@ -256,6 +162,23 @@ impl AssetDatabase {
         }
     }
 
+    fn get_path(&self, uuid: &Uuid) -> Result<Option<PathBuf>> {
+        match self.connection().query_one(
+            "select path from assets where uuid = ?1",
+            params![uuid],
+            |row| {
+                let path: String = row.get(0)?;
+                Ok(path)
+            },
+        ) {
+            Ok(path) => Ok(Some(path.into())),
+            Err(error) => match error {
+                SqliteError::QueryReturnedNoRows => Ok(None),
+                error => Err(error.into()),
+            },
+        }
+    }
+
     fn insert_path(&self, uuid: &Uuid, path: impl Into<PathBuf>) -> Result<()> {
         let path = Self::normalize_path(path);
         self.connection().execute(
@@ -265,8 +188,8 @@ impl AssetDatabase {
         Ok(())
     }
 
-    fn connection(&self) -> MutexGuard<'_, Connection> {
-        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+    fn connection(&self) -> &Connection {
+        &self.0
     }
 }
 
@@ -356,8 +279,7 @@ impl Plugin for AssetDatabasePlugin {
     fn build(&self, app: &mut App) {
         app.register_asset_source(
             AssetSourceId::Name(SOURCE_NAME.into()),
-            AssetSourceBuilder::new(|| Box::new(AssetDatabaseReader::new()))
-                .with_writer(|create_root| Some(Box::new(AssetDatabaseWriter::new(create_root))))
+            AssetSourceBuilder::new(move || Box::new(AssetDatabaseReader::new()))
                 .with_watcher(|sender| Some(Box::new(AssetDatabaseWatcher::new(sender)))),
         )
         .add_plugins(AssetPlugin {
