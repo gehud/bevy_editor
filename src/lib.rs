@@ -19,17 +19,29 @@ pub use egui;
 use lucide_icons::LUCIDE_FONT_BYTES;
 use serde::{Deserialize, Serialize};
 
-use std::env;
+use std::{env, fs::File};
 
 use bevy::{
-    DefaultPlugins, app::{App, Plugin, PluginGroup, Startup}, asset::{AssetApp, AssetPlugin, Handle, ReflectHandle}, camera::{Camera, Camera2d}, ecs::{
+    DefaultPlugins,
+    app::{App, Plugin, PluginGroup, Startup},
+    asset::{AssetApp, AssetPlugin, Handle, ReflectHandle},
+    camera::{Camera, Camera2d},
+    ecs::{
         error::Result,
         observer::On,
         query::With,
         resource::Resource,
         system::{ResMut, Single, SystemState},
         world::World,
-    }, picking::Pickable, scene::{DynamicScene, Scene}, utils::default, window::{PrimaryWindow, Window, WindowPlugin}
+    },
+    log::{
+        Level, LogPlugin,
+        tracing_subscriber::{self, Layer, fmt::writer::MakeWriterExt},
+    },
+    picking::Pickable,
+    scene::{DynamicScene, Scene},
+    utils::default,
+    window::{PrimaryWindow, Window, WindowPlugin},
 };
 use bevy_egui::{
     EguiContext, EguiContexts, EguiGlobalSettings, EguiPlugin, EguiPrimaryContextPass,
@@ -41,7 +53,20 @@ use egui::{
 };
 
 use crate::{
-    asset::AssetDatabasePlugin, asset_browser::AssetBrowserPlugin, assets::{AssetsPlugin, LUCIDE_FONT_FAMILY}, cursor::CursorLockPlugin, inspection::DefaultInspectorConfigPlugin, pane::PanePlugin, prefs::{PrefsPlugin, RegisterPref, Save}, properties::PropertiesPlugin, scene::AssetScenePlugin, scene_tree::SceneTreePlugin, selection::SelectionPlugin, style::set_dark_style, ui::root, viewport::ViewportPlugin
+    asset::AssetDatabasePlugin,
+    asset_browser::AssetBrowserPlugin,
+    assets::{AssetsPlugin, LUCIDE_FONT_FAMILY},
+    cursor::CursorLockPlugin,
+    inspection::DefaultInspectorConfigPlugin,
+    pane::PanePlugin,
+    prefs::{PrefsPlugin, RegisterPref, Save},
+    properties::PropertiesPlugin,
+    scene::AssetScenePlugin,
+    scene_tree::SceneTreePlugin,
+    selection::SelectionPlugin,
+    style::set_dark_style,
+    ui::root,
+    viewport::ViewportPlugin,
 };
 
 pub const PLAY_MODE_VAR: &'static str = "BEVY_EDITOR_PLAY";
@@ -71,6 +96,23 @@ impl Plugin for EditorPlugin {
                             title: "Bevy Editor".into(),
                             ..default()
                         }),
+                        ..default()
+                    })
+                    .set(LogPlugin {
+                        level: Level::TRACE,
+                        fmt_layer: |_| {
+                            let layer = tracing_subscriber::fmt::layer()
+                                .with_writer(std::io::stdout.with_max_level(Level::INFO));
+                            Some(layer.boxed())
+                        },
+                        custom_layer: |_| {
+                            let file =
+                                File::create("trace.log").expect("failed to create log file");
+                            let layer = tracing_subscriber::fmt::layer()
+                                .with_writer(file.with_max_level(Level::TRACE))
+                                .with_ansi(false);
+                            Some(layer.boxed())
+                        },
                         ..default()
                     })
                     .disable::<AssetPlugin>(),

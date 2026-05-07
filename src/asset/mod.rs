@@ -19,12 +19,14 @@ use async_fs::ReadDir;
 use bevy::{
     app::{App, Plugin, PreStartup, Startup, Update},
     asset::{
-        AssetApp, AssetMetaCheck, AssetMode, AssetPlugin, AssetServer,
+        AssetApp, AssetMetaCheck, AssetMode, AssetPath, AssetPlugin, AssetServer,
         io::{
             AssetReader, AssetReaderError, AssetSource, AssetSourceBuilder, AssetSourceEvent,
-            AssetSourceId, AssetWatcher, AssetWriter, PathStream, Reader,
+            AssetSourceId, AssetWatcher, AssetWriter, AssetWriterError, ErasedAssetReader,
+            ErasedAssetWriter, PathStream, Reader, Writer,
             file::{FileAssetReader, FileAssetWriter, FileWatcher},
         },
+        processor::InitializeError,
     },
     ecs::{
         error::Result,
@@ -42,55 +44,81 @@ use rusqlite::{Connection, Error as SqliteError, params};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-thread_local! {
-    static READING_PATHS: RefCell<HashSet<PathBuf>> = RefCell::default();
-}
-
 struct AssetDatabaseReader {
     db: AssetDatabase,
-    inner: FileAssetReader,
+    inner: Box<dyn ErasedAssetReader>,
+}
+
+fn get_asset_path(db: &AssetDatabase, mut path: PathBuf) -> Option<PathBuf> {
+    path.set_extension("");
+    let uuid = Uuid::from_str(&path.to_string_lossy().to_string()).ok()?;
+    db.get_path(&uuid).ok()?
 }
 
 impl AssetDatabaseReader {
     pub fn new() -> Self {
         Self {
             db: AssetDatabase::open().unwrap(),
-            inner: FileAssetReader::new("assets"),
+            inner: AssetSource::get_default_reader("assets".into())(),
         }
-    }
-
-    fn get_asset_path<'a>(&'a self, path: PathBuf) -> Option<PathBuf> {
-        let uuid = Uuid::from_str(&path.to_string_lossy().to_string()).ok()?;
-        self.db.get_path(&uuid).ok()?
     }
 }
 
 impl AssetReader for AssetDatabaseReader {
     async fn read<'a>(&'a self, path: PathBuf) -> Result<impl Reader + 'a, AssetReaderError> {
-        let asset_path = self
-            .get_asset_path(path.clone())
-            .ok_or_else(|| AssetReaderError::NotFound(path))?;
-        self.inner.read(asset_path).await
+        // let path = get_asset_path(&self.db, path.clone()).unwrap_or_else(|| path);
+        self.inner.read(path).await
     }
 
     async fn read_meta<'a>(&'a self, path: PathBuf) -> Result<impl Reader + 'a, AssetReaderError> {
-        let asset_path = self
-            .get_asset_path(path.clone())
-            .ok_or_else(|| AssetReaderError::NotFound(path))?;
-        self.inner
-            .read(asset_path.with_added_extension("meta"))
-            .await
+        // let path = get_asset_path(&self.db, path.clone()).unwrap_or_else(|| path);
+        self.inner.read_meta(path).await
     }
 
     async fn read_directory<'a>(
         &'a self,
-        _path: PathBuf,
+        path: PathBuf,
     ) -> Result<Box<PathStream>, bevy::asset::io::AssetReaderError> {
-        Ok(Box::new(stream::empty()))
+        self.inner.read_directory(path).await
     }
 
-    async fn is_directory<'a>(&'a self, _path: PathBuf) -> Result<bool, AssetReaderError> {
-        Ok(false)
+    async fn is_directory<'a>(&'a self, path: PathBuf) -> Result<bool, AssetReaderError> {
+        self.inner.is_directory(path).await
+    }
+}
+
+pub struct AssetDatabaseProcessedReader {
+    db: AssetDatabase,
+    inner: Box<dyn ErasedAssetReader>,
+}
+
+impl AssetDatabaseProcessedReader {
+    pub fn new() -> Self {
+        Self {
+            db: AssetDatabase::open().unwrap(),
+            inner: AssetSource::get_default_reader("imported_assets/Database".into())(),
+        }
+    }
+}
+
+impl AssetReader for AssetDatabaseProcessedReader {
+    async fn read<'a>(&'a self, path: PathBuf) -> Result<impl Reader + 'a, AssetReaderError> {
+        self.inner.read(path).await
+    }
+
+    async fn read_meta<'a>(&'a self, path: PathBuf) -> Result<impl Reader + 'a, AssetReaderError> {
+        self.inner.read_meta(path).await
+    }
+
+    async fn read_directory<'a>(
+        &'a self,
+        path: PathBuf,
+    ) -> Result<Box<PathStream>, bevy::asset::io::AssetReaderError> {
+        self.inner.read_directory(path).await
+    }
+
+    async fn is_directory<'a>(&'a self, path: PathBuf) -> Result<bool, AssetReaderError> {
+        self.inner.is_directory(path).await
     }
 }
 
@@ -104,8 +132,143 @@ impl AssetDatabaseWatcher {
 
 impl AssetWatcher for AssetDatabaseWatcher {}
 
+pub struct AssetDatabaseWriter {
+    db: AssetDatabase,
+    inner: Box<dyn ErasedAssetWriter>,
+}
+
+impl AssetDatabaseWriter {
+    pub fn new() -> Self {
+        Self {
+            db: AssetDatabase::open().unwrap(),
+            inner: AssetSource::get_default_writer("assets".into())(false).unwrap(),
+        }
+    }
+}
+
+impl AssetWriter for AssetDatabaseWriter {
+    async fn write<'a>(&'a self, path: PathBuf) -> Result<Box<Writer>, AssetWriterError> {
+        self.inner.write(path).await
+    }
+
+    async fn write_meta<'a>(&'a self, path: PathBuf) -> Result<Box<Writer>, AssetWriterError> {
+        self.inner.write_meta(path).await
+    }
+
+    async fn remove<'a>(&'a self, path: PathBuf) -> Result<(), AssetWriterError> {
+        self.inner.remove(path).await
+    }
+
+    async fn remove_meta<'a>(&'a self, path: PathBuf) -> Result<(), AssetWriterError> {
+        self.inner.remove_meta(path).await
+    }
+
+    async fn rename<'a>(
+        &'a self,
+        old_path: PathBuf,
+        new_path: PathBuf,
+    ) -> Result<(), AssetWriterError> {
+        self.inner.rename(old_path, new_path).await
+    }
+
+    async fn rename_meta<'a>(
+        &'a self,
+        old_path: PathBuf,
+        new_path: PathBuf,
+    ) -> Result<(), AssetWriterError> {
+        self.inner.rename_meta(old_path, new_path).await
+    }
+
+    async fn create_directory<'a>(&'a self, path: PathBuf) -> Result<(), AssetWriterError> {
+        self.inner.create_directory(path).await
+    }
+
+    async fn remove_directory<'a>(&'a self, path: PathBuf) -> Result<(), AssetWriterError> {
+        self.inner.remove_directory(path).await
+    }
+
+    async fn remove_empty_directory<'a>(&'a self, path: PathBuf) -> Result<(), AssetWriterError> {
+        self.inner.remove_empty_directory(path).await
+    }
+
+    async fn remove_assets_in_directory<'a>(
+        &'a self,
+        path: PathBuf,
+    ) -> Result<(), AssetWriterError> {
+        self.inner.remove_assets_in_directory(path).await
+    }
+}
+
+pub struct AssetDatabaseProcessedWriter {
+    db: AssetDatabase,
+    inner: Box<dyn ErasedAssetWriter>,
+}
+
+impl AssetDatabaseProcessedWriter {
+    pub fn new() -> Self {
+        Self {
+            db: AssetDatabase::open().unwrap(),
+            inner: AssetSource::get_default_writer("imported_assets/Database".into())(true)
+                .unwrap(),
+        }
+    }
+}
+
+impl AssetWriter for AssetDatabaseProcessedWriter {
+    async fn write<'a>(&'a self, path: PathBuf) -> Result<Box<Writer>, AssetWriterError> {
+        self.inner.write(path).await
+    }
+
+    async fn write_meta<'a>(&'a self, path: PathBuf) -> Result<Box<Writer>, AssetWriterError> {
+        self.inner.write_meta(path).await
+    }
+
+    async fn remove<'a>(&'a self, path: PathBuf) -> Result<(), AssetWriterError> {
+        self.inner.remove(path).await
+    }
+
+    async fn remove_meta<'a>(&'a self, path: PathBuf) -> Result<(), AssetWriterError> {
+        self.inner.remove_meta(path).await
+    }
+
+    async fn rename<'a>(
+        &'a self,
+        old_path: PathBuf,
+        new_path: PathBuf,
+    ) -> Result<(), AssetWriterError> {
+        self.inner.rename(old_path, new_path).await
+    }
+
+    async fn rename_meta<'a>(
+        &'a self,
+        old_path: PathBuf,
+        new_path: PathBuf,
+    ) -> Result<(), AssetWriterError> {
+        self.inner.rename_meta(old_path, new_path).await
+    }
+
+    async fn create_directory<'a>(&'a self, path: PathBuf) -> Result<(), AssetWriterError> {
+        self.inner.create_directory(path).await
+    }
+
+    async fn remove_directory<'a>(&'a self, path: PathBuf) -> Result<(), AssetWriterError> {
+        self.inner.remove_directory(path).await
+    }
+
+    async fn remove_empty_directory<'a>(&'a self, path: PathBuf) -> Result<(), AssetWriterError> {
+        self.inner.remove_empty_directory(path).await
+    }
+
+    async fn remove_assets_in_directory<'a>(
+        &'a self,
+        path: PathBuf,
+    ) -> Result<(), AssetWriterError> {
+        self.inner.remove_assets_in_directory(path).await
+    }
+}
+
 fn watch(asset_server: Res<AssetServer>) -> Result {
-    let source = asset_server.get_source(SOURCE_NAME)?;
+    let source = asset_server.get_source(DB_ASSET_SOUCE)?;
 
     let receiver = source.event_receiver().unwrap();
     while let Ok(event) = receiver.try_recv() {}
@@ -113,7 +276,7 @@ fn watch(asset_server: Res<AssetServer>) -> Result {
     Ok(())
 }
 
-pub const SOURCE_NAME: &'static str = "db";
+pub const DB_ASSET_SOUCE: &'static str = "db";
 
 #[derive(Resource)]
 pub struct AssetDatabase(Connection);
@@ -138,14 +301,14 @@ impl AssetDatabase {
         db.connection().execute(
             "create table if not exists assets (
             uuid blob not null primary key,
-            path string not null
+            path string not null unique
         )",
             params![],
         )?;
         Ok(db)
     }
 
-    fn get_uuid(&self, path: impl Into<PathBuf>) -> Result<Option<Uuid>> {
+    pub fn get_uuid(&self, path: impl Into<PathBuf>) -> Result<Option<Uuid>> {
         match self.connection().query_one(
             "select uuid from assets where path = ?1",
             params![Self::normalize_path(path.into())],
@@ -162,7 +325,7 @@ impl AssetDatabase {
         }
     }
 
-    fn get_path(&self, uuid: &Uuid) -> Result<Option<PathBuf>> {
+    pub fn get_path(&self, uuid: &Uuid) -> Result<Option<PathBuf>> {
         match self.connection().query_one(
             "select path from assets where uuid = ?1",
             params![uuid],
@@ -246,6 +409,7 @@ fn refresh_recurse(
 
         let asset_path = path.strip_prefix("assets")?;
 
+        let mut meta_updated = false;
         let meta = if meta_path.exists() && meta_path.is_file() {
             let meta_text = fs::read_to_string(&meta_path)?;
             ron::de::from_str::<AssetDatabaseMeta>(&meta_text)
@@ -257,17 +421,28 @@ fn refresh_recurse(
             None
         };
 
-        let mut meta = meta.unwrap_or_default();
+        let mut meta = meta.unwrap_or_else(|| {
+            meta_updated = true;
+            AssetDatabaseMeta::default()
+        });
 
         if let Some(uuid) = asset_database.get_uuid(asset_path)? {
+            if meta.uuid != uuid {
+                meta_updated = true;
+            }
+
             meta.uuid = uuid;
         } else {
-            meta.uuid = Uuid::new_v4()
+            meta.uuid = Uuid::new_v4();
+            meta_updated = true;
         }
 
         asset_database.insert_path(&meta.uuid, asset_path)?;
-        let meta_text = ron::ser::to_string_pretty(&meta, PrettyConfig::default())?;
-        fs::write(&meta_path, meta_text)?;
+
+        if meta_updated {
+            let meta_text = ron::ser::to_string_pretty(&meta, PrettyConfig::default())?;
+            fs::write(&meta_path, meta_text)?;
+        }
     }
 
     Ok(())
@@ -278,9 +453,13 @@ pub struct AssetDatabasePlugin;
 impl Plugin for AssetDatabasePlugin {
     fn build(&self, app: &mut App) {
         app.register_asset_source(
-            AssetSourceId::Name(SOURCE_NAME.into()),
-            AssetSourceBuilder::new(move || Box::new(AssetDatabaseReader::new()))
-                .with_watcher(|sender| Some(Box::new(AssetDatabaseWatcher::new(sender)))),
+            AssetSourceId::Name(DB_ASSET_SOUCE.into()),
+            AssetSourceBuilder::new(|| Box::new(AssetDatabaseReader::new()))
+                .with_writer(|_| Some(Box::new(AssetDatabaseWriter::new())))
+                .with_watcher(|sender| Some(Box::new(AssetDatabaseWatcher::new(sender))))
+                .with_watch_warning(AssetSource::get_default_watch_warning())
+                .with_processed_reader(|| Box::new(AssetDatabaseProcessedReader::new()))
+                .with_processed_writer(|_| Some(Box::new(AssetDatabaseProcessedWriter::new()))),
         )
         .add_plugins(AssetPlugin {
             watch_for_changes_override: Some(true),
