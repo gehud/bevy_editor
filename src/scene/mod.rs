@@ -4,24 +4,22 @@ pub mod serde;
 use bevy::{
     app::{App, Plugin},
     asset::{Asset, AssetApp, UntypedAssetId, VisitAssetDependencies},
-    ecs::world::FromWorld,
     platform::collections::HashSet,
     reflect::TypePath,
     scene::DynamicScene,
-    utils::default,
 };
 
-use loader::AssetSceneLoader;
+use loader::EditorSceneLoader;
 
 #[derive(TypePath)]
-pub struct AssetScene {
+pub struct EditorScene {
     pub scene: DynamicScene,
     pub(crate) dependencies: HashSet<UntypedAssetId>,
 }
 
-impl Asset for AssetScene {}
+impl Asset for EditorScene {}
 
-impl VisitAssetDependencies for AssetScene {
+impl VisitAssetDependencies for EditorScene {
     fn visit_dependencies(&self, visit: &mut impl FnMut(UntypedAssetId)) {
         for dependency in &self.dependencies {
             visit(*dependency);
@@ -29,11 +27,11 @@ impl VisitAssetDependencies for AssetScene {
     }
 }
 
-pub struct AssetScenePlugin;
+pub struct EditorScenePlugin;
 
-impl Plugin for AssetScenePlugin {
+impl Plugin for EditorScenePlugin {
     fn build(&self, app: &mut App) {
-        app.init_asset::<AssetScene>()
-            .init_asset_loader::<AssetSceneLoader>();
+        app.init_asset::<EditorScene>()
+            .init_asset_loader::<EditorSceneLoader>();
     }
 }

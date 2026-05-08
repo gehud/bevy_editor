@@ -140,7 +140,7 @@ pub mod ser {
     /// // Serialize through any serde-compatible Serializer
     /// let ron_string = ron::ser::to_string(&scene_serializer);
     /// ```
-    pub struct AssetSceneSerializer<'a> {
+    pub struct SceneSerializer<'a> {
         /// The scene to serialize.
         pub scene: &'a DynamicScene,
         /// The type registry containing the types present in the scene.
@@ -148,7 +148,7 @@ pub mod ser {
         pub asset_database: &'a AssetDatabase,
     }
 
-    impl<'a> AssetSceneSerializer<'a> {
+    impl<'a> SceneSerializer<'a> {
         /// Create a new serializer from a [`DynamicScene`] and an associated [`TypeRegistry`].
         ///
         /// The type registry must contain all types present in the scene. This is generally the case
@@ -160,7 +160,7 @@ pub mod ser {
             registry: &'a TypeRegistry,
             asset_database: &'a AssetDatabase,
         ) -> Self {
-            AssetSceneSerializer {
+            SceneSerializer {
                 scene,
                 registry,
                 asset_database,
@@ -168,7 +168,7 @@ pub mod ser {
         }
     }
 
-    impl<'a> Serialize for AssetSceneSerializer<'a> {
+    impl<'a> Serialize for SceneSerializer<'a> {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where
             S: Serializer,
@@ -322,7 +322,7 @@ pub mod de {
 
     #[cfg(feature = "editor")]
     use crate::asset::AssetDatabase;
-    use crate::scene::{AssetScene, serde::AssetRef};
+    use crate::scene::{EditorScene, serde::AssetRef};
 
     pub struct SceneDeserializerProcessor<'a> {
         #[cfg(feature = "editor")]
@@ -437,7 +437,7 @@ pub mod de {
     }
 
     /// Handles scene deserialization.
-    pub struct AssetSceneDeserializer<'a> {
+    pub struct SceneDeserializer<'a> {
         #[cfg(feature = "editor")]
         pub asset_database: &'a AssetDatabase,
         /// Type registry in which the components and resources types used in the scene to deserialize are registered.
@@ -445,7 +445,7 @@ pub mod de {
         pub asset_server: &'a AssetServer,
     }
 
-    impl<'a> AssetSceneDeserializer<'a> {
+    impl<'a> SceneDeserializer<'a> {
         pub fn new(
             #[cfg(feature = "editor")] asset_database: &'a AssetDatabase,
             type_registry: &'a TypeRegistry,
@@ -460,8 +460,8 @@ pub mod de {
         }
     }
 
-    impl<'a, 'de> DeserializeSeed<'de> for AssetSceneDeserializer<'a> {
-        type Value = AssetScene;
+    impl<'a, 'de> DeserializeSeed<'de> for SceneDeserializer<'a> {
+        type Value = EditorScene;
 
         fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
         where
@@ -480,7 +480,7 @@ pub mod de {
                 },
             )?;
 
-            Ok(AssetScene {
+            Ok(EditorScene {
                 scene,
                 dependencies,
             })

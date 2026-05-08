@@ -61,7 +61,7 @@ use crate::{
     pane::PanePlugin,
     prefs::{PrefsPlugin, RegisterPref, Save},
     properties::PropertiesPlugin,
-    scene::AssetScenePlugin,
+    scene::EditorScenePlugin,
     scene_tree::SceneTreePlugin,
     selection::SelectionPlugin,
     style::set_dark_style,
@@ -124,7 +124,7 @@ impl Plugin for EditorPlugin {
                 ..default()
             })
             .add_plugins(AssetsPlugin)
-            .add_plugins(AssetScenePlugin)
+            .add_plugins(EditorScenePlugin)
             .add_plugins(CursorLockPlugin)
             .add_plugins(SelectionPlugin)
             .add_plugins(PanePlugin)

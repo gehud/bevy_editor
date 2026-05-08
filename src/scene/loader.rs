@@ -11,10 +11,10 @@ use thiserror::Error;
 
 #[cfg(feature = "editor")]
 use crate::asset::AssetDatabase;
-use crate::scene::{AssetScene, serde::de::AssetSceneDeserializer};
+use crate::scene::{EditorScene, serde::de::SceneDeserializer};
 
 #[derive(Debug, Error)]
-pub enum AssetSceneLoaderError {
+pub enum EditorSceneLoaderError {
     /// An [IO Error](std::io::Error)
     #[error("Error while trying to read the scene file: {0}")]
     Io(#[from] std::io::Error),
@@ -24,15 +24,15 @@ pub enum AssetSceneLoaderError {
 }
 
 #[derive(Debug, TypePath)]
-pub struct AssetSceneLoader {
+pub struct EditorSceneLoader {
     type_registry: TypeRegistryArc,
     #[cfg(feature = "editor")]
     asset_database: AssetDatabase,
 }
 
-impl FromWorld for AssetSceneLoader {
+impl FromWorld for EditorSceneLoader {
     fn from_world(world: &mut World) -> Self {
-        AssetSceneLoader {
+        EditorSceneLoader {
             #[cfg(feature = "editor")]
             asset_database: world.resource::<AssetDatabase>().clone(),
             type_registry: world.resource::<AppTypeRegistry>().0.clone(),
@@ -40,12 +40,12 @@ impl FromWorld for AssetSceneLoader {
     }
 }
 
-impl AssetLoader for AssetSceneLoader {
-    type Asset = AssetScene;
+impl AssetLoader for EditorSceneLoader {
+    type Asset = EditorScene;
 
     type Settings = ();
 
-    type Error = AssetSceneLoaderError;
+    type Error = EditorSceneLoaderError;
 
     async fn load(
         &self,
@@ -57,7 +57,7 @@ impl AssetLoader for AssetSceneLoader {
         reader.read_to_end(&mut bytes).await?;
         let mut deserializer = ron::de::Deserializer::from_bytes(&bytes)?;
         let type_registry = self.type_registry.read();
-        let scene_deserializer = AssetSceneDeserializer::new(
+        let scene_deserializer = SceneDeserializer::new(
             #[cfg(feature = "editor")]
             &self.asset_database,
             &type_registry,

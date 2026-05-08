@@ -56,7 +56,7 @@ use crate::{
     pane::{Pane, RegisterPane},
     prefs::{RegisterPref, Save},
     properties::ComponentIgnore,
-    scene::{AssetScene, serde::ser::AssetSceneSerializer},
+    scene::{EditorScene, serde::ser::SceneSerializer},
     selection::{EntitySelection, SelectionMap},
     style::ACCENT,
     utils::paint_collapsing_button,
@@ -443,7 +443,7 @@ fn setup(
 }
 
 #[derive(Default, Resource)]
-struct WaitingScene(Option<Handle<AssetScene>>);
+struct WaitingScene(Option<Handle<EditorScene>>);
 
 fn open_scene(world: &mut World, state: &mut SystemState<MessageReader<OpenScene>>) -> Result {
     let mut requests = state.get_mut(world);
@@ -468,7 +468,7 @@ fn open_scene(world: &mut World, state: &mut SystemState<MessageReader<OpenScene
 
     let asset_scene = world
         .resource::<AssetServer>()
-        .load::<AssetScene>(asset_path);
+        .load::<EditorScene>(asset_path);
 
     world.resource_mut::<WaitingScene>().0.replace(asset_scene);
 
@@ -483,7 +483,7 @@ fn wait_scene(world: &mut World) -> Result {
     };
 
     let Some(asset_scene) = world
-        .resource_mut::<Assets<AssetScene>>()
+        .resource_mut::<Assets<EditorScene>>()
         .remove(&waiting_scene)
     else {
         return Ok(());
@@ -626,7 +626,7 @@ fn save_scene(world: &mut World, state: &mut SystemState<MessageReader<SaveScene
     let output = {
         let type_registry = world.resource::<AppTypeRegistry>().read();
         let asset_database = world.resource::<AssetDatabase>();
-        let serializer = AssetSceneSerializer::new(&scene, &type_registry, &asset_database);
+        let serializer = SceneSerializer::new(&scene, &type_registry, &asset_database);
         ron::ser::to_string_pretty(&serializer, PrettyConfig::default())?
     };
 
