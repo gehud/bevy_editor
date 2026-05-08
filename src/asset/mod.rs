@@ -36,6 +36,7 @@ use bevy::{
     },
     log::{info, warn},
     platform::collections::HashSet,
+    reflect::TypePath,
     tasks::{
         IoTaskPool, Task, block_on, futures,
         futures_lite::{StreamExt, stream},
@@ -60,7 +61,7 @@ fn watch(asset_server: Res<AssetServer>) -> Result {
 
 const DB_ASSET_SOUCE: &'static str = "db";
 
-#[derive(Clone, Resource)]
+#[derive(Clone, Resource, Debug, TypePath)]
 pub struct AssetDatabase(Arc<Mutex<Connection>>);
 
 impl AssetDatabase {
@@ -150,11 +151,6 @@ impl Default for AssetDatabaseMeta {
     }
 }
 
-fn setup(mut commands: Commands) -> Result {
-    commands.insert_resource(AssetDatabase::open()?);
-    Ok(())
-}
-
 fn refresh(asset_database: Res<AssetDatabase>, asset_server: Res<AssetServer>) -> Result {
     refresh_recurse(&asset_database, &asset_server, "assets".into())?;
     Ok(())
@@ -227,6 +223,7 @@ fn refresh_recurse(
     Ok(())
 }
 
+// TODO: Reload scene asset handles on souce asset change.
 pub struct AssetDatabasePlugin;
 
 impl Plugin for AssetDatabasePlugin {
@@ -247,7 +244,8 @@ impl Plugin for AssetDatabasePlugin {
             meta_check: AssetMetaCheck::Always,
             ..default()
         })
-        .add_systems(PreStartup, (setup, refresh).chain())
+        .insert_resource(AssetDatabase::open().unwrap())
+        .add_systems(PreStartup, refresh)
         .add_systems(Update, watch);
     }
 }

@@ -1,8 +1,5 @@
 use bevy::{
-    asset::{
-        AssetLoader, AsyncWriteExt, LoadContext, io::Reader, processor::LoadTransformAndSave,
-        saver::AssetSaver, transformer::IdentityAssetTransformer,
-    },
+    asset::{AssetLoader, LoadContext, io::Reader},
     ecs::{
         reflect::AppTypeRegistry,
         world::{FromWorld, World},
@@ -12,10 +9,9 @@ use bevy::{
 use serde::de::DeserializeSeed;
 use thiserror::Error;
 
-use crate::scene::{
-    AssetScene,
-    serde::{AssetSceneDeserializer, AssetSceneSerializer},
-};
+#[cfg(feature = "editor")]
+use crate::asset::AssetDatabase;
+use crate::scene::{AssetScene, serde::de::AssetSceneDeserializer};
 
 #[derive(Debug, Error)]
 pub enum AssetSceneLoaderError {
@@ -30,13 +26,16 @@ pub enum AssetSceneLoaderError {
 #[derive(Debug, TypePath)]
 pub struct AssetSceneLoader {
     type_registry: TypeRegistryArc,
+    #[cfg(feature = "editor")]
+    asset_database: AssetDatabase,
 }
 
 impl FromWorld for AssetSceneLoader {
     fn from_world(world: &mut World) -> Self {
-        let type_registry = world.resource::<AppTypeRegistry>();
         AssetSceneLoader {
-            type_registry: type_registry.0.clone(),
+            #[cfg(feature = "editor")]
+            asset_database: world.resource::<AssetDatabase>().clone(),
+            type_registry: world.resource::<AppTypeRegistry>().0.clone(),
         }
     }
 }
@@ -58,8 +57,12 @@ impl AssetLoader for AssetSceneLoader {
         reader.read_to_end(&mut bytes).await?;
         let mut deserializer = ron::de::Deserializer::from_bytes(&bytes)?;
         let type_registry = self.type_registry.read();
-        let scene_deserializer =
-            AssetSceneDeserializer::new(&type_registry, load_context.asset_server());
+        let scene_deserializer = AssetSceneDeserializer::new(
+            #[cfg(feature = "editor")]
+            &self.asset_database,
+            &type_registry,
+            load_context.asset_server(),
+        );
         Ok(scene_deserializer
             .deserialize(&mut deserializer)
             .map_err(|e| deserializer.span_error(e))?)

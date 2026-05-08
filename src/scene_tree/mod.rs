@@ -50,12 +50,13 @@ use ron::ser::PrettyConfig;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    asset::AssetDatabase,
     asset_browser::AssetPayload,
     assets::icons::MaterialIcon,
     pane::{Pane, RegisterPane},
     prefs::{RegisterPref, Save},
     properties::ComponentIgnore,
-    scene::{AssetScene, serde::AssetSceneSerializer},
+    scene::{AssetScene, serde::ser::AssetSceneSerializer},
     selection::{EntitySelection, SelectionMap},
     style::ACCENT,
     utils::paint_collapsing_button,
@@ -624,7 +625,8 @@ fn save_scene(world: &mut World, state: &mut SystemState<MessageReader<SaveScene
 
     let output = {
         let type_registry = world.resource::<AppTypeRegistry>().read();
-        let serializer = AssetSceneSerializer::new(&scene, &type_registry);
+        let asset_database = world.resource::<AssetDatabase>();
+        let serializer = AssetSceneSerializer::new(&scene, &type_registry, &asset_database);
         ron::ser::to_string_pretty(&serializer, PrettyConfig::default())?
     };
 

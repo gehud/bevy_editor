@@ -1,27 +1,27 @@
 (
     entities: {
-        4294967259: (
+        4294967236: (
             components: {
                 "bevy_camera::visibility::InheritedVisibility": (true),
                 "bevy_camera::visibility::Visibility": Visible,
-                "bevy_ecs::name::Name": "alien",
-                "bevy_scene::components::SceneRoot": (AssetPath("models/alien.glb#Scene0")),
+                "bevy_ecs::name::Name": "tile",
+                "bevy_scene::components::SceneRoot": (Db("de068919-97d8-4a7c-a7aa-cc71c76c9db1.glb#Scene0")),
                 "bevy_transform::components::transform::Transform": (
-                    translation: (0.0, 0.2, 0.0),
+                    translation: (0.0, 0.0, 0.0),
                     rotation: (-0.0, -0.0, -0.0, 1.0),
                     scale: (1.0, 1.0, 1.0),
                 ),
             },
         ),
-        12884901856: (
+        8589934560: (
             components: {
                 "bevy_camera::visibility::InheritedVisibility": (true),
                 "bevy_camera::visibility::Visibility": Visible,
-                "bevy_ecs::name::Name": "tile",
-                "bevy_scene::components::SceneRoot": (AssetPath("models/tile.glb#Scene0")),
+                "bevy_ecs::name::Name": "alien",
+                "bevy_scene::components::SceneRoot": (Db("961b5039-f87e-455d-b256-f64854834066.glb#Scene0")),
                 "bevy_transform::components::transform::Transform": (
-                    translation: (0.0, 0.0, 0.0),
-                    rotation: (0.0, 0.0, 0.0, 1.0),
+                    translation: (0.0, 0.2, 0.0),
+                    rotation: (-0.0, -0.0, -0.0, 1.0),
                     scale: (1.0, 1.0, 1.0),
                 ),
             },

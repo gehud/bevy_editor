@@ -18,6 +18,7 @@ codegen-units = 1
 lto = "thin"
 
 [features]
+editor = []
 default = ["documentation"]
 documentation = ["bevy/reflect_documentation"]
 
