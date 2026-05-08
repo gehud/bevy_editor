@@ -8,7 +8,7 @@ use std::{
 
 use bevy::{
     app::{App, Plugin},
-    asset::{AssetPath, AssetServer, Assets, Handle, LoadContext, LoadedUntypedAsset, UntypedHandle},
+    asset::{AssetPath, AssetServer, Assets, Handle, LoadedUntypedAsset, UntypedHandle},
     camera::visibility::Visibility,
     ecs::{
         error::{BevyError, Result},
@@ -35,10 +35,8 @@ use egui::{
 };
 use lucide_icons::Icon;
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 use crate::{
-    asset::{AssetDatabase, DB_ASSET_SOUCE},
     assets::icons::MaterialIcon,
     pane::{Pane, RegisterPane},
     prefs::RegisterPref,
@@ -110,7 +108,7 @@ enum AssetState {
 }
 
 #[derive(Default, Resource)]
-struct AssetTree(HashMap<Uuid, AssetState>);
+struct AssetTree(HashMap<String, AssetState>);
 
 pub(crate) struct AssetPayload(pub UntypedHandle);
 
@@ -157,7 +155,7 @@ fn ui_for_asset<'a>(
     id: Id,
     world: &mut World,
     asset_path: impl Into<AssetPath<'a>>,
-    inspected_assets: &mut HashSet<Uuid>,
+    inspected_assets: &mut HashSet<String>,
 ) -> Result {
     let asset_path = asset_path.into();
     let path = Path::new("assets").join(asset_path.path().to_path_buf());
@@ -171,13 +169,6 @@ fn ui_for_asset<'a>(
 
     let entry = AssetBrowserEntry::new(&asset_path, &path, world)?;
 
-    let root_asset_path = asset_path.without_label().to_string();
-    let asset_extension = asset_path
-        .path()
-        .extension()
-        .map(|extension| extension.to_string_lossy().to_string())
-        .unwrap_or_default();
-    let asset_label = asset_path.label().map(|label| label.to_string());
     let asset_path = asset_path.to_string();
     let global_id = id;
     let id = global_id.with(&asset_path);
@@ -217,11 +208,6 @@ fn ui_for_asset<'a>(
                             ui.add_space(ui.spacing().indent + ui.spacing().item_spacing.x);
                         }
 
-                        let uuid = world
-                            .resource::<AssetDatabase>()
-                            .get_uuid(root_asset_path)?
-                            .unwrap_or_default();
-
                         let icon = match &entry {
                             AssetBrowserEntry::Directory => {
                                 if collapsing_state.is_open() {
@@ -234,7 +220,7 @@ fn ui_for_asset<'a>(
                             _ => Icon::Package,
                         };
 
-                        let state = world.resource::<AssetTree>().0.get(&uuid).cloned();
+                        let state = world.resource::<AssetTree>().0.get(&asset_path).cloned();
                         let is_ready = state
                             .as_ref()
                             .is_some_and(|state| matches!(state, AssetState::Ready(_)));
@@ -284,8 +270,12 @@ fn ui_for_asset<'a>(
                             }
                         }
 
-                        if !uuid.is_nil() {
-                            inspected_assets.insert(uuid);
+                        if matches!(
+                            entry,
+                            AssetBrowserEntry::Asset { labels: _ }
+                                | AssetBrowserEntry::LabeledAsset { label: _ }
+                        ) {
+                            inspected_assets.insert(asset_path.clone());
                             if let Some(state) = &state {
                                 match state {
                                     AssetState::Loading(handle) => {
@@ -294,10 +284,10 @@ fn ui_for_asset<'a>(
                                             .get(handle)
                                             .map(|handle| handle.handle.clone())
                                         {
-                                            world
-                                                .resource_mut::<AssetTree>()
-                                                .0
-                                                .insert(uuid, AssetState::Ready(loaded));
+                                            world.resource_mut::<AssetTree>().0.insert(
+                                                asset_path.clone(),
+                                                AssetState::Ready(loaded),
+                                            );
                                         }
                                     }
                                     AssetState::Ready(handle) => {
@@ -342,22 +332,14 @@ fn ui_for_asset<'a>(
                                     }
                                 }
                             } else {
-                                let path =
-                                    PathBuf::from(uuid.to_string()).with_extension(asset_extension);
-                                let mut asset_path =
-                                    AssetPath::from_path_buf(path)
-                                        .with_source(DB_ASSET_SOUCE);
-                                if let Some(label) = asset_label {
-                                    asset_path = asset_path.with_label(label)
-                                }
-
-                                let handle =
-                                    world.resource::<AssetServer>().load_untyped(asset_path);
+                                let handle = world
+                                    .resource::<AssetServer>()
+                                    .load_untyped(asset_path.clone());
 
                                 world
                                     .resource_mut::<AssetTree>()
                                     .0
-                                    .insert(uuid, AssetState::Loading(handle));
+                                    .insert(asset_path.clone(), AssetState::Loading(handle));
                             }
                         }
 
