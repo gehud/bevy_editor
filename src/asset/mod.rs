@@ -26,7 +26,7 @@ use bevy::{
             ErasedAssetWriter, PathStream, Reader, Writer,
             file::{FileAssetReader, FileAssetWriter, FileWatcher},
         },
-        processor::InitializeError,
+        processor::{InitializeError, Process},
     },
     ecs::{
         error::Result,

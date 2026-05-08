@@ -2,12 +2,11 @@
 mod editor;
 
 use bevy::{
-    DefaultPlugins,
     app::{App, Plugin, Startup},
     log::info,
     prelude::bevy_main,
 };
-use bevy_editor::{EditorPlugin, is_play_mode};
+use bevy_editor::EditorApp;
 
 #[derive(Default)]
 struct MyRuntimePlugin;
@@ -37,22 +36,13 @@ fn greet() {
 
 #[bevy_main]
 fn main() {
-    let mut app = App::new();
+    let mut app = EditorApp::new()
+        .shared_plugin(MySharedPlugin)
+        .shared_plugin(MyRuntimePlugin);
 
-    if cfg!(feature = "editor") {
-        if is_play_mode() {
-            app.add_plugins(DefaultPlugins);
-            app.add_plugins(MySharedPlugin::default());
-            app.add_plugins(MyRuntimePlugin::default());
-        } else {
-            app.add_plugins(EditorPlugin::default());
-            app.add_plugins(MySharedPlugin::default());
-            app.add_plugins(editor::MyEditorPlugin);
-        }
-    } else {
-        app.add_plugins(DefaultPlugins);
-        app.add_plugins(MySharedPlugin::default());
-        app.add_plugins(MyRuntimePlugin::default());
+    #[cfg(feature = "editor")]
+    {
+        app = app.editor_plugin(editor::MyEditorPlugin);
     }
 
     app.run();

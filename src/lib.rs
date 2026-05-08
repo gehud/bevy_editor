@@ -19,12 +19,14 @@ pub use egui;
 use lucide_icons::LUCIDE_FONT_BYTES;
 use serde::{Deserialize, Serialize};
 
-use std::{env, fs::File};
+use std::{env, fs::File, ops::Deref};
 
 use bevy::{
     DefaultPlugins,
-    app::{App, Plugin, PluginGroup, Startup},
-    asset::{AssetApp, AssetPlugin, Handle, ReflectHandle},
+    app::{App, AppExit, Plugin, PluginGroup, Startup},
+    asset::{
+        AssetApp, AssetMetaCheck, AssetMode, AssetPlugin, Handle, ReflectHandle, UnapprovedPathMode,
+    },
     camera::{Camera, Camera2d},
     ecs::{
         error::Result,
@@ -219,4 +221,83 @@ fn ui(world: &mut World, state: &mut SystemState<EguiContexts>) -> Result {
     state.apply(world);
 
     Ok(())
+}
+
+pub struct EditorApp {
+    #[cfg(feature = "editor")]
+    editor_plugin: Box<dyn FnOnce(&mut App)>,
+    shared_plugin: Box<dyn FnOnce(&mut App)>,
+    runtime_plugin: Box<dyn FnOnce(&mut App)>,
+}
+
+impl Default for EditorApp {
+    fn default() -> Self {
+        Self {
+            editor_plugin: Box::new(|_| {}),
+            shared_plugin: Box::new(|_| {}),
+            runtime_plugin: Box::new(|_| {}),
+        }
+    }
+}
+
+impl EditorApp {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    #[cfg(feature = "editor")]
+    pub fn editor_plugin(mut self, plugin: impl Plugin) -> Self {
+        self.editor_plugin = Box::new(move |app| {
+            app.add_plugins(plugin);
+        });
+        self
+    }
+
+    pub fn shared_plugin(mut self, plugin: impl Plugin) -> Self {
+        self.shared_plugin = Box::new(move |app| {
+            app.add_plugins(plugin);
+        });
+        self
+    }
+
+    pub fn runtime_plugin(mut self, plugin: impl Plugin) -> Self {
+        self.runtime_plugin = Box::new(move |app| {
+            app.add_plugins(plugin);
+        });
+        self
+    }
+
+    pub fn run(self) -> AppExit {
+        let mut app = App::new();
+
+        if cfg!(feature = "editor") {
+            if is_play_mode() {
+                app.add_plugins(DefaultPlugins.set(AssetPlugin {
+                    watch_for_changes_override: Some(false),
+                    use_asset_processor_override: Some(false),
+                    mode: AssetMode::Processed,
+                    meta_check: AssetMetaCheck::Never,
+                    ..default()
+                }));
+                (self.shared_plugin)(&mut app);
+                (self.runtime_plugin)(&mut app);
+            } else {
+                app.add_plugins(EditorPlugin::default());
+                (self.shared_plugin)(&mut app);
+                (self.editor_plugin)(&mut app);
+            }
+        } else {
+            app.add_plugins(DefaultPlugins.set(AssetPlugin {
+                watch_for_changes_override: Some(false),
+                use_asset_processor_override: Some(false),
+                mode: AssetMode::Processed,
+                meta_check: AssetMetaCheck::Never,
+                ..default()
+            }));
+            (self.shared_plugin)(&mut app);
+            (self.runtime_plugin)(&mut app);
+        }
+
+        app.run()
+    }
 }

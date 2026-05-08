@@ -1,3 +1,5 @@
+use std::{env, process::Command};
+
 use bevy::ecs::{
     error::Result,
     world::{Mut, World},
@@ -6,9 +8,12 @@ use egui::{
     Button, CentralPanel, Frame, Key, KeyboardShortcut, MenuBar, Modifiers, Panel, Ui, Widget,
     WidgetText,
 };
+use lucide_icons::Icon;
 
 use crate::{
+    PLAY_MODE_VAR,
     asset_browser::AssetPayload,
+    assets::icons::MaterialIcon,
     dock::DockArea,
     pane::{PaneDocking, PaneRegistry, PaneViewer},
     scene_tree::{DraggedSceneRoot, OpenScene, SaveScene},
@@ -64,6 +69,20 @@ fn menu_bar(ui: &mut Ui, world: &mut World) -> Result {
             if let Some(inner) = inner {
                 inner?;
             }
+
+            ui.vertical_centered(|ui| -> Result {
+                if ui.small_button(MaterialIcon::new(Icon::Play)).clicked() {
+                    let current_exe = env::current_exe()?;
+                    let current_dir = env::current_dir()?;
+                    Command::new(current_exe)
+                        .current_dir(current_dir)
+                        .env(PLAY_MODE_VAR, "true")
+                        .spawn()?;
+                }
+
+                Ok(())
+            })
+            .inner?;
 
             Ok(())
         })
