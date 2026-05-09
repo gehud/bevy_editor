@@ -2,14 +2,12 @@ pub mod loader;
 pub mod serde;
 
 use bevy::{
-    app::{App, Plugin},
-    asset::{Asset, AssetApp, UntypedAssetId, VisitAssetDependencies},
-    platform::collections::HashSet,
-    reflect::TypePath,
-    scene::DynamicScene,
+    app::{App, Plugin}, asset::{Asset, AssetApp, Handle, UntypedAssetId, VisitAssetDependencies}, ecs::{reflect::ReflectResource, resource::Resource}, platform::collections::HashSet, reflect::{Reflect, TypePath, std_traits::ReflectDefault}, scene::DynamicScene
 };
 
 use loader::EditorSceneLoader;
+
+use crate::settings::{ReflectSettings, Settings};
 
 #[derive(TypePath)]
 pub struct EditorScene {
@@ -24,6 +22,18 @@ impl VisitAssetDependencies for EditorScene {
         for dependency in &self.dependencies {
             visit(*dependency);
         }
+    }
+}
+
+#[derive(Default, Resource, Reflect)]
+#[reflect(Default, Resource, Settings)]
+pub struct SceneList {
+    scenes: Vec<Handle<EditorScene>>
+}
+
+impl Settings for SceneList {
+    fn title(&self) ->  &str {
+        "Scene List"
     }
 }
 

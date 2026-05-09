@@ -7,6 +7,7 @@ use bevy::utils::default;
 use egui::{Color32, CornerRadius, FontFamily, FontId, Margin, Shadow, Stroke, Style, TextStyle};
 
 pub const ACCENT: Color32 = Color32::from_rgb(32, 110, 201);
+pub const PANEL_BG_COLOR: Color32 = Color32::from_rgb(42, 42, 42);
 
 pub fn set_dark_style(style: &mut Style) {
     style.debug.warn_if_rect_changes_id = false;
@@ -76,12 +77,10 @@ impl IntoDockStyle for Style {
         style.separator.color_dragged = self.visuals.window_fill;
         style.separator.color_hovered = self.visuals.window_fill;
 
-        let pane_bg_color = Color32::from_rgb(42, 42, 42);
-
         style.tab_bar.bg_fill = self.visuals.window_fill;
         style.tab_bar.stroke = Stroke {
             width: 1.0,
-            color: pane_bg_color,
+            color: PANEL_BG_COLOR,
         };
         style.tab_bar.height = 30.0;
         style.tab_bar.inner_margin = Margin {
@@ -97,7 +96,7 @@ impl IntoDockStyle for Style {
         };
 
         style.tab.tab_body.inner_margin = Margin::same(6);
-        style.tab.tab_body.bg_fill = pane_bg_color;
+        style.tab.tab_body.bg_fill = PANEL_BG_COLOR;
         style.tab.tab_body.stroke = Stroke::NONE;
         style.tab.tab_body.corner_radius = CornerRadius {
             sw: self.visuals.window_corner_radius.sw,
@@ -105,15 +104,15 @@ impl IntoDockStyle for Style {
             ..default()
         };
 
-        style.tab.active.bg_fill = pane_bg_color;
+        style.tab.active.bg_fill = PANEL_BG_COLOR;
         style.tab.spacing = 5.0;
         style.tab.active.corner_radius = CornerRadius {
             nw: 2,
             ne: 2,
             ..default()
         };
-        style.tab.active.marker_color = pane_bg_color;
-        style.tab.active.outline_color = pane_bg_color;
+        style.tab.active.marker_color = PANEL_BG_COLOR;
+        style.tab.active.outline_color = PANEL_BG_COLOR;
         style.tab.active_with_kb_focus = style.tab.active.clone();
 
         style.tab.inactive.bg_fill = self.visuals.window_fill;
@@ -126,24 +125,24 @@ impl IntoDockStyle for Style {
         style.tab.inactive.outline_color = self.visuals.window_fill;
         style.tab.inactive_with_kb_focus = style.tab.inactive.clone();
 
-        style.tab.focused.bg_fill = pane_bg_color;
+        style.tab.focused.bg_fill = PANEL_BG_COLOR;
         style.tab.focused.corner_radius = CornerRadius {
             nw: 2,
             ne: 2,
             ..default()
         };
         style.tab.focused.marker_color = ACCENT;
-        style.tab.focused.outline_color = pane_bg_color;
+        style.tab.focused.outline_color = PANEL_BG_COLOR;
         style.tab.focused_with_kb_focus = style.tab.focused.clone();
 
-        style.tab.hovered.bg_fill = pane_bg_color;
+        style.tab.hovered.bg_fill = PANEL_BG_COLOR;
         style.tab.hovered.corner_radius = CornerRadius {
             nw: 2,
             ne: 2,
             ..default()
         };
-        style.tab.hovered.marker_color = pane_bg_color;
-        style.tab.hovered.outline_color = pane_bg_color;
+        style.tab.hovered.marker_color = PANEL_BG_COLOR;
+        style.tab.hovered.outline_color = PANEL_BG_COLOR;
 
         style
     }
