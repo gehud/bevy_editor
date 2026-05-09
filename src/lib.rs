@@ -10,24 +10,23 @@ mod properties;
 pub mod scene;
 mod scene_tree;
 pub mod selection;
+pub mod serde;
 pub mod settings;
 mod style;
 mod ui;
 pub mod utils;
 mod viewport;
 
+use ::serde::{Deserialize, Serialize};
 pub use egui;
 use lucide_icons::LUCIDE_FONT_BYTES;
-use serde::{Deserialize, Serialize};
 
-use std::{env, fs::File, ops::Deref};
+use std::{env, fs::File};
 
 use bevy::{
     DefaultPlugins,
     app::{App, AppExit, Plugin, PluginGroup, PluginGroupBuilder, Startup},
-    asset::{
-        AssetApp, AssetMetaCheck, AssetMode, AssetPlugin, Handle, ReflectHandle, UnapprovedPathMode,
-    },
+    asset::{AssetMetaCheck, AssetMode, AssetPlugin},
     camera::{Camera, Camera2d},
     ecs::{
         error::Result,
@@ -42,7 +41,6 @@ use bevy::{
         tracing_subscriber::{self, Layer, fmt::writer::MakeWriterExt},
     },
     picking::Pickable,
-    scene::{DynamicScene, Scene},
     utils::default,
     window::{PrimaryWindow, Window, WindowPlugin},
 };
@@ -64,9 +62,10 @@ use crate::{
     panel::PanelPlugin,
     prefs::{PrefsPlugin, RegisterPref, Save},
     properties::PropertiesPlugin,
-    scene::{EditorScene, EditorScenePlugin},
+    scene::EditorScenePlugin,
     scene_tree::SceneTreePlugin,
     selection::SelectionPlugin,
+    serde::EditorSerdePlugin,
     settings::SettingsPlugin,
     style::set_dark_style,
     ui::root,
@@ -92,6 +91,7 @@ pub struct EditorSharedPlugins;
 impl PluginGroup for EditorSharedPlugins {
     fn build(self) -> PluginGroupBuilder {
         PluginGroupBuilder::start::<EditorSharedPlugins>()
+            .add(EditorSerdePlugin)
             .add(EditorScenePlugin)
             .add(SettingsPlugin)
     }

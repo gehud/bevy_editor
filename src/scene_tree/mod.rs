@@ -18,7 +18,7 @@ use bevy::{
         reflect::{AppTypeRegistry, ReflectComponent},
         resource::Resource,
         system::{Commands, Query, Res, ResMut, Single, SystemState},
-        world::World,
+        world::{FromWorld, World},
     },
     gltf::Gltf,
     light::PointLight,
@@ -50,16 +50,7 @@ use ron::ser::PrettyConfig;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    asset::AssetDatabase,
-    asset_browser::AssetPayload,
-    assets::icons::MaterialIcon,
-    panel::{Panel, PanelApp},
-    prefs::{RegisterPref, Save},
-    properties::ComponentIgnore,
-    scene::{EditorScene, serde::ser::SceneSerializer},
-    selection::{EntitySelection, SelectionMap},
-    style::ACCENT,
-    utils::paint_collapsing_button,
+    asset::AssetDatabase, asset_browser::AssetPayload, assets::icons::MaterialIcon, panel::{Panel, PanelApp}, prefs::{RegisterPref, Save}, properties::ComponentIgnore, scene::{EditorScene, serde::ser::SceneSerializer}, selection::{EntitySelection, SelectionMap}, serde::{de::EditorDeserializerProcessor, ser::EditorSerializerProcessor}, style::ACCENT, utils::paint_collapsing_button
 };
 
 pub const DESPAWN_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::NONE, Key::Delete);
@@ -624,9 +615,9 @@ fn save_scene(world: &mut World, state: &mut SystemState<MessageReader<SaveScene
     }
 
     let output = {
+        let processor = EditorSerializerProcessor::from_world(world);
         let type_registry = world.resource::<AppTypeRegistry>().read();
-        let asset_database = world.resource::<AssetDatabase>();
-        let serializer = SceneSerializer::new(&scene, &type_registry, &asset_database);
+        let serializer = SceneSerializer::new(&scene, &type_registry, &processor);
         ron::ser::to_string_pretty(&serializer, PrettyConfig::default())?
     };
 

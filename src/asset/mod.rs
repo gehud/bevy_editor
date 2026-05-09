@@ -3,58 +3,29 @@ mod id;
 pub use id::*;
 
 use std::{
-    borrow::Cow,
-    cell::{Cell, RefCell},
-    fs::{self, File},
-    marker::PhantomData,
-    ops::Index,
-    path::{Path, PathBuf},
-    pin::Pin,
-    str::FromStr,
-    sync::{
-        Arc, LazyLock, Mutex, MutexGuard, PoisonError, RwLock,
-        mpsc::{Receiver, channel},
-    },
+    fs::{self},
+    path::PathBuf,
+    sync::{Arc, Mutex, MutexGuard, PoisonError},
     time::Duration,
 };
-use uuid::Uuid;
 
-use async_channel::Sender;
-use async_fs::ReadDir;
 use bevy::{
-    app::{App, Plugin, PreStartup, Startup, Update},
+    app::{App, Plugin, PreStartup, Update},
     asset::{
-        Asset, AssetApp, AssetMetaCheck, AssetMode, AssetPath, AssetPlugin, AssetServer, Handle,
+        Asset, AssetApp, AssetMetaCheck, AssetMode, AssetPlugin, AssetServer, Handle,
         ReflectHandle,
-        io::{
-            AssetReader, AssetReaderError, AssetSource, AssetSourceBuilder, AssetSourceEvent,
-            AssetSourceId, AssetWatcher, AssetWriter, AssetWriterError, ErasedAssetReader,
-            ErasedAssetWriter, PathStream, Reader, Writer,
-            file::{FileAssetReader, FileAssetWriter, FileWatcher},
-        },
-        processor::{InitializeError, Process},
+        io::{AssetSource, AssetSourceBuilder, AssetSourceId, file::FileAssetReader},
     },
-    ecs::{
-        error::Result,
-        resource::Resource,
-        schedule::IntoScheduleConfigs,
-        system::{Commands, Res},
-    },
+    ecs::{error::Result, resource::Resource, system::Res},
     log::{info, warn},
-    platform::collections::HashSet,
-    reflect::{Reflect, TypePath},
-    scene::{DynamicScene, Scene},
-    tasks::{
-        IoTaskPool, Task, block_on, futures,
-        futures_lite::{StreamExt, stream},
-    },
+    reflect::TypePath,
+    tasks::block_on,
     utils::default,
 };
 use ron::ser::PrettyConfig;
 use rusqlite::{Connection, Error as SqliteError, params};
 use serde::{Deserialize, Serialize};
-
-use crate::scene::EditorScene;
+use uuid::Uuid;
 
 fn watch(asset_server: Res<AssetServer>) -> Result {
     let source = asset_server.get_source(DB_ASSET_SOUCE)?;

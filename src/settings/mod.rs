@@ -1,10 +1,6 @@
 #[cfg(feature = "editor")]
 use std::io::Write;
-use std::{
-    any::TypeId,
-    fs::{self, File},
-    io::Read,
-};
+use std::{any::TypeId, fs::File, io::Read};
 
 #[cfg(feature = "editor")]
 use bevy::{
@@ -13,42 +9,33 @@ use bevy::{
     reflect::serde::ReflectSerializer,
 };
 use bevy::{
-    app::{App, Plugin, PreStartup, Startup},
-    asset::AssetServer,
+    app::{App, Plugin, PreStartup},
     ecs::{
         error::Result,
         reflect::{AppTypeRegistry, ReflectResource},
         resource::Resource,
-        system::{Res, ResMut},
-        world::{CommandQueue, World},
+        world::{CommandQueue, FromWorld, World},
     },
-    picking::events::Scroll,
     platform::collections::HashSet,
     reflect::{
-        PartialReflect, Reflect, reflect_trait, serde::ReflectDeserializer,
-        std_traits::ReflectDefault,
+        PartialReflect, reflect_trait, serde::ReflectDeserializer, std_traits::ReflectDefault,
     },
 };
-use egui::{Frame, ScrollArea, Ui};
-#[cfg(feature = "editor")]
-use serde::Serialize;
-use serde::{
-    Deserialize,
-    de::{DeserializeSeed, IntoDeserializer},
-};
-use toml::{Table, Value, de::ValueDeserializer, ser::ValueSerializer};
+use egui::{ScrollArea, Ui};
+use serde::de::{DeserializeSeed, IntoDeserializer};
+use toml::{Table, Value};
 
 pub const SETTINGS_PATH: &'static str = "settings.toml";
 
 #[cfg(feature = "editor")]
-use crate::{asset::AssetDatabase, scene::serde::ser::EditorSerializerProcessor};
+use crate::serde::ser::EditorSerializerProcessor;
 use crate::{
     inspection::{
         reflect_inspector::{Context, InspectorUi},
         restricted_world_view::RestrictedWorldView,
     },
     panel::{Panel, PanelApp},
-    scene::serde::de::EditorDeserializerProcessor,
+    serde::de::EditorDeserializerProcessor,
     style::PANEL_BG_COLOR,
 };
 
@@ -174,10 +161,6 @@ fn load(world: &mut World) -> Result {
     let type_registry = world.resource::<AppTypeRegistry>().0.clone();
     let type_registry = type_registry.read();
 
-    #[cfg(feature = "editor")]
-    let asset_database = world.resource::<AssetDatabase>().clone();
-    let asset_server = world.resource::<AssetServer>().clone();
-
     let mut settings_registry = world.resource_mut::<SettingsRegistry>();
     for registration in type_registry.iter() {
         let is_settings = registration.data::<ReflectDefault>().is_some()
@@ -207,13 +190,7 @@ fn load(world: &mut World) -> Result {
         let value = if let Some(value) = table.remove(registration.type_info().type_path()) {
             let deserializer = value.into_deserializer();
 
-            let mut collector = HashSet::new();
-            let mut processor = EditorDeserializerProcessor::new(
-                #[cfg(feature = "editor")]
-                &asset_database,
-                &asset_server,
-                &mut collector,
-            );
+            let mut processor = EditorDeserializerProcessor::from_world(world);
 
             let reflect_deserializer =
                 ReflectDeserializer::with_processor(&type_registry, &mut processor);
@@ -243,14 +220,12 @@ fn save(world: &mut World, state: &mut SystemState<MessageReader<AppExit>>) -> R
     let type_registry = world.resource::<AppTypeRegistry>().0.clone();
     let type_registry = type_registry.read();
 
-    let asset_database = world.resource::<AssetDatabase>();
-
-    for type_id in &world.resource::<SettingsRegistry>().0 {
-        let registration = type_registry.get(*type_id).unwrap();
+    for type_id in world.resource::<SettingsRegistry>().0.clone() {
+        let registration = type_registry.get(type_id).unwrap();
         let reflect_resouce = registration.data::<ReflectResource>().unwrap();
+        let processor = EditorSerializerProcessor::from_world(world);
         let world: &World = world;
         let value = reflect_resouce.reflect(world)?;
-        let processor = EditorSerializerProcessor::new(asset_database);
         let reflect_serializer =
             ReflectSerializer::with_processor(value, &type_registry, &processor);
         let value = Value::try_from(reflect_serializer)?;

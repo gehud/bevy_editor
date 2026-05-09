@@ -9,9 +9,10 @@ use bevy::{
 use serde::de::DeserializeSeed;
 use thiserror::Error;
 
-#[cfg(feature = "editor")]
-use crate::asset::AssetDatabase;
-use crate::scene::{EditorScene, serde::de::SceneDeserializer};
+use crate::{
+    scene::{EditorScene, serde::de::SceneDeserializer},
+    serde::de::EditorDeserializerProcessor,
+};
 
 #[derive(Debug, Error)]
 pub enum EditorSceneLoaderError {
@@ -23,18 +24,16 @@ pub enum EditorSceneLoaderError {
     RonSpannedError(#[from] ron::error::SpannedError),
 }
 
-#[derive(Debug, TypePath)]
+#[derive(TypePath)]
 pub struct EditorSceneLoader {
     type_registry: TypeRegistryArc,
-    #[cfg(feature = "editor")]
-    asset_database: AssetDatabase,
+    processor: EditorDeserializerProcessor,
 }
 
 impl FromWorld for EditorSceneLoader {
     fn from_world(world: &mut World) -> Self {
         EditorSceneLoader {
-            #[cfg(feature = "editor")]
-            asset_database: world.resource::<AssetDatabase>().clone(),
+            processor: EditorDeserializerProcessor::from_world(world),
             type_registry: world.resource::<AppTypeRegistry>().0.clone(),
         }
     }
@@ -57,12 +56,8 @@ impl AssetLoader for EditorSceneLoader {
         reader.read_to_end(&mut bytes).await?;
         let mut deserializer = ron::de::Deserializer::from_bytes(&bytes)?;
         let type_registry = self.type_registry.read();
-        let scene_deserializer = SceneDeserializer::new(
-            #[cfg(feature = "editor")]
-            &self.asset_database,
-            &type_registry,
-            load_context.asset_server(),
-        );
+        let mut processor = self.processor.clone();
+        let scene_deserializer = SceneDeserializer::new(&type_registry, &mut processor);
         Ok(scene_deserializer
             .deserialize(&mut deserializer)
             .map_err(|e| deserializer.span_error(e))?)
