@@ -1,2 +1,3 @@
 [["bevy_editor::scene::SceneList"."bevy_editor::scene::SceneList".scenes]]
-Db = "94481adf-2528-4380-860a-d19bd32d81ac.asn"
+extension = "asn"
+uuid = "94481adf-2528-4380-860a-d19bd32d81ac"

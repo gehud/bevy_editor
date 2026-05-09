@@ -12,7 +12,7 @@ use serde::{Serialize, Serializer, ser::Error};
 
 use crate::{asset::AssetDatabase, serde::AssetRef};
 
-#[derive(Clone, Resource, TypePath)]
+#[derive(Clone, TypePath)]
 pub struct EditorSerializerProcessor {
     asset_database: AssetDatabase,
 }

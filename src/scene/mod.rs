@@ -3,7 +3,7 @@ pub mod serde;
 
 use bevy::{
     app::{App, Plugin},
-    asset::{Asset, AssetApp, Handle, ReflectHandle, UntypedAssetId, VisitAssetDependencies},
+    asset::{Asset, AssetApp, Handle, UntypedAssetId, VisitAssetDependencies},
     ecs::{reflect::ReflectResource, resource::Resource},
     platform::collections::HashSet,
     reflect::{Reflect, TypePath, std_traits::ReflectDefault},
@@ -13,7 +13,7 @@ use bevy::{
 use loader::EditorSceneLoader;
 
 use crate::{
-    asset::{EditorAssetApp, EditorAssetId, ReflectEditorAssetId},
+    asset::{EditorAssetApp, EditorAssetId},
     settings::{ReflectSettings, Settings},
 };
 
@@ -36,7 +36,7 @@ impl VisitAssetDependencies for EditorScene {
 #[derive(Default, Resource, Reflect)]
 #[reflect(Default, Resource, Settings)]
 pub struct SceneList {
-    scenes: Vec<Handle<EditorScene>>,
+    scenes: Vec<EditorAssetId<EditorScene>>,
 }
 
 impl Settings for SceneList {

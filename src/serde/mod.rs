@@ -18,17 +18,3 @@ pub enum AssetRef {
     Db(AssetPath<'static>),
     Uuid(Uuid),
 }
-
-pub struct EditorSerdePlugin;
-
-impl Plugin for EditorSerdePlugin {
-    fn build(&self, app: &mut App) {
-        app.init_resource::<EditorDeserializerProcessor>();
-        #[cfg(feature = "editor")]
-        {
-            use crate::serde::ser::EditorSerializerProcessor;
-
-            app.init_resource::<EditorSerializerProcessor>();
-        }
-    }
-}

@@ -293,7 +293,7 @@ pub fn register_bevy_impls(type_registry: &mut TypeRegistry) {
         }
 
         if registration.data::<ReflectEditorAssetId>().is_some() {
-            registration.insert(ReflectInspector::of::<EditorAssetIdInspector>);
+            registration.insert(ReflectInspector::of::<EditorAssetIdInspector>());
         }
     }
 }

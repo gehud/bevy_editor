@@ -16,7 +16,7 @@ use serde::Deserialize;
 use crate::asset::AssetDatabase;
 use crate::serde::AssetRef;
 
-#[derive(Clone, Resource, TypePath)]
+#[derive(Clone, TypePath)]
 pub struct EditorDeserializerProcessor {
     #[cfg(feature = "editor")]
     pub asset_database: AssetDatabase,

@@ -37,7 +37,7 @@ impl Inspector for HandleInspector {
             .unwrap();
 
         let Some(reflect_handle) = registration.data::<ReflectHandle>() else {
-            ui.label("Asset is not reflected.");
+            ui.label("Asset is not reflected (use 'register_editor_asset').");
             return Ok(false);
         };
 

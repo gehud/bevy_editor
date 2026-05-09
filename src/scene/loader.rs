@@ -50,7 +50,7 @@ impl AssetLoader for EditorSceneLoader {
         &self,
         reader: &mut dyn Reader,
         _settings: &Self::Settings,
-        load_context: &mut LoadContext<'_>,
+        _load_context: &mut LoadContext<'_>,
     ) -> Result<Self::Asset, Self::Error> {
         let mut bytes = Vec::new();
         reader.read_to_end(&mut bytes).await?;

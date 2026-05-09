@@ -65,7 +65,6 @@ use crate::{
     scene::EditorScenePlugin,
     scene_tree::SceneTreePlugin,
     selection::SelectionPlugin,
-    serde::EditorSerdePlugin,
     settings::SettingsPlugin,
     style::set_dark_style,
     ui::root,
@@ -91,7 +90,6 @@ pub struct EditorSharedPlugins;
 impl PluginGroup for EditorSharedPlugins {
     fn build(self) -> PluginGroupBuilder {
         PluginGroupBuilder::start::<EditorSharedPlugins>()
-            .add(EditorSerdePlugin)
             .add(EditorScenePlugin)
             .add(SettingsPlugin)
     }
