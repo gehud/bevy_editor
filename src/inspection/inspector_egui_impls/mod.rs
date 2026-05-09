@@ -1,13 +1,15 @@
 //! Custom UI implementations for specific types. Check [`InspectorPrimitive`] for an example.
 
-use crate::inspection::{
-    inspector_egui_impls::handle::HandleInspector, reflect_inspector::InspectorUi,
+use crate::{
+    asset::{ReflectEditorAssetId, inspector::EditorAssetIdInspector},
+    inspection::{inspector_egui_impls::handle::HandleInspector, reflect_inspector::InspectorUi},
 };
 use bevy::{
     asset::{Handle, ReflectHandle, uuid},
     mesh::{Mesh, Mesh3d},
     pbr::StandardMaterial,
-    platform::time::Instant, transform::components::Transform,
+    platform::time::Instant,
+    transform::components::Transform,
 };
 use bevy::{
     ecs::error::Result,
@@ -288,6 +290,10 @@ pub fn register_bevy_impls(type_registry: &mut TypeRegistry) {
     for registration in type_registry.iter_mut() {
         if registration.data::<ReflectHandle>().is_some() {
             registration.insert(ReflectInspector::of::<HandleInspector>());
+        }
+
+        if registration.data::<ReflectEditorAssetId>().is_some() {
+            registration.insert(ReflectInspector::of::<EditorAssetIdInspector>);
         }
     }
 }

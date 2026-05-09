@@ -56,7 +56,7 @@ use egui::{
 };
 
 use crate::{
-    asset::AssetDatabasePlugin,
+    asset::EditorAssetPlugin,
     asset_browser::AssetBrowserPlugin,
     assets::{AssetsPlugin, LUCIDE_FONT_FAMILY},
     cursor::CursorLockPlugin,
@@ -102,7 +102,7 @@ pub struct EditorPlugin;
 
 impl Plugin for EditorPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(AssetDatabasePlugin)
+        app.add_plugins(EditorAssetPlugin)
             .add_plugins(
                 DefaultPlugins
                     .set(WindowPlugin {

@@ -12,7 +12,10 @@ use bevy::{
 
 use loader::EditorSceneLoader;
 
-use crate::settings::{ReflectSettings, Settings};
+use crate::{
+    asset::{EditorAssetApp, EditorAssetId, ReflectEditorAssetId},
+    settings::{ReflectSettings, Settings},
+};
 
 #[derive(TypePath)]
 pub struct EditorScene {
@@ -47,9 +50,9 @@ pub struct EditorScenePlugin;
 impl Plugin for EditorScenePlugin {
     fn build(&self, app: &mut App) {
         app.init_asset::<EditorScene>()
-            .register_type_data::<Handle<Scene>, ReflectHandle>()
-            .register_type_data::<Handle<DynamicScene>, ReflectHandle>()
-            .register_type_data::<Handle<EditorScene>, ReflectHandle>()
+            .register_editor_asset::<Scene>()
+            .register_editor_asset::<DynamicScene>()
+            .register_editor_asset::<EditorScene>()
             .init_asset_loader::<EditorSceneLoader>();
     }
 }

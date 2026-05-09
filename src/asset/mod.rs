@@ -1,3 +1,7 @@
+mod id;
+
+pub use id::*;
+
 use std::{
     borrow::Cow,
     cell::{Cell, RefCell},
@@ -13,13 +17,15 @@ use std::{
     },
     time::Duration,
 };
+use uuid::Uuid;
 
 use async_channel::Sender;
 use async_fs::ReadDir;
 use bevy::{
     app::{App, Plugin, PreStartup, Startup, Update},
     asset::{
-        AssetApp, AssetMetaCheck, AssetMode, AssetPath, AssetPlugin, AssetServer,
+        Asset, AssetApp, AssetMetaCheck, AssetMode, AssetPath, AssetPlugin, AssetServer, Handle,
+        ReflectHandle,
         io::{
             AssetReader, AssetReaderError, AssetSource, AssetSourceBuilder, AssetSourceEvent,
             AssetSourceId, AssetWatcher, AssetWriter, AssetWriterError, ErasedAssetReader,
@@ -36,7 +42,8 @@ use bevy::{
     },
     log::{info, warn},
     platform::collections::HashSet,
-    reflect::TypePath,
+    reflect::{Reflect, TypePath},
+    scene::{DynamicScene, Scene},
     tasks::{
         IoTaskPool, Task, block_on, futures,
         futures_lite::{StreamExt, stream},
@@ -46,7 +53,8 @@ use bevy::{
 use ron::ser::PrettyConfig;
 use rusqlite::{Connection, Error as SqliteError, params};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
+
+use crate::scene::EditorScene;
 
 fn watch(asset_server: Res<AssetServer>) -> Result {
     let source = asset_server.get_source(DB_ASSET_SOUCE)?;
@@ -223,10 +231,23 @@ fn refresh_recurse(
     Ok(())
 }
 
-// TODO: Reload scene asset handles on souce asset change.
-pub struct AssetDatabasePlugin;
+pub trait EditorAssetApp {
+    fn register_editor_asset<A: Asset>(&mut self) -> &mut Self;
+}
 
-impl Plugin for AssetDatabasePlugin {
+impl EditorAssetApp for App {
+    fn register_editor_asset<A: Asset>(&mut self) -> &mut Self {
+        self.register_type::<Handle<A>>()
+            .register_type::<EditorAssetId<A>>()
+            .register_type_data::<Handle<A>, ReflectHandle>()
+            .register_type_data::<EditorAssetId<A>, ReflectEditorAssetId>()
+    }
+}
+
+// TODO: Reload scene asset handles on souce asset change.
+pub struct EditorAssetPlugin;
+
+impl Plugin for EditorAssetPlugin {
     fn build(&self, app: &mut App) {
         app.register_asset_source(
             AssetSourceId::Name(DB_ASSET_SOUCE.into()),
