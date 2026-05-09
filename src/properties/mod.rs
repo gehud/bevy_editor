@@ -46,7 +46,7 @@ use crate::{
         restricted_world_view::{ReflectBorrow, RestrictedWorldView},
         utils::{self, pretty_type_name, pretty_type_name_str},
     },
-    pane::{Pane, RegisterPane},
+    panel::{Panel, PanelApp},
     scene_tree::MarkSceneDirty,
     selection::{EntitySelection, SelectionMap},
     utils::paint_collapsing_button,
@@ -96,7 +96,7 @@ impl ComponentIgnore {
 
 pub struct PropertiesPane;
 
-impl Pane for PropertiesPane {
+impl Panel for PropertiesPane {
     fn name(&self) -> &str {
         "Properties"
     }
@@ -752,7 +752,7 @@ impl Plugin for PropertiesPlugin {
             .ignore_component::<CubemapVisibleEntities>()
             .ignore_component::<SyncToRenderWorld>()
             .ignore_component::<TransformTreeChanged>()
-            .register_pane(PropertiesPane)
+            .register_panel(PropertiesPane)
             .add_systems(Startup, collect_add_component_tree);
     }
 }

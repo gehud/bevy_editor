@@ -38,7 +38,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     assets::icons::MaterialIcon,
-    pane::{Pane, RegisterPane},
+    panel::{Panel, PanelApp},
     prefs::RegisterPref,
     scene_tree::{DraggedSceneRoot, scene_name},
     utils::paint_collapsing_button,
@@ -46,7 +46,7 @@ use crate::{
 
 pub struct AssetBrowser;
 
-impl Pane for AssetBrowser {
+impl Panel for AssetBrowser {
     fn name(&self) -> &str {
         "Asset Browser"
     }
@@ -400,6 +400,6 @@ pub struct AssetBrowserPlugin;
 
 impl Plugin for AssetBrowserPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<AssetTree>().register_pane(AssetBrowser);
+        app.init_resource::<AssetTree>().register_panel(AssetBrowser);
     }
 }

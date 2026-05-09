@@ -43,17 +43,17 @@ pub mod ser {
 
     use crate::{asset::AssetDatabase, scene::serde::AssetRef};
 
-    pub struct SceneSerializerProcessor<'a> {
+    pub struct EditorSerializerProcessor<'a> {
         pub asset_database: &'a AssetDatabase,
     }
 
-    impl<'a> SceneSerializerProcessor<'a> {
+    impl<'a> EditorSerializerProcessor<'a> {
         pub fn new(asset_database: &'a AssetDatabase) -> Self {
             Self { asset_database }
         }
     }
 
-    impl<'a> ReflectSerializerProcessor for SceneSerializerProcessor<'a> {
+    impl<'a> ReflectSerializerProcessor for EditorSerializerProcessor<'a> {
         fn try_serialize<S>(
             &self,
             value: &dyn PartialReflect,
@@ -278,7 +278,7 @@ pub mod ser {
                 entries
             };
 
-            let mut processor = SceneSerializerProcessor::new(self.asset_database);
+            let mut processor = EditorSerializerProcessor::new(self.asset_database);
 
             for (type_path, partial_reflect) in sorted_entries {
                 state.serialize_entry(
@@ -324,14 +324,14 @@ pub mod de {
     use crate::asset::AssetDatabase;
     use crate::scene::{EditorScene, serde::AssetRef};
 
-    pub struct SceneDeserializerProcessor<'a> {
+    pub struct EditorDeserializerProcessor<'a> {
         #[cfg(feature = "editor")]
         pub asset_database: &'a AssetDatabase,
         pub asset_server: &'a AssetServer,
         pub collector: &'a mut HashSet<UntypedAssetId>,
     }
 
-    impl<'a> SceneDeserializerProcessor<'a> {
+    impl<'a> EditorDeserializerProcessor<'a> {
         pub fn new(
             #[cfg(feature = "editor")] asset_database: &'a AssetDatabase,
             asset_server: &'a AssetServer,
@@ -346,7 +346,7 @@ pub mod de {
         }
     }
 
-    impl ReflectDeserializerProcessor for SceneDeserializerProcessor<'_> {
+    impl ReflectDeserializerProcessor for EditorDeserializerProcessor<'_> {
         fn try_deserialize<'de, D>(
             &mut self,
             registration: &TypeRegistration,
@@ -766,7 +766,7 @@ pub mod de {
             A: SeqAccess<'de>,
         {
             let mut dynamic_properties = Vec::new();
-            let mut processor = SceneDeserializerProcessor::new(
+            let mut processor = EditorDeserializerProcessor::new(
                 #[cfg(feature = "editor")]
                 self.asset_database,
                 self.asset_server,
@@ -798,7 +798,7 @@ pub mod de {
                     )));
                 }
 
-                let mut processor = SceneDeserializerProcessor::new(
+                let mut processor = EditorDeserializerProcessor::new(
                     #[cfg(feature = "editor")]
                     self.asset_database,
                     self.asset_server,

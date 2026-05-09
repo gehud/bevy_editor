@@ -79,7 +79,7 @@ use egui::{
 
 use crate::{
     asset_browser::AssetPayload,
-    pane::{Pane, RegisterPane},
+    panel::{Panel, PanelApp},
     properties::PropertiesApp,
     scene_tree::{DraggedSceneRoot, InspectedScene},
     selection::{Deselect, EntitySelection, Select, SelectionMap},
@@ -91,7 +91,7 @@ use crate::{
 
 pub struct ViewportPane;
 
-impl Pane for ViewportPane {
+impl Panel for ViewportPane {
     fn name(&self) -> &str {
         "Viewport"
     }
@@ -461,7 +461,7 @@ impl Plugin for ViewportPlugin {
             .add_plugins(MeshPickingPlugin)
             .add_plugins(OutlinePlugin)
             .add_plugins(FreeCameraPlugin)
-            .register_pane(ViewportPane)
+            .register_panel(ViewportPane)
             .ignore_component::<OutlineVolume>()
             .ignore_component::<OutlineMode>()
             .ignore_component::<InheritOutline>()

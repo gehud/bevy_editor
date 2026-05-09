@@ -15,7 +15,7 @@ use crate::{
     asset_browser::AssetPayload,
     assets::icons::MaterialIcon,
     dock::DockArea,
-    pane::{PaneDocking, PaneRegistry, PaneViewer},
+    panel::{PanelDocking, PanelRegistry, PanelViewer},
     scene_tree::{DraggedSceneRoot, OpenScene, SaveScene},
     style::IntoDockStyle,
 };
@@ -46,8 +46,8 @@ fn menu_bar(ui: &mut Ui, world: &mut World) -> Result {
 
             let inner = ui
                 .menu_button("View", |ui| -> Result {
-                    world.resource_scope(|world, pane_registry: Mut<PaneRegistry>| {
-                        let mut pane_docking = world.resource_mut::<PaneDocking>();
+                    world.resource_scope(|world, pane_registry: Mut<PanelRegistry>| {
+                        let mut pane_docking = world.resource_mut::<PanelDocking>();
                         for name in pane_registry.names() {
                             if ui.button(name).clicked() {
                                 if let Some(tab_path) = pane_docking.0.find_tab(name) {
@@ -114,11 +114,11 @@ pub(super) fn root(ui: &mut Ui, world: &mut World) -> Result {
                 .outer_margin(0),
         )
         .show_inside(ui, |ui| {
-            world.resource_scope(|world, mut registry: Mut<PaneRegistry>| {
-                world.resource_scope(|world, mut docking: Mut<PaneDocking>| {
+            world.resource_scope(|world, mut registry: Mut<PanelRegistry>| {
+                world.resource_scope(|world, mut docking: Mut<PanelDocking>| {
                     let style = ui.style().into_dock_style();
 
-                    let mut viewer = PaneViewer {
+                    let mut viewer = PanelViewer {
                         registry: &mut registry,
                         world: world,
                         result: Ok(()),

@@ -14,7 +14,7 @@ use crate::{
     selection::SelectionMap,
 };
 
-pub trait Pane: Send + Sync + 'static {
+pub trait Panel: Send + Sync + 'static {
     fn name(&self) -> &str;
 
     fn padding(&self) -> Option<Margin> {
@@ -25,16 +25,16 @@ pub trait Pane: Send + Sync + 'static {
 }
 
 #[derive(Default, Resource)]
-pub(crate) struct PaneRegistry {
-    panes: HashMap<String, Box<dyn Pane>>,
+pub(crate) struct PanelRegistry {
+    panes: HashMap<String, Box<dyn Panel>>,
 }
 
-impl PaneRegistry {
-    pub fn get_pane_mut(&mut self, name: &str) -> Option<&mut dyn Pane> {
+impl PanelRegistry {
+    pub fn get_panel_mut(&mut self, name: &str) -> Option<&mut dyn Panel> {
         self.panes.get_mut(name).map(|pane| pane.as_mut())
     }
 
-    pub fn get_pane(&self, name: &str) -> Option<&dyn Pane> {
+    pub fn get_panel(&self, name: &str) -> Option<&dyn Panel> {
         self.panes.get(name).map(|pane| pane.as_ref())
     }
 
@@ -43,17 +43,17 @@ impl PaneRegistry {
     }
 }
 
-pub trait RegisterPane {
-    fn register_pane<P: Pane>(&mut self, pane: P) -> &mut Self;
+pub trait PanelApp {
+    fn register_panel<P: Panel>(&mut self, pane: P) -> &mut Self;
 }
 
-impl RegisterPane for App {
-    fn register_pane<P: Pane>(&mut self, pane: P) -> &mut Self {
+impl PanelApp for App {
+    fn register_panel<P: Panel>(&mut self, pane: P) -> &mut Self {
         let pane = Box::new(pane);
 
         if let Some(old) = self
             .world_mut()
-            .resource_mut::<PaneRegistry>()
+            .resource_mut::<PanelRegistry>()
             .panes
             .insert(pane.name().into(), pane)
         {
@@ -66,13 +66,13 @@ impl RegisterPane for App {
 
 pub(crate) type Tab = String;
 
-pub(crate) struct PaneViewer<'a> {
-    pub registry: &'a mut PaneRegistry,
+pub(crate) struct PanelViewer<'a> {
+    pub registry: &'a mut PanelRegistry,
     pub world: &'a mut World,
     pub result: Result,
 }
 
-impl TabViewer for PaneViewer<'_> {
+impl TabViewer for PanelViewer<'_> {
     type Tab = Tab;
 
     fn title(&mut self, tab: &mut Self::Tab) -> WidgetText {
@@ -84,15 +84,15 @@ impl TabViewer for PaneViewer<'_> {
             return;
         }
 
-        if let Some(pane) = self.registry.get_pane_mut(tab) {
-            self.result = pane.ui(ui, self.world);
+        if let Some(panel) = self.registry.get_panel_mut(tab) {
+            self.result = panel.ui(ui, self.world);
         } else {
             ui.label("Missing");
         }
     }
 
     fn tab_style_override(&self, tab: &Self::Tab, global_style: &TabStyle) -> Option<TabStyle> {
-        let pane = self.registry.get_pane(tab)?;
+        let pane = self.registry.get_panel(tab)?;
         let custom_padding = pane.padding()?;
         let mut style_override = global_style.clone();
         style_override.tab_body.inner_margin = custom_padding;
@@ -101,9 +101,9 @@ impl TabViewer for PaneViewer<'_> {
 }
 
 #[derive(Resource, Serialize, Deserialize)]
-pub(crate) struct PaneDocking(pub DockState<Tab>);
+pub(crate) struct PanelDocking(pub DockState<Tab>);
 
-impl Default for PaneDocking {
+impl Default for PanelDocking {
     fn default() -> Self {
         let mut dock_state = DockState::new(vec!["Viewport".into()]);
 
@@ -125,11 +125,11 @@ impl Default for PaneDocking {
     }
 }
 
-pub struct PanePlugin;
+pub struct PanelPlugin;
 
-impl Plugin for PanePlugin {
+impl Plugin for PanelPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<PaneRegistry>()
-            .register_pref::<PaneDocking>();
+        app.init_resource::<PanelRegistry>()
+            .register_pref::<PanelDocking>();
     }
 }

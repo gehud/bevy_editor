@@ -4,12 +4,13 @@ pub mod assets;
 pub mod cursor;
 mod dock;
 pub mod inspection;
-pub mod pane;
+pub mod panel;
 pub mod prefs;
 mod properties;
 pub mod scene;
 mod scene_tree;
 pub mod selection;
+pub mod settings;
 mod style;
 mod ui;
 pub mod utils;
@@ -23,7 +24,7 @@ use std::{env, fs::File, ops::Deref};
 
 use bevy::{
     DefaultPlugins,
-    app::{App, AppExit, Plugin, PluginGroup, Startup},
+    app::{App, AppExit, Plugin, PluginGroup, PluginGroupBuilder, Startup},
     asset::{
         AssetApp, AssetMetaCheck, AssetMode, AssetPlugin, Handle, ReflectHandle, UnapprovedPathMode,
     },
@@ -60,12 +61,13 @@ use crate::{
     assets::{AssetsPlugin, LUCIDE_FONT_FAMILY},
     cursor::CursorLockPlugin,
     inspection::DefaultInspectorConfigPlugin,
-    pane::PanePlugin,
+    panel::PanelPlugin,
     prefs::{PrefsPlugin, RegisterPref, Save},
     properties::PropertiesPlugin,
     scene::EditorScenePlugin,
     scene_tree::SceneTreePlugin,
     selection::SelectionPlugin,
+    settings::SettingsPlugin,
     style::set_dark_style,
     ui::root,
     viewport::ViewportPlugin,
@@ -83,6 +85,16 @@ pub fn is_play_mode() -> bool {
     };
 
     value
+}
+
+pub struct EditorSharedPlugins;
+
+impl PluginGroup for EditorSharedPlugins {
+    fn build(self) -> PluginGroupBuilder {
+        PluginGroupBuilder::start::<EditorSharedPlugins>()
+            .add(EditorScenePlugin)
+            .add(SettingsPlugin)
+    }
 }
 
 #[derive(Default)]
@@ -126,10 +138,10 @@ impl Plugin for EditorPlugin {
                 ..default()
             })
             .add_plugins(AssetsPlugin)
-            .add_plugins(EditorScenePlugin)
             .add_plugins(CursorLockPlugin)
             .add_plugins(SelectionPlugin)
-            .add_plugins(PanePlugin)
+            .add_plugins(PanelPlugin)
+            .add_plugins(EditorSharedPlugins)
             .add_plugins(PropertiesPlugin)
             .add_plugins(ViewportPlugin)
             .add_plugins(SceneTreePlugin)
@@ -278,7 +290,8 @@ impl EditorApp {
                     mode: AssetMode::Processed,
                     meta_check: AssetMetaCheck::Never,
                     ..default()
-                }));
+                }))
+                .add_plugins(EditorSharedPlugins);
                 (self.shared_plugin)(&mut app);
                 (self.runtime_plugin)(&mut app);
             } else {
@@ -293,7 +306,8 @@ impl EditorApp {
                 mode: AssetMode::Processed,
                 meta_check: AssetMetaCheck::Never,
                 ..default()
-            }));
+            }))
+            .add_plugins(EditorSharedPlugins);
             (self.shared_plugin)(&mut app);
             (self.runtime_plugin)(&mut app);
         }

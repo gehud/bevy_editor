@@ -53,7 +53,7 @@ use crate::{
     asset::AssetDatabase,
     asset_browser::AssetPayload,
     assets::icons::MaterialIcon,
-    pane::{Pane, RegisterPane},
+    panel::{Panel, PanelApp},
     prefs::{RegisterPref, Save},
     properties::ComponentIgnore,
     scene::{EditorScene, serde::ser::SceneSerializer},
@@ -73,7 +73,7 @@ pub struct EntityPayload {
 
 pub struct SceneTreePane;
 
-impl Pane for SceneTreePane {
+impl Panel for SceneTreePane {
     fn name(&self) -> &str {
         "Scene Tree"
     }
@@ -665,7 +665,7 @@ impl Plugin for SceneTreePlugin {
         app.init_resource::<DraggedSceneRoot>()
             .init_resource::<WaitingScene>()
             .init_resource::<OpenedScene>()
-            .register_pane(SceneTreePane)
+            .register_panel(SceneTreePane)
             .add_message::<OpenScene>()
             .add_message::<SaveScene>()
             .add_message::<MarkSceneDirty>()
