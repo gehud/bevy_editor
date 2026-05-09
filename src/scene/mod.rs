@@ -2,7 +2,12 @@ pub mod loader;
 pub mod serde;
 
 use bevy::{
-    app::{App, Plugin}, asset::{Asset, AssetApp, Handle, UntypedAssetId, VisitAssetDependencies}, ecs::{reflect::ReflectResource, resource::Resource}, platform::collections::HashSet, reflect::{Reflect, TypePath, std_traits::ReflectDefault}, scene::DynamicScene
+    app::{App, Plugin},
+    asset::{Asset, AssetApp, Handle, ReflectHandle, UntypedAssetId, VisitAssetDependencies},
+    ecs::{reflect::ReflectResource, resource::Resource},
+    platform::collections::HashSet,
+    reflect::{Reflect, TypePath, std_traits::ReflectDefault},
+    scene::{DynamicScene, Scene},
 };
 
 use loader::EditorSceneLoader;
@@ -28,11 +33,11 @@ impl VisitAssetDependencies for EditorScene {
 #[derive(Default, Resource, Reflect)]
 #[reflect(Default, Resource, Settings)]
 pub struct SceneList {
-    scenes: Vec<Handle<EditorScene>>
+    scenes: Vec<Handle<EditorScene>>,
 }
 
 impl Settings for SceneList {
-    fn title(&self) ->  &str {
+    fn title(&self) -> &str {
         "Scene List"
     }
 }
@@ -42,6 +47,9 @@ pub struct EditorScenePlugin;
 impl Plugin for EditorScenePlugin {
     fn build(&self, app: &mut App) {
         app.init_asset::<EditorScene>()
+            .register_type_data::<Handle<Scene>, ReflectHandle>()
+            .register_type_data::<Handle<DynamicScene>, ReflectHandle>()
+            .register_type_data::<Handle<EditorScene>, ReflectHandle>()
             .init_asset_loader::<EditorSceneLoader>();
     }
 }

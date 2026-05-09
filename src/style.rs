@@ -4,7 +4,7 @@ use crate::{
 };
 
 use bevy::utils::default;
-use egui::{Color32, CornerRadius, FontFamily, FontId, Margin, Shadow, Stroke, Style, TextStyle};
+use egui::{Color32, CornerRadius, FontFamily, FontId, Margin, Shadow, Stroke, Style, TextStyle, TextWrapMode};
 
 pub const ACCENT: Color32 = Color32::from_rgb(32, 110, 201);
 pub const PANEL_BG_COLOR: Color32 = Color32::from_rgb(42, 42, 42);
@@ -37,7 +37,7 @@ pub fn set_dark_style(style: &mut Style) {
     ]
     .into();
 
-    style.wrap_mode = Some(egui::TextWrapMode::Truncate);
+    style.wrap_mode = Some(TextWrapMode::Truncate);
 
     style.visuals.text_edit_bg_color = Some(Color32::from_rgb(63, 63, 63));
 
