@@ -150,6 +150,11 @@ impl AssetBrowserEntry {
     }
 }
 
+#[derive(Default, Resource)]
+pub struct AssetBrowserIgnore {
+    extensions: HashSet<String>,
+}
+
 fn ui_for_asset<'a>(
     ui: &mut Ui,
     id: Id,
@@ -360,7 +365,21 @@ fn ui_for_asset<'a>(
                     match &entry {
                         AssetBrowserEntry::Directory => {
                             for entry in read_dir(path)? {
-                                let asset_path = entry?.path().strip_prefix("assets")?.to_owned();
+                                let path = entry?.path();
+                                let extension = path
+                                    .extension()
+                                    .map(|extension| extension.to_string_lossy().to_string())
+                                    .unwrap_or_default();
+
+                                if world
+                                    .resource::<AssetBrowserIgnore>()
+                                    .extensions
+                                    .contains(&extension)
+                                {
+                                    continue;
+                                }
+
+                                let asset_path = path.strip_prefix("assets")?.to_owned();
                                 ui_for_asset(ui, global_id, world, asset_path, inspected_assets)?;
                             }
                         }
@@ -396,10 +415,26 @@ fn ui_for_asset<'a>(
     Ok(())
 }
 
+pub trait AssetBrowserApp {
+    fn ignore_asset_extension(&mut self, extension: impl Into<String>) -> &mut Self;
+}
+
+impl AssetBrowserApp for App {
+    fn ignore_asset_extension(&mut self, extension: impl Into<String>) -> &mut Self {
+        let mut ignore = self.world_mut().resource_mut::<AssetBrowserIgnore>();
+        ignore.extensions.insert(extension.into());
+        self
+    }
+}
+
 pub struct AssetBrowserPlugin;
 
 impl Plugin for AssetBrowserPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<AssetTree>().register_panel(AssetBrowser);
+        app.init_resource::<AssetTree>()
+            .init_resource::<AssetBrowserIgnore>()
+            .ignore_asset_extension("meta")
+            .ignore_asset_extension("dbm")
+            .register_panel(AssetBrowser);
     }
 }
