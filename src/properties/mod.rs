@@ -3,10 +3,11 @@ use std::{any::TypeId, f32, ops::DerefMut, path::Path};
 use bevy::{
     app::{App, Plugin, Startup},
     camera::{
-        primitives::{Aabb, CubemapFrusta},
+        CameraMainTextureUsages, Exposure, RenderTarget,
+        primitives::{Aabb, CubemapFrusta, Frustum},
         visibility::{
             CubemapVisibleEntities, InheritedVisibility, ViewVisibility, Visibility,
-            VisibilityClass,
+            VisibilityClass, VisibleEntities,
         },
     },
     ecs::{
@@ -21,10 +22,14 @@ use bevy::{
         system::{Commands, Res},
         world::{CommandQueue, World},
     },
+    light::cluster::ClusterConfig,
     picking::{events::Scroll, hover::PickingInteraction},
     platform::collections::{HashMap, HashSet},
     reflect::{TypePathTable, TypeRegistry, prelude::ReflectDefault},
-    render::sync_world::{RenderEntity, SyncToRenderWorld},
+    render::{
+        camera::CameraRenderGraph,
+        sync_world::{RenderEntity, SyncToRenderWorld},
+    },
     scene::{DynamicSceneBuilder, DynamicSceneRoot, SceneRoot},
     transform::components::{GlobalTransform, Transform, TransformTreeChanged},
 };
@@ -752,6 +757,12 @@ impl Plugin for PropertiesPlugin {
             .ignore_component::<CubemapVisibleEntities>()
             .ignore_component::<SyncToRenderWorld>()
             .ignore_component::<TransformTreeChanged>()
+            .ignore_component::<CameraMainTextureUsages>()
+            .ignore_component::<CameraRenderGraph>()
+            .ignore_component::<Frustum>()
+            .ignore_component::<RenderTarget>()
+            .ignore_component::<VisibleEntities>()
+            .ignore_component::<Exposure>()
             .register_panel(PropertiesPane)
             .add_systems(Startup, collect_add_component_tree);
     }

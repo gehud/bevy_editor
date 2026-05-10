@@ -6,9 +6,11 @@ use crate::{
 };
 use bevy::{
     asset::{Handle, ReflectHandle, uuid},
+    camera::Exposure,
     mesh::{Mesh, Mesh3d},
     pbr::StandardMaterial,
     platform::time::Instant,
+    reflect::{ReflectDeserialize, ReflectSerialize},
     transform::components::Transform,
 };
 use bevy::{
@@ -16,6 +18,7 @@ use bevy::{
     reflect::{FromType, PartialReflect, Reflect, TypeRegistry},
 };
 use disqualified::ShortName;
+use serde::Serialize;
 use std::{
     any::{Any, TypeId},
     sync::Arc,

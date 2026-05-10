@@ -53,6 +53,7 @@ async-channel = "2.5.0"
 uuid = { version = "1.23.1", features = ["v4"] }
 async-fs = "2.2.0"
 toml = "0.9.12+spec-1.1.0"
+derive_more = "2.1.1"
 
 [patch.crates-io]
 bevy = { git = "https://github.com/gehud/bevy.git", branch = "editor" }

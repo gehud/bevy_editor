@@ -826,6 +826,7 @@ dependencies = [
  "bevy_mod_outline",
  "bytemuck",
  "chrono",
+ "derive_more",
  "disqualified",
  "duplicate",
  "egui",

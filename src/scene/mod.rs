@@ -3,10 +3,10 @@ pub mod serde;
 
 use bevy::{
     app::{App, Plugin},
-    asset::{Asset, AssetApp, Handle, UntypedAssetId, VisitAssetDependencies},
-    ecs::{component::Component, reflect::ReflectResource, resource::Resource},
+    asset::{Asset, AssetApp, UntypedAssetId, VisitAssetDependencies},
+    ecs::{reflect::ReflectResource, resource::Resource},
     platform::collections::HashSet,
-    reflect::{Reflect, TypePath, std_traits::ReflectDefault},
+    reflect::{Reflect, ReflectDeserialize, ReflectSerialize, TypePath, std_traits::ReflectDefault},
     scene::{DynamicScene, Scene},
 };
 
@@ -33,12 +33,6 @@ impl VisitAssetDependencies for EditorScene {
     }
 }
 
-#[derive(Component)]
-pub struct EditorSceneRoot(pub Handle<EditorScene>);
-
-#[derive(Component)]
-pub struct EditorSceneInstance;
-
 #[derive(Default, Resource, Reflect)]
 #[reflect(Default, Resource, Settings)]
 pub struct SceneList {
@@ -59,6 +53,18 @@ impl Plugin for EditorScenePlugin {
             .register_editor_asset::<Scene>()
             .register_editor_asset::<DynamicScene>()
             .register_editor_asset::<EditorScene>()
+            .register_type::<std::ops::Range<f32>>()
+            .register_type_data::<std::ops::Range<f32>, ReflectSerialize>()
+            .register_type_data::<std::ops::Range<f32>, ReflectDeserialize>()
+            .register_type::<std::ops::Range<f64>>()
+            .register_type_data::<std::ops::Range<f64>, ReflectSerialize>()
+            .register_type_data::<std::ops::Range<f64>, ReflectDeserialize>()
+            .register_type::<std::ops::RangeInclusive<f32>>()
+            .register_type_data::<std::ops::RangeInclusive<f32>, ReflectSerialize>()
+            .register_type_data::<std::ops::RangeInclusive<f32>, ReflectDeserialize>()
+            .register_type::<std::ops::RangeInclusive<f64>>()
+            .register_type_data::<std::ops::RangeInclusive<f64>, ReflectSerialize>()
+            .register_type_data::<std::ops::RangeInclusive<f64>, ReflectDeserialize>()
             .init_asset_loader::<EditorSceneLoader>();
     }
 }
