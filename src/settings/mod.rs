@@ -17,9 +17,7 @@ use bevy::{
         world::{CommandQueue, FromWorld, World},
     },
     platform::collections::HashSet,
-    reflect::{
-        PartialReflect, reflect_trait, serde::ReflectDeserializer, std_traits::ReflectDefault,
-    },
+    reflect::{reflect_trait, serde::ReflectDeserializer, std_traits::ReflectDefault},
 };
 use egui::{ScrollArea, Ui};
 use serde::de::{DeserializeSeed, IntoDeserializer};

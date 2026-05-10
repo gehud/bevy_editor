@@ -415,6 +415,7 @@ impl InspectorUi<'_, '_> {
 
         let mut changed = false;
         Grid::new(id)
+            .num_columns(2)
             .show(ui, |ui| -> Result {
                 for i in 0..value.field_len() {
                     let field_info = type_info.field_at(i).unwrap();
@@ -452,6 +453,7 @@ impl InspectorUi<'_, '_> {
         };
 
         Grid::new(id)
+            .num_columns(2)
             .show(ui, |ui| -> Result {
                 for i in 0..value.field_len() {
                     let field_info = type_info.field_at(i).unwrap();
@@ -485,6 +487,7 @@ impl InspectorUi<'_, '_> {
     ) -> Result<bool> {
         let mut changed = false;
         Grid::new(id)
+            .num_columns(2)
             .show(ui, |ui| -> Result {
                 for (i, field) in info.iter().enumerate() {
                     let _response = ui.label(field.name());
@@ -779,26 +782,24 @@ impl InspectorUi<'_, '_> {
                 op = Some(AddElement(0))
             }
             for i in 0..len {
-                egui::Grid::new((id, i))
-                    .show(ui, |ui| -> Result {
+                ui.vertical(|ui| -> Result {
+                    let val = list.get_mut(i).unwrap();
+                    ui.horizontal(|ui| -> Result {
                         ui.label(i.to_string());
-                        let val = list.get_mut(i).unwrap();
-                        ui.horizontal_top(|ui| -> Result {
-                            changed |=
-                                self.ui_for_reflect_with_options(val, ui, id.with(i), options)?;
-                            Ok(())
-                        })
-                        .inner?;
-                        ui.end_row();
-
-                        let item_op = ui_for_list_controls(ui, i, len);
-                        if item_op.is_some() {
-                            op = item_op;
-                        }
-
+                        changed |=
+                            self.ui_for_reflect_with_options(val, ui, id.with(i), options)?;
                         Ok(())
                     })
                     .inner?;
+
+                    let item_op = ui_for_list_controls(ui, i, len);
+                    if item_op.is_some() {
+                        op = item_op;
+                    }
+
+                    Ok(())
+                })
+                .inner?;
 
                 if i != len - 1 {
                     ui.separator();
