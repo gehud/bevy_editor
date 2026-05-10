@@ -1,20 +1,72 @@
 (
     entities: {
-        4294967230: (
+        4294967225: (
+            components: {
+                "bevy_camera::primitives::CascadesFrusta": (),
+                "bevy_camera::visibility::CascadesVisibleEntities": (),
+                "bevy_camera::visibility::InheritedVisibility": (true),
+                "bevy_camera::visibility::Visibility": Inherited,
+                "bevy_ecs::name::Name": "Light",
+                "bevy_light::cascade::CascadeShadowConfig": (
+                    bounds: [
+                        10.0,
+                        24.66212,
+                        60.82202,
+                        149.99998,
+                    ],
+                    overlap_proportion: 0.2,
+                    minimum_distance: 0.1,
+                ),
+                "bevy_light::cascade::Cascades": (
+                    cascades: ({}),
+                ),
+                "bevy_light::directional_light::DirectionalLight": (
+                    color: LinearRgba((
+                        red: 1.0,
+                        green: 1.0,
+                        blue: 1.0,
+                        alpha: 1.0,
+                    )),
+                    illuminance: 10000.0,
+                    shadows_enabled: false,
+                    affects_lightmapped_mesh_diffuse: true,
+                    shadow_depth_bias: 0.02,
+                    shadow_normal_bias: 1.8,
+                ),
+                "bevy_transform::components::transform::Transform": (
+                    translation: (0.0, 0.0, 0.0),
+                    rotation: (-0.2568151, 0.4613113, -0.14147733, 0.83739),
+                    scale: (1.0, 1.0, 1.0),
+                ),
+            },
+        ),
+        4294967261: (
             components: {
                 "bevy_camera::visibility::InheritedVisibility": (true),
                 "bevy_camera::visibility::Visibility": Visible,
-                "bevy_ecs::hierarchy::ChildOf": (8589934560),
                 "bevy_ecs::name::Name": "tile",
                 "bevy_scene::components::SceneRoot": (Db("de068919-97d8-4a7c-a7aa-cc71c76c9db1.glb#Scene0")),
                 "bevy_transform::components::transform::Transform": (
                     translation: (0.0, 0.0, 0.0),
-                    rotation: (-0.70710677, 0.0, 0.0, 0.70710677),
+                    rotation: (-0.0, -0.0, -0.0, 1.0),
                     scale: (1.0, 1.0, 1.0),
                 ),
             },
         ),
         8589934560: (
+            components: {
+                "bevy_camera::visibility::InheritedVisibility": (true),
+                "bevy_camera::visibility::Visibility": Visible,
+                "bevy_ecs::name::Name": "alien",
+                "bevy_scene::components::SceneRoot": (Db("961b5039-f87e-455d-b256-f64854834066.glb#Scene0")),
+                "bevy_transform::components::transform::Transform": (
+                    translation: (0.0, 0.2, 0.0),
+                    rotation: (0.0, 1.0, 0.0, -0.00000004371139),
+                    scale: (1.0, 1.0, 1.0),
+                ),
+            },
+        ),
+        8589934561: (
             components: {
                 "bevy_camera::camera::Camera": (
                     viewport: None,
@@ -47,7 +99,7 @@
                 "bevy_core_pipeline::tonemapping::DebandDither": Enabled,
                 "bevy_core_pipeline::tonemapping::Tonemapping": TonyMcMapface,
                 "bevy_ecs::hierarchy::Children": ([
-                    4294967230,
+                    8589934562,
                 ]),
                 "bevy_ecs::name::Name": "Camera",
                 "bevy_light::cluster::ClusterConfig": FixedZ(
@@ -95,20 +147,7 @@
                 ),
                 "bevy_render::view::Msaa": Sample4,
                 "bevy_transform::components::transform::Transform": (
-                    translation: (0.0, 0.0, 2.6000001),
-                    rotation: (-0.0, -0.0, -0.0, 1.0),
-                    scale: (1.0, 1.0, 1.0),
-                ),
-            },
-        ),
-        8589934561: (
-            components: {
-                "bevy_camera::visibility::InheritedVisibility": (true),
-                "bevy_camera::visibility::Visibility": Visible,
-                "bevy_ecs::name::Name": "alien",
-                "bevy_scene::components::SceneRoot": (Db("961b5039-f87e-455d-b256-f64854834066.glb#Scene0")),
-                "bevy_transform::components::transform::Transform": (
-                    translation: (0.0, 0.2, 0.0),
+                    translation: (0.0, 0.6, 2.6000001),
                     rotation: (-0.0, -0.0, -0.0, 1.0),
                     scale: (1.0, 1.0, 1.0),
                 ),
@@ -118,11 +157,12 @@
             components: {
                 "bevy_camera::visibility::InheritedVisibility": (true),
                 "bevy_camera::visibility::Visibility": Visible,
+                "bevy_ecs::hierarchy::ChildOf": (8589934561),
                 "bevy_ecs::name::Name": "tile",
                 "bevy_scene::components::SceneRoot": (Db("de068919-97d8-4a7c-a7aa-cc71c76c9db1.glb#Scene0")),
                 "bevy_transform::components::transform::Transform": (
                     translation: (0.0, 0.0, 0.0),
-                    rotation: (-0.0, -0.0, -0.0, 1.0),
+                    rotation: (-0.70710677, 0.0, 0.0, 0.70710677),
                     scale: (1.0, 1.0, 1.0),
                 ),
             },

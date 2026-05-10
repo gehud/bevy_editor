@@ -13,7 +13,7 @@ use bevy::{
 use serde::Deserialize;
 
 #[cfg(feature = "editor")]
-use crate::asset::AssetDatabase;
+use crate::asset::database::AssetDatabase;
 use crate::serde::AssetRef;
 
 #[derive(Clone, TypePath)]

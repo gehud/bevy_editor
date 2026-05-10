@@ -10,7 +10,7 @@ use bevy::{
 };
 use serde::{Serialize, Serializer, ser::Error};
 
-use crate::{asset::AssetDatabase, serde::AssetRef};
+use crate::{asset::database::AssetDatabase, serde::AssetRef};
 
 #[derive(Clone, TypePath)]
 pub struct EditorSerializerProcessor {

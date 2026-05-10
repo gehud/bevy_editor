@@ -11,7 +11,7 @@ use egui::{
 use lucide_icons::Icon;
 
 use crate::{
-    PLAY_MODE_VAR,
+    PLAY_MODE_VAR, PlaySession,
     asset_browser::AssetPayload,
     assets::icons::MaterialIcon,
     dock::DockArea,
@@ -71,13 +71,27 @@ fn menu_bar(ui: &mut Ui, world: &mut World) -> Result {
             }
 
             ui.vertical_centered(|ui| -> Result {
-                if ui.small_button(MaterialIcon::new(Icon::Play)).clicked() {
-                    let current_exe = env::current_exe()?;
-                    let current_dir = env::current_dir()?;
-                    Command::new(current_exe)
-                        .current_dir(current_dir)
-                        .env(PLAY_MODE_VAR, "true")
-                        .spawn()?;
+                if let Some(mut session) = world.get_resource_mut::<PlaySession>() {
+                    if session.0.try_wait()?.is_some() {
+                        world.remove_resource::<PlaySession>();
+                    }
+                }
+
+                if let Some(mut session) = world.get_resource_mut::<PlaySession>() {
+                    if ui.small_button(MaterialIcon::new(Icon::Square)).clicked() {
+                        session.0.kill()?;
+                        world.remove_resource::<PlaySession>();
+                    }
+                } else {
+                    if ui.small_button(MaterialIcon::new(Icon::Play)).clicked() {
+                        let current_exe = env::current_exe()?;
+                        let current_dir = env::current_dir()?;
+                        let session = Command::new(current_exe)
+                            .current_dir(current_dir)
+                            .env(PLAY_MODE_VAR, "true")
+                            .spawn()?;
+                        world.insert_resource(PlaySession(session));
+                    }
                 }
 
                 Ok(())

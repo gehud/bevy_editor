@@ -50,7 +50,17 @@ use ron::ser::PrettyConfig;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    asset::AssetDatabase, asset_browser::AssetPayload, assets::icons::MaterialIcon, panel::{Panel, PanelApp}, prefs::{RegisterPref, Save}, properties::ComponentIgnore, scene::{EditorScene, serde::ser::SceneSerializer}, selection::{EntitySelection, SelectionMap}, serde::{de::EditorDeserializerProcessor, ser::EditorSerializerProcessor}, style::ACCENT, utils::paint_collapsing_button
+    asset::database::AssetDatabase,
+    asset_browser::AssetPayload,
+    assets::icons::MaterialIcon,
+    panel::{Panel, PanelApp},
+    prefs::{RegisterPref, Save},
+    properties::ComponentIgnore,
+    scene::{EditorScene, serde::ser::SceneSerializer},
+    selection::{EntitySelection, SelectionMap},
+    serde::{de::EditorDeserializerProcessor, ser::EditorSerializerProcessor},
+    style::ACCENT,
+    utils::paint_collapsing_button,
 };
 
 pub const DESPAWN_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::NONE, Key::Delete);

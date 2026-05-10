@@ -1,7 +1,7 @@
 //! Custom UI implementations for specific types. Check [`InspectorPrimitive`] for an example.
 
 use crate::{
-    asset::{ReflectEditorAssetId, inspector::EditorAssetIdInspector},
+    asset::id::{ReflectEditorAssetId, inspector::EditorAssetIdInspector},
     inspection::{inspector_egui_impls::handle::HandleInspector, reflect_inspector::InspectorUi},
 };
 use bevy::{

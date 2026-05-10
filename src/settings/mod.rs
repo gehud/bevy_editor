@@ -280,9 +280,9 @@ mod editor {
     }
 }
 
-pub struct SettingsPlugin;
+pub struct EditorSettingsPlugin;
 
-impl Plugin for SettingsPlugin {
+impl Plugin for EditorSettingsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<SettingsRegistry>()
             .add_systems(PreStartup, load);

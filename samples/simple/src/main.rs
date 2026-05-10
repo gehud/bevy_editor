@@ -17,7 +17,7 @@ use bevy::{
 };
 use bevy_editor::{
     EditorApp,
-    asset::EditorAssetIdResolver,
+    asset::resolver::EditorAssetIdResolver,
     scene::{EditorScene, SceneList},
 };
 

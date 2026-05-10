@@ -6,14 +6,16 @@ use bevy::{
     asset::{Asset, AssetApp, UntypedAssetId, VisitAssetDependencies},
     ecs::{reflect::ReflectResource, resource::Resource},
     platform::collections::HashSet,
-    reflect::{Reflect, ReflectDeserialize, ReflectSerialize, TypePath, std_traits::ReflectDefault},
+    reflect::{
+        Reflect, ReflectDeserialize, ReflectSerialize, TypePath, std_traits::ReflectDefault,
+    },
     scene::{DynamicScene, Scene},
 };
 
 use loader::EditorSceneLoader;
 
 use crate::{
-    asset::{EditorAssetApp, EditorAssetId},
+    asset::{EditorAssetApp, id::EditorAssetId},
     settings::{ReflectSettings, Settings},
 };
 

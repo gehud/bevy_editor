@@ -21,7 +21,7 @@ use ::serde::{Deserialize, Serialize};
 pub use egui;
 use lucide_icons::LUCIDE_FONT_BYTES;
 
-use std::{env, fs::File};
+use std::{env, fs::File, process::Child};
 
 use bevy::{
     DefaultPlugins,
@@ -65,7 +65,7 @@ use crate::{
     scene::EditorScenePlugin,
     scene_tree::SceneTreePlugin,
     selection::SelectionPlugin,
-    settings::SettingsPlugin,
+    settings::EditorSettingsPlugin,
     style::set_dark_style,
     ui::root,
     viewport::ViewportPlugin,
@@ -84,6 +84,9 @@ pub fn is_play_mode() -> bool {
 
     value
 }
+
+#[derive(Resource)]
+pub(crate) struct PlaySession(pub Child);
 
 #[derive(Default)]
 pub struct EditorPlugin;
@@ -130,7 +133,7 @@ impl Plugin for EditorPlugin {
             .add_plugins(SelectionPlugin)
             .add_plugins(PanelPlugin)
             .add_plugins(EditorScenePlugin)
-            .add_plugins(SettingsPlugin)
+            .add_plugins(EditorSettingsPlugin)
             .add_plugins(PropertiesPlugin)
             .add_plugins(ViewportPlugin)
             .add_plugins(SceneTreePlugin)
@@ -276,7 +279,7 @@ impl EditorApp {
                     .add_plugins(PrefsPlugin)
                     .add_plugins(PanelPlugin)
                     .add_plugins(EditorScenePlugin)
-                    .add_plugins(SettingsPlugin);
+                    .add_plugins(EditorSettingsPlugin);
                 (self.shared_plugin)(&mut app);
                 (self.runtime_plugin)(&mut app);
             } else {
@@ -285,15 +288,10 @@ impl EditorApp {
                 (self.editor_plugin)(&mut app);
             }
         } else {
-            app.add_plugins(DefaultPlugins.set(AssetPlugin {
-                watch_for_changes_override: Some(false),
-                use_asset_processor_override: Some(false),
-                mode: AssetMode::Processed,
-                meta_check: AssetMetaCheck::Never,
-                ..default()
-            }))
-            .add_plugins(EditorScenePlugin)
-            .add_plugins(SettingsPlugin);
+            app.add_plugins(EditorAssetPlugin)
+                .add_plugins(DefaultPlugins.build().disable::<AssetPlugin>())
+                .add_plugins(EditorScenePlugin)
+                .add_plugins(EditorSettingsPlugin);
             (self.shared_plugin)(&mut app);
             (self.runtime_plugin)(&mut app);
         }
