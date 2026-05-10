@@ -1,6 +1,7 @@
 pub mod asset;
 mod asset_browser;
 pub mod assets;
+pub mod build;
 pub mod cursor;
 mod dock;
 pub mod inspection;
@@ -54,21 +55,7 @@ use egui::{
 };
 
 use crate::{
-    asset::EditorAssetPlugin,
-    asset_browser::AssetBrowserPlugin,
-    assets::{AssetsPlugin, LUCIDE_FONT_FAMILY},
-    cursor::CursorLockPlugin,
-    inspection::DefaultInspectorConfigPlugin,
-    panel::PanelPlugin,
-    prefs::{PrefsPlugin, RegisterPref, Save},
-    properties::PropertiesPlugin,
-    scene::EditorScenePlugin,
-    scene_tree::SceneTreePlugin,
-    selection::SelectionPlugin,
-    settings::EditorSettingsPlugin,
-    style::set_dark_style,
-    ui::root,
-    viewport::ViewportPlugin,
+    asset::EditorAssetPlugin, asset_browser::AssetBrowserPlugin, assets::{AssetsPlugin, LUCIDE_FONT_FAMILY}, build::EditorBuildPlugin, cursor::CursorLockPlugin, inspection::DefaultInspectorConfigPlugin, panel::PanelPlugin, prefs::{PrefsPlugin, RegisterPref, Save}, properties::PropertiesPlugin, scene::EditorScenePlugin, scene_tree::SceneTreePlugin, selection::SelectionPlugin, settings::EditorSettingsPlugin, style::set_dark_style, ui::root, viewport::ViewportPlugin
 };
 
 pub const PLAY_MODE_VAR: &'static str = "BEVY_EDITOR_PLAY";
@@ -138,6 +125,7 @@ impl Plugin for EditorPlugin {
             .add_plugins(ViewportPlugin)
             .add_plugins(SceneTreePlugin)
             .add_plugins(AssetBrowserPlugin)
+            .add_plugins(EditorBuildPlugin)
             .add_plugins(DefaultInspectorConfigPlugin)
             .register_pref::<EguiMemory>()
             .add_systems(Startup, (load_context, maximize_window))

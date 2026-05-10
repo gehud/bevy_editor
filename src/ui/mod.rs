@@ -14,6 +14,7 @@ use crate::{
     PLAY_MODE_VAR, PlaySession,
     asset_browser::AssetPayload,
     assets::icons::MaterialIcon,
+    build::Build,
     dock::DockArea,
     panel::{PanelDocking, PanelRegistry, PanelViewer},
     scene_tree::{DraggedSceneRoot, OpenScene, SaveScene},
@@ -22,6 +23,7 @@ use crate::{
 
 const FILE_OPEN_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::O);
 const FILE_SAVE_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::S);
+const FILE_BUILD_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::B);
 
 fn menu_bar(ui: &mut Ui, world: &mut World) -> Result {
     MenuBar::new()
@@ -41,6 +43,16 @@ fn menu_bar(ui: &mut Ui, world: &mut World) -> Result {
                     .clicked()
                 {
                     world.write_message(SaveScene);
+                }
+
+                ui.separator();
+
+                if Button::new("Build")
+                    .shortcut_text(ui.format_shortcut(&FILE_BUILD_SHORTCUT))
+                    .ui(ui)
+                    .clicked()
+                {
+                    world.write_message(Build);
                 }
             });
 
@@ -167,6 +179,10 @@ pub(super) fn root(ui: &mut Ui, world: &mut World) -> Result {
 
     if ui.input_mut(|input| input.consume_shortcut(&FILE_SAVE_SHORTCUT)) {
         world.write_message(SaveScene);
+    }
+
+    if ui.input_mut(|input| input.consume_shortcut(&FILE_BUILD_SHORTCUT)) {
+        world.write_message(Build);
     }
 
     Ok(())
