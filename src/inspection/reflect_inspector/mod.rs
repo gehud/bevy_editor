@@ -79,7 +79,7 @@ use bevy::reflect::{
 };
 use bevy::reflect::{DynamicStruct, std_traits::ReflectDefault};
 use bevy::reflect::{PartialReflect, Set, SetInfo};
-use egui::{Grid, WidgetText};
+use egui::{Grid, Label, TextWrapMode, Widget, WidgetText};
 use std::borrow::Cow;
 use std::{
     any::{Any, TypeId},
@@ -420,10 +420,11 @@ impl InspectorUi<'_, '_> {
                 for i in 0..value.field_len() {
                     let field_info = type_info.field_at(i).unwrap();
 
-                    let _response = ui.label(field_info.name());
-                    #[cfg(feature = "documentation")]
-                    show_docs(_response, field_info.docs());
+                    let _response = Label::new(field_info.name())
+                        .wrap_mode(TextWrapMode::Extend)
+                        .ui(ui);
 
+                    #[cfg(feature = "documentation")]
                     let field = value.field_at_mut(i).unwrap();
                     changed |= self.ui_for_reflect_with_options(
                         field,

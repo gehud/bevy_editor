@@ -749,7 +749,7 @@ fn ui_for_asset<'a>(ui: &mut Ui, world: &mut World, asset_path: AssetPath<'a>, i
     if request_new_settings {
         let mut meta = match block_on(souce.reader().read_meta_bytes(asset_path.path())) {
             Ok(bytes) => loader.deserialize_meta(&bytes)?,
-            Err(error) => loader.default_meta(),
+            Err(_) => loader.default_meta(),
         };
 
         if meta.loader_settings().is_none() {
