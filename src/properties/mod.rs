@@ -2,6 +2,11 @@ use std::{any::TypeId, f32, ops::DerefMut, path::Path};
 
 use bevy::{
     app::{App, Plugin, Startup},
+    asset::{
+        AssetPath, AssetServer,
+        io::{AssetReaderError, AssetSourceId},
+        meta::{AssetMeta, AssetMetaDyn},
+    },
     camera::{
         CameraMainTextureUsages, Exposure, RenderTarget,
         primitives::{Aabb, CubemapFrusta, Frustum},
@@ -25,12 +30,13 @@ use bevy::{
     light::cluster::ClusterConfig,
     picking::{events::Scroll, hover::PickingInteraction},
     platform::collections::{HashMap, HashSet},
-    reflect::{TypePathTable, TypeRegistry, prelude::ReflectDefault},
+    reflect::{Reflect, TypePathTable, TypeRegistry, prelude::ReflectDefault},
     render::{
         camera::CameraRenderGraph,
         sync_world::{RenderEntity, SyncToRenderWorld},
     },
     scene::{DynamicSceneBuilder, DynamicSceneRoot, SceneRoot},
+    tasks::block_on,
     transform::components::{GlobalTransform, Transform, TransformTreeChanged},
 };
 use egui::{
@@ -44,6 +50,7 @@ use fuzzy_matcher::{FuzzyMatcher, skim::SkimMatcherV2};
 use lucide_icons::Icon;
 
 use crate::{
+    asset_browser::AssetSelection,
     assets::icons::MaterialIcon,
     inspection::{
         self, error,
@@ -107,25 +114,40 @@ impl Panel for PropertiesPane {
     }
 
     fn ui(&mut self, ui: &mut Ui, world: &mut World) -> Result {
-        let selection_map = world.resource::<SelectionMap>();
-
-        if selection_map.type_ids().len() > 1 {
+        if world.resource::<SelectionMap>().type_ids().len() > 1 {
             ui.heading("Selected");
             ui.separator();
 
-            for (_, items) in selection_map.iter() {
+            for (_, items) in world.resource::<SelectionMap>().iter() {
                 ui.label(format!("{} x{}", items.label(), items.len()));
             }
-        } else if selection_map.type_ids().len() == 1 {
-            if let Some(selected) = selection_map
+        } else if world.resource::<SelectionMap>().type_ids().len() == 1 {
+            let id = ui.id();
+
+            if let Some(selected) = world
+                .resource::<SelectionMap>()
                 .of_type::<EntitySelection>()
                 .map(|selected| selected.map(|item| item.entity).collect::<Vec<_>>())
             {
-                let id = ui.id();
-
                 match selected.as_slice() {
                     &[entity] => ui_for_entity(ui, world, entity, id)?,
                     entities => ui_for_entities(ui, world, entities, id)?,
+                }
+            }
+
+            if let Some(selected) = world
+                .resource::<SelectionMap>()
+                .of_type::<AssetSelection>()
+                .map(|selected| {
+                    selected
+                        .map(|item| AssetPath::from(item.0.clone()))
+                        .collect::<Vec<_>>()
+                })
+            {
+                if selected.len() == 1 {
+                    ui_for_asset(ui, world, selected[0].clone(), id)?;
+                } else {
+                    world.remove_resource::<InspectedAssetLoaderSettings>();
                 }
             }
         }
@@ -702,6 +724,67 @@ fn collect_add_component_tree(
         map,
         items,
     });
+}
+
+#[derive(Resource)]
+struct InspectedAssetLoaderSettings {
+    path: String,
+    meta: Box<dyn AssetMetaDyn>,
+}
+
+fn ui_for_asset<'a>(ui: &mut Ui, world: &mut World, asset_path: AssetPath<'a>, id: Id) -> Result {
+    ui.heading("Import");
+    ui.separator();
+
+    let asset_server = world.resource::<AssetServer>().clone();
+
+    let loader = block_on(asset_server.get_path_asset_loader(&asset_path))?;
+
+    let souce = asset_server.get_source(AssetSourceId::Default)?;
+
+    let request_new_settings = world
+        .get_resource::<InspectedAssetLoaderSettings>()
+        .is_none_or(|settings| settings.path != asset_path.to_string());
+
+    if request_new_settings {
+        let mut meta = match block_on(souce.reader().read_meta_bytes(asset_path.path())) {
+            Ok(bytes) => loader.deserialize_meta(&bytes)?,
+            Err(error) => loader.default_meta(),
+        };
+
+        if meta.loader_settings().is_none() {
+            meta = loader.default_meta();
+        }
+
+        world.insert_resource(InspectedAssetLoaderSettings {
+            path: asset_path.to_string(),
+            meta: meta,
+        });
+    }
+
+    let type_registry = world.resource::<AppTypeRegistry>().clone();
+    let type_registry = type_registry.read();
+
+    let mut world_view = RestrictedWorldView::new(world);
+    let (mut settings_world, world_view) =
+        world_view.split_off_resource(TypeId::of::<InspectedAssetLoaderSettings>());
+
+    let mut settings = settings_world.get_resource_mut::<InspectedAssetLoaderSettings>()?;
+
+    let settings = settings.meta.loader_settings_mut().unwrap();
+
+    let mut queue = CommandQueue::default();
+
+    let mut ctx = Context {
+        queue: &mut queue,
+        world: world_view,
+    };
+
+    let mut inspector = InspectorUi::new(&type_registry, &mut ctx);
+
+    inspector.ui_for_reflect(settings.as_partial_reflect_mut(), ui)?;
+
+    Ok(())
 }
 
 pub trait PropertiesApp {
