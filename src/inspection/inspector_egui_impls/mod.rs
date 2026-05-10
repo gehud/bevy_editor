@@ -5,13 +5,7 @@ use crate::{
     inspection::{inspector_egui_impls::handle::HandleInspector, reflect_inspector::InspectorUi},
 };
 use bevy::{
-    asset::{Handle, ReflectHandle, uuid},
-    camera::Exposure,
-    mesh::{Mesh, Mesh3d},
-    pbr::StandardMaterial,
-    platform::time::Instant,
-    reflect::{ReflectDeserialize, ReflectSerialize},
-    transform::components::Transform,
+    asset::{Handle, ReflectHandle, RenderAssetUsages, uuid}, camera::Exposure, mesh::{Mesh, Mesh3d}, pbr::StandardMaterial, platform::time::Instant, reflect::{ReflectDeserialize, ReflectSerialize}, render::Render, transform::components::Transform
 };
 use bevy::{
     ecs::error::Result,
@@ -289,6 +283,7 @@ pub fn register_bevy_impls(type_registry: &mut TypeRegistry) {
     type_registry.register_type_data::<bevy::color::Hsva, ReflectInspector>();
     type_registry.register_type_data::<bevy::gizmos::config::GizmoConfigStore, ReflectInspector>();
     type_registry.register_type_data::<uuid::Uuid, ReflectInspector>();
+    type_registry.register_type_data::<RenderAssetUsages, ReflectInspector>();
 
     for registration in type_registry.iter_mut() {
         if registration.data::<ReflectHandle>().is_some() {

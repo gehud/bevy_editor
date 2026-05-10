@@ -1,6 +1,6 @@
 use std::any::Any;
 
-use bevy::asset::{Asset, Handle, uuid};
+use bevy::asset::{Asset, Handle, RenderAssetUsages, uuid};
 use bevy::camera::visibility::RenderLayers;
 use bevy::color::{Color, Hsla, Hsva, LinearRgba, Srgba};
 use bevy::ecs::entity::Entity;
@@ -9,7 +9,7 @@ use bevy::math::{EulerRot, Quat, Vec3};
 use bevy::reflect::PartialReflect;
 use bevy::transform::components::Transform;
 use bevy::utils::default;
-use egui::{Color32, CornerRadius, DragValue, Frame, Label, Margin, Ui, Widget, vec2};
+use egui::{Color32, ComboBox, CornerRadius, DragValue, Frame, Label, Margin, Ui, Widget, vec2};
 
 use crate::inspection::reflect_inspector::InspectorUi;
 
@@ -588,6 +588,42 @@ impl Inspector for RenderLayers {
             ui.label(format!("- {layer}"));
         }
         Ok(())
+    }
+}
+
+impl Inspector for RenderAssetUsages {
+    fn ui(
+        ui: &mut egui::Ui,
+        options: &dyn Any,
+        id: egui::Id,
+        env: InspectorUi<'_, '_>,
+        value: &mut dyn PartialReflect,
+    ) -> Result<bool> {
+        let mut changed = false;
+
+        let value = value.try_downcast_mut::<RenderAssetUsages>().unwrap();
+
+        let label = if value.is_empty() {
+            "Empty"
+        } else if value.is_all() {
+            "All"
+        } else {
+            "Some"
+        };
+
+        ComboBox::new(id.with("select"), "")
+            .selected_text(label)
+            .show_ui(ui, |ui| {
+                for (name, item) in RenderAssetUsages::all().iter_names() {
+                    let is_selected = value.contains(item);
+                    if ui.selectable_label(is_selected, name).clicked() {
+                        value.toggle(item);
+                        changed = true;
+                    }
+                }
+            });
+
+        Ok(changed)
     }
 }
 
