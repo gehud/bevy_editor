@@ -85,16 +85,6 @@ pub fn is_play_mode() -> bool {
     value
 }
 
-pub struct EditorSharedPlugins;
-
-impl PluginGroup for EditorSharedPlugins {
-    fn build(self) -> PluginGroupBuilder {
-        PluginGroupBuilder::start::<EditorSharedPlugins>()
-            .add(EditorScenePlugin)
-            .add(SettingsPlugin)
-    }
-}
-
 #[derive(Default)]
 pub struct EditorPlugin;
 
@@ -139,7 +129,8 @@ impl Plugin for EditorPlugin {
             .add_plugins(CursorLockPlugin)
             .add_plugins(SelectionPlugin)
             .add_plugins(PanelPlugin)
-            .add_plugins(EditorSharedPlugins)
+            .add_plugins(EditorScenePlugin)
+            .add_plugins(SettingsPlugin)
             .add_plugins(PropertiesPlugin)
             .add_plugins(ViewportPlugin)
             .add_plugins(SceneTreePlugin)
@@ -280,14 +271,12 @@ impl EditorApp {
 
         if cfg!(feature = "editor") {
             if is_play_mode() {
-                app.add_plugins(DefaultPlugins.set(AssetPlugin {
-                    watch_for_changes_override: Some(false),
-                    use_asset_processor_override: Some(false),
-                    mode: AssetMode::Processed,
-                    meta_check: AssetMetaCheck::Never,
-                    ..default()
-                }))
-                .add_plugins(EditorSharedPlugins);
+                app.add_plugins(EditorAssetPlugin)
+                    .add_plugins(DefaultPlugins.build().disable::<AssetPlugin>())
+                    .add_plugins(PrefsPlugin)
+                    .add_plugins(PanelPlugin)
+                    .add_plugins(EditorScenePlugin)
+                    .add_plugins(SettingsPlugin);
                 (self.shared_plugin)(&mut app);
                 (self.runtime_plugin)(&mut app);
             } else {
@@ -303,7 +292,8 @@ impl EditorApp {
                 meta_check: AssetMetaCheck::Never,
                 ..default()
             }))
-            .add_plugins(EditorSharedPlugins);
+            .add_plugins(EditorScenePlugin)
+            .add_plugins(SettingsPlugin);
             (self.shared_plugin)(&mut app);
             (self.runtime_plugin)(&mut app);
         }
