@@ -14,7 +14,7 @@ use bevy::{
 };
 use uuid::Uuid;
 
-#[derive(Reflect)]
+#[derive(Debug, Eq, Hash, PartialEq, Reflect)]
 #[reflect(Clone, Default)]
 pub struct EditorAssetId<A: Asset> {
     pub uuid: Uuid,
@@ -95,7 +95,7 @@ impl<'a, A: Asset> Into<AssetPath<'a>> for EditorAssetId<A> {
     }
 }
 
-#[derive(Clone, Reflect)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Reflect)]
 #[reflect(Clone)]
 pub struct UntypedEditorAssetId {
     pub type_id: TypeId,

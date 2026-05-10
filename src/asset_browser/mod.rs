@@ -37,12 +37,29 @@ use lucide_icons::Icon;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    asset::id::UntypedEditorAssetId,
     assets::icons::MaterialIcon,
     panel::{Panel, PanelApp},
     prefs::RegisterPref,
     scene_tree::{DraggedSceneRoot, scene_name},
+    selection::{self, SelectionItem, SelectionMap},
+    style::ACCENT,
     utils::paint_collapsing_button,
 };
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct AssetSelection(pub String);
+
+impl SelectionItem for AssetSelection {
+    const LABEL: &'static str = "Asset";
+}
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct FileSelection(pub PathBuf);
+
+impl SelectionItem for FileSelection {
+    const LABEL: &'static str = "File";
+}
 
 pub struct AssetBrowser;
 
@@ -178,7 +195,49 @@ fn ui_for_asset<'a>(
     let global_id = id;
     let id = global_id.with(&asset_path);
 
-    ui.scope_builder(
+    // TODO: Fix this shit
+    let is_selected = |world: &World,
+                       entry: &AssetBrowserEntry,
+                       path: &PathBuf,
+                       asset_path: &String| match &entry {
+        AssetBrowserEntry::Directory | AssetBrowserEntry::File => world
+            .resource::<SelectionMap>()
+            .is_selected(&FileSelection(path.clone())),
+        AssetBrowserEntry::Asset { .. } | AssetBrowserEntry::LabeledAsset { .. } => world
+            .resource::<SelectionMap>()
+            .is_selected(&AssetSelection(asset_path.clone())),
+    };
+
+    // TODO: Fix this shit
+    let select = |world: &mut World,
+                  entry: &AssetBrowserEntry,
+                  path: &PathBuf,
+                  asset_path: &String| match &entry {
+        AssetBrowserEntry::Directory | AssetBrowserEntry::File => world
+            .resource_mut::<SelectionMap>()
+            .select(FileSelection(path.clone())),
+        AssetBrowserEntry::Asset { .. } | AssetBrowserEntry::LabeledAsset { .. } => world
+            .resource_mut::<SelectionMap>()
+            .select(AssetSelection(asset_path.clone())),
+    };
+
+    // TODO: Fix this shit
+    let deselect = |world: &mut World,
+                    entry: &AssetBrowserEntry,
+                    path: &PathBuf,
+                    asset_path: &String| match &entry {
+        AssetBrowserEntry::Directory | AssetBrowserEntry::File => world
+            .resource_mut::<SelectionMap>()
+            .deselect(&FileSelection(path.clone())),
+        AssetBrowserEntry::Asset { .. } | AssetBrowserEntry::LabeledAsset { .. } => world
+            .resource_mut::<SelectionMap>()
+            .deselect(&AssetSelection(asset_path.clone())),
+    };
+
+    let InnerResponse {
+        response: header_response,
+        inner,
+    } = ui.scope_builder(
         UiBuilder::new()
             .id_salt("frame")
             .sense(Sense::click_and_drag()),
@@ -192,6 +251,10 @@ fn ui_for_asset<'a>(
 
             if ui.rect_contains_pointer(header_response.rect) {
                 frame = frame.fill(ui.style().visuals.widgets.hovered.bg_fill);
+            }
+
+            if is_selected(world, &entry, &path, &asset_path) {
+                frame.stroke.color = ACCENT;
             }
 
             ui.set_height(24.0);
@@ -354,8 +417,9 @@ fn ui_for_asset<'a>(
                 })
                 .inner
         },
-    )
-    .inner?;
+    );
+
+    inner?;
 
     let inner = collapsing_state.show_body_unindented(ui, |ui| -> Result {
         ui.horizontal(|ui| {
@@ -364,7 +428,7 @@ fn ui_for_asset<'a>(
                 ui.indent(id.with("body"), |ui| -> Result {
                     match &entry {
                         AssetBrowserEntry::Directory => {
-                            for entry in read_dir(path)? {
+                            for entry in read_dir(&path)? {
                                 let path = entry?.path();
                                 let extension = path
                                     .extension()
@@ -410,6 +474,19 @@ fn ui_for_asset<'a>(
 
     if let Some(inner) = inner {
         inner.inner?;
+    }
+
+    if header_response.clicked() {
+        if !ui.input(|i| i.modifiers.ctrl) {
+            world.resource_mut::<SelectionMap>().clear();
+            select(world, &entry, &path, &asset_path);
+        } else {
+            if is_selected(world, &entry, &path, &asset_path) {
+                deselect(world, &entry, &path, &asset_path);
+            } else {
+                select(world, &entry, &path, &asset_path);
+            }
+        }
     }
 
     Ok(())
