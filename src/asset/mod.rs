@@ -12,11 +12,16 @@ use std::{
 use bevy::{
     app::{App, Plugin, PreStartup, Update},
     asset::{
-        Asset, AssetApp, AssetMetaCheck, AssetMode, AssetPlugin, AssetServer, Handle,
+        Asset, AssetApp, AssetMetaCheck, AssetMode, AssetPath, AssetPlugin, AssetServer, Handle,
         ReflectHandle,
         io::{AssetSource, AssetSourceBuilder, AssetSourceId, file::FileAssetReader},
     },
-    ecs::{error::Result, resource::Resource, system::Res},
+    ecs::{
+        error::Result,
+        resource::Resource,
+        system::Res,
+        world::{FromWorld, World},
+    },
     log::{info, warn},
     reflect::TypePath,
     tasks::block_on,
@@ -215,6 +220,54 @@ impl EditorAssetApp for App {
     }
 }
 
+#[derive(Resource)]
+pub struct EditorAssetIdResolver {
+    #[cfg(feature = "editor")]
+    asset_database: AssetDatabase,
+}
+
+impl FromWorld for EditorAssetIdResolver {
+    fn from_world(world: &mut World) -> Self {
+        Self {
+            #[cfg(feature = "editor")]
+            asset_database: world.resource::<AssetDatabase>().clone(),
+        }
+    }
+}
+
+impl EditorAssetIdResolver {
+    pub fn get_asset_path<'a>(&self, id: impl Into<UntypedEditorAssetId>) -> Result<AssetPath<'a>> {
+        let id = id.into();
+        #[cfg(feature = "editor")]
+        {
+            let Some(path) = self.asset_database.get_path(&id.uuid)? else {
+                return Ok(AssetPath::default());
+            };
+
+            if path
+                .extension()
+                .map(|extension| extension.to_string_lossy().to_string())
+                .unwrap_or_default()
+                != id.extension
+            {
+                return Ok(AssetPath::default());
+            }
+
+            let mut asset_path = AssetPath::from(path);
+
+            if let Some(label) = id.label {
+                asset_path = asset_path.with_label(label);
+            }
+
+            Ok(asset_path)
+        }
+        #[cfg(not(feature = "editor"))]
+        {
+            Ok(id.asset_path())
+        }
+    }
+}
+
 // TODO: Reload scene asset handles on souce asset change.
 pub struct EditorAssetPlugin;
 
@@ -237,6 +290,7 @@ impl Plugin for EditorAssetPlugin {
             ..default()
         })
         .insert_resource(AssetDatabase::open().unwrap())
+        .init_resource::<EditorAssetIdResolver>()
         .add_systems(PreStartup, refresh)
         .add_systems(Update, watch);
     }

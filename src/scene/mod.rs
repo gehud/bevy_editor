@@ -4,7 +4,7 @@ pub mod serde;
 use bevy::{
     app::{App, Plugin},
     asset::{Asset, AssetApp, Handle, UntypedAssetId, VisitAssetDependencies},
-    ecs::{reflect::ReflectResource, resource::Resource},
+    ecs::{component::Component, reflect::ReflectResource, resource::Resource},
     platform::collections::HashSet,
     reflect::{Reflect, TypePath, std_traits::ReflectDefault},
     scene::{DynamicScene, Scene},
@@ -33,10 +33,16 @@ impl VisitAssetDependencies for EditorScene {
     }
 }
 
+#[derive(Component)]
+pub struct EditorSceneRoot(pub Handle<EditorScene>);
+
+#[derive(Component)]
+pub struct EditorSceneInstance;
+
 #[derive(Default, Resource, Reflect)]
 #[reflect(Default, Resource, Settings)]
 pub struct SceneList {
-    scenes: Vec<EditorAssetId<EditorScene>>,
+    pub scenes: Vec<EditorAssetId<EditorScene>>,
 }
 
 impl Settings for SceneList {
