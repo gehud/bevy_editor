@@ -103,10 +103,11 @@ fn load(world: &mut World) -> Result {
 }
 
 #[cfg(feature = "editor")]
-mod editor {
+pub(crate) mod editor {
     use std::io::Write;
     use std::{any::TypeId, fs::File, io::Read};
 
+    use bevy::ecs::message::Message;
     use bevy::{
         app::AppExit,
         ecs::{message::MessageReader, system::SystemState},
@@ -242,12 +243,19 @@ mod editor {
         }
     }
 
-    pub fn save(world: &mut World, state: &mut SystemState<MessageReader<AppExit>>) -> Result {
-        let mut exit = state.get_mut(world);
-        let should_exit = !exit.is_empty();
-        exit.clear();
+    #[derive(Message)]
+    pub struct SaveSettings;
 
-        if !should_exit {
+    pub fn save(
+        world: &mut World,
+        state: &mut SystemState<(MessageReader<SaveSettings>, MessageReader<AppExit>)>,
+    ) -> Result {
+        let (mut save, mut exit) = state.get_mut(world);
+        let should_save = !exit.is_empty() || !save.is_empty();
+        exit.clear();
+        save.clear();
+
+        if !should_save {
             return Ok(());
         }
 
@@ -291,9 +299,10 @@ impl Plugin for EditorSettingsPlugin {
         {
             use bevy::app::PostUpdate;
 
-            use crate::settings::editor::{SettingsPanel, save};
+            use crate::settings::editor::{SettingsPanel, SaveSettings, save};
 
             app.register_panel(SettingsPanel)
+                .add_message::<SaveSettings>()
                 .add_systems(PostUpdate, save);
         }
     }

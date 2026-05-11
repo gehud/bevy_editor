@@ -45,7 +45,11 @@ impl ReflectSerializerProcessor for EditorSerializerProcessor {
 
         if let Some(map) = &self.scene_entity_map {
             if let Some(entity) = value.downcast_ref::<Entity>() {
-                return Ok(Ok(map[entity].serialize(serializer)?));
+                let mapped = map
+                    .get(entity)
+                    .cloned()
+                    .unwrap_or_else(|| Entity::PLACEHOLDER);
+                return Ok(Ok(mapped.serialize(serializer)?));
             }
         }
 

@@ -18,6 +18,7 @@ use crate::{
     dock::DockArea,
     panel::{PanelDocking, PanelRegistry, PanelViewer},
     scene_tree::{DraggedSceneRoot, OpenScene, SaveScene},
+    settings::editor::SaveSettings,
     style::IntoDockStyle,
 };
 
@@ -179,6 +180,7 @@ pub(super) fn root(ui: &mut Ui, world: &mut World) -> Result {
 
     if ui.input_mut(|input| input.consume_shortcut(&FILE_SAVE_SHORTCUT)) {
         world.write_message(SaveScene);
+        world.write_message(SaveSettings);
     }
 
     if ui.input_mut(|input| input.consume_shortcut(&FILE_BUILD_SHORTCUT)) {
