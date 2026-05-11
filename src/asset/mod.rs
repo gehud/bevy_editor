@@ -35,8 +35,6 @@ impl Plugin for EditorAssetPlugin {
         {
             app.add_plugins(EditorAssetDatabasePlugin);
             app.add_plugins(AssetPlugin {
-                watch_for_changes_override: Some(true),
-                use_asset_processor_override: Some(true),
                 mode: AssetMode::Processed,
                 meta_check: AssetMetaCheck::Always,
                 ..default()
@@ -45,8 +43,6 @@ impl Plugin for EditorAssetPlugin {
         #[cfg(not(feature = "editor"))]
         {
             app.add_plugins(AssetPlugin {
-                watch_for_changes_override: Some(false),
-                use_asset_processor_override: Some(false),
                 mode: AssetMode::Processed,
                 meta_check: AssetMetaCheck::Never,
                 ..default()

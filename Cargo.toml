@@ -18,7 +18,7 @@ codegen-units = 1
 lto = "thin"
 
 [features]
-editor = []
+editor = ["bevy/file_watcher", "bevy/asset_processor"]
 default = ["documentation"]
 documentation = ["bevy/reflect_documentation"]
 
@@ -28,7 +28,7 @@ bevy = { git = "https://github.com/gehud/bevy.git", branch = "editor", features 
     "track_location",
     "file_watcher",
     "jpeg",
-    "serialize"
+    "serialize",
 ] }
 bevy_egui = { git = "https://github.com/gehud/bevy_egui.git" }
 bevy_mod_outline = { git = "https://github.com/gehud/bevy_mod_outline.git" }

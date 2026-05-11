@@ -3,9 +3,10 @@ use std::{any::TypeId, f32, ops::DerefMut, path::Path};
 use bevy::{
     app::{App, Plugin, Startup},
     asset::{
-        AssetPath, AssetServer,
+        Asset, AssetPath, AssetServer, Assets, Handle, LoadedUntypedAsset, ReflectHandle,
         io::{AssetReaderError, AssetSourceId},
-        meta::{AssetMeta, AssetMetaDyn},
+        meta::{AssetAction, AssetMeta, AssetMetaDyn},
+        processor::AssetProcessor,
     },
     camera::{
         CameraMainTextureUsages, Exposure, RenderTarget,
@@ -28,6 +29,7 @@ use bevy::{
         world::{CommandQueue, World},
     },
     light::cluster::ClusterConfig,
+    log::info,
     picking::{events::Scroll, hover::PickingInteraction},
     platform::collections::{HashMap, HashSet},
     reflect::{Reflect, TypePathTable, TypeRegistry, prelude::ReflectDefault},
@@ -733,28 +735,57 @@ struct InspectedAssetLoaderSettings {
 }
 
 fn ui_for_asset<'a>(ui: &mut Ui, world: &mut World, asset_path: AssetPath<'a>, id: Id) -> Result {
-    ui.heading("Import");
+    let mut should_reimport = false;
+    ui.horizontal(|ui| {
+        ui.with_layout(Layout::top_down(Align::Min), |ui| {
+            ui.heading("Import Settings");
+        });
+
+        ui.with_layout(Layout::top_down(Align::Max), |ui| {
+            if ui.button("Reimport").clicked() {
+                should_reimport = true;
+            }
+        });
+    });
+
     ui.separator();
 
-    let asset_server = world.resource::<AssetServer>().clone();
+    let asset_processor = world.resource::<AssetProcessor>().clone();
 
-    let loader = block_on(asset_server.get_path_asset_loader(&asset_path))?;
-
-    let souce = asset_server.get_source(AssetSourceId::Default)?;
+    let souce = asset_processor.get_source(AssetSourceId::Default)?;
 
     let request_new_settings = world
         .get_resource::<InspectedAssetLoaderSettings>()
         .is_none_or(|settings| settings.path != asset_path.to_string());
 
     if request_new_settings {
-        let mut meta = match block_on(souce.reader().read_meta_bytes(asset_path.path())) {
-            Ok(bytes) => loader.deserialize_meta(&bytes)?,
-            Err(_) => loader.default_meta(),
-        };
+        let meta = if let Some(processor) = asset_processor
+            .get_default_processor(&asset_path.get_full_extension().unwrap_or_default())
+        {
+            if let Ok(mut reader) = block_on(souce.reader().read_meta(asset_path.path())) {
+                let mut data = Vec::new();
+                block_on(reader.read_to_end(&mut data))?;
+                processor
+                    .deserialize_meta(&data)
+                    .ok()
+                    .unwrap_or_else(|| processor.default_meta())
+            } else {
+                processor.default_meta()
+            }
+        } else {
+            let loader = block_on(asset_processor.server().get_path_asset_loader(&asset_path))?;
 
-        if meta.loader_settings().is_none() {
-            meta = loader.default_meta();
-        }
+            if let Ok(mut reader) = block_on(souce.reader().read_meta(asset_path.path())) {
+                let mut data = Vec::new();
+                block_on(reader.read_to_end(&mut data))?;
+                loader
+                    .deserialize_meta(&data)
+                    .ok()
+                    .unwrap_or_else(|| loader.default_meta())
+            } else {
+                loader.default_meta()
+            }
+        };
 
         world.insert_resource(InspectedAssetLoaderSettings {
             path: asset_path.to_string(),
@@ -769,9 +800,16 @@ fn ui_for_asset<'a>(ui: &mut Ui, world: &mut World, asset_path: AssetPath<'a>, i
     let (mut settings_world, world_view) =
         world_view.split_off_resource(TypeId::of::<InspectedAssetLoaderSettings>());
 
-    let mut settings = settings_world.get_resource_mut::<InspectedAssetLoaderSettings>()?;
+    let mut loader_settings = settings_world.get_resource_mut::<InspectedAssetLoaderSettings>()?;
 
-    let settings = settings.meta.loader_settings_mut().unwrap();
+    // AssetAction::Ignore
+    if loader_settings.meta.loader_settings().is_none()
+        && loader_settings.meta.process_settings().is_none()
+    {
+        return Ok(());
+    }
+
+    let settings = loader_settings.meta.loader_settings_mut().unwrap();
 
     let mut queue = CommandQueue::default();
 
@@ -783,6 +821,15 @@ fn ui_for_asset<'a>(ui: &mut Ui, world: &mut World, asset_path: AssetPath<'a>, i
     let mut inspector = InspectorUi::new(&type_registry, &mut ctx);
 
     inspector.ui_for_reflect(settings.as_partial_reflect_mut(), ui)?;
+
+    if should_reimport {
+        block_on(
+            souce
+                .writer()
+                .unwrap()
+                .write_meta_bytes(asset_path.path(), &loader_settings.meta.serialize()),
+        )?;
+    }
 
     Ok(())
 }

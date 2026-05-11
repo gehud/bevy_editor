@@ -2,18 +2,12 @@
 mod editor;
 
 use bevy::{
-    app::{App, Plugin, Startup, Update},
-    asset::{AssetEvent, AssetId, AssetServer, Assets, Handle},
-    ecs::{
+    app::{App, Plugin, Startup, Update}, asset::{AssetEvent, AssetId, AssetServer, Assets, Handle}, ecs::{
         error::Result,
         message::MessageReader,
         resource::Resource,
         system::{Commands, Res, ResMut},
-    },
-    log::info,
-    platform::collections::HashMap,
-    prelude::bevy_main,
-    scene::{DynamicScene, DynamicSceneRoot},
+    }, image::{Image, ImageLoaderSettings, ImageSamplerDescriptor}, log::info, platform::collections::HashMap, prelude::bevy_main, scene::{DynamicScene, DynamicSceneRoot}
 };
 use bevy_editor::{
     EditorApp,

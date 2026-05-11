@@ -8,8 +8,9 @@ use std::{
 use bevy::{
     app::{App, Plugin, PreStartup, Update},
     asset::{
-        AssetApp, AssetServer,
+        AssetApp, AssetPath, AssetServer,
         io::{AssetSource, AssetSourceBuilder, AssetSourceId, file::FileAssetReader},
+        processor::AssetProcessor,
     },
     ecs::{error::Result, resource::Resource, system::Res},
     log::{info, warn},
@@ -98,14 +99,14 @@ impl AssetDatabase {
 
 #[derive(Serialize, Deserialize)]
 pub struct AssetDatabaseMeta {
-    pub version: String,
+    pub meta_format_version: String,
     pub uuid: Uuid,
 }
 
 impl Default for AssetDatabaseMeta {
     fn default() -> Self {
         Self {
-            version: "0.1.0".into(),
+            meta_format_version: "1.0".into(),
             uuid: Uuid::nil(),
         }
     }
@@ -124,21 +125,21 @@ fn watch(asset_server: Res<AssetServer>) -> Result {
     Ok(())
 }
 
-fn refresh(asset_database: Res<AssetDatabase>, asset_server: Res<AssetServer>) -> Result {
-    refresh_recurse(&asset_database, &asset_server, "assets".into())?;
+fn refresh(asset_database: Res<AssetDatabase>, asset_processor: Res<AssetProcessor>) -> Result {
+    refresh_recurse(&asset_database, &asset_processor, "assets".into())?;
     Ok(())
 }
 
 fn refresh_recurse(
     asset_database: &AssetDatabase,
-    asset_server: &AssetServer,
+    asset_processor: &AssetProcessor,
     path: PathBuf,
 ) -> Result {
     for entry in fs::read_dir(path)? {
         let path = entry?.path();
 
         if path.is_dir() {
-            refresh_recurse(asset_database, asset_server, path)?;
+            refresh_recurse(asset_database, asset_processor, path)?;
             continue;
         }
 
@@ -149,13 +150,22 @@ fn refresh_recurse(
             continue;
         };
 
-        if block_on(asset_server.get_asset_loader_with_extension(&extension)).is_err() {
+        if block_on(
+            asset_processor
+                .server()
+                .get_asset_loader_with_extension(&extension),
+        )
+        .is_err()
+        {
             continue;
         }
 
-        let meta_path = path.with_added_extension("dbm");
+        let asset_path = path.strip_prefix("assets")?.to_path_buf();
 
-        let asset_path = path.strip_prefix("assets")?;
+        let _ = block_on(asset_processor
+            .write_default_meta_file_for_path(AssetPath::from_path_buf(asset_path.clone())));
+
+        let meta_path = path.with_added_extension("dbm");
 
         let mut meta_updated = false;
         let meta = if meta_path.exists() && meta_path.is_file() {
@@ -174,7 +184,7 @@ fn refresh_recurse(
             AssetDatabaseMeta::default()
         });
 
-        if let Some(uuid) = asset_database.get_uuid(asset_path)? {
+        if let Some(uuid) = asset_database.get_uuid(&asset_path)? {
             if meta.uuid != uuid {
                 meta_updated = true;
             }
