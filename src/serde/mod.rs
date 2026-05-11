@@ -1,12 +1,6 @@
-use bevy::{
-    app::{App, Plugin},
-    asset::AssetPath,
-    reflect::TypePath,
-};
+use bevy::{asset::AssetPath, reflect::TypePath};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-
-use crate::serde::de::EditorDeserializerProcessor;
 
 pub mod de;
 #[cfg(feature = "editor")]

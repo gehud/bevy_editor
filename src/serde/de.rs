@@ -2,7 +2,6 @@ use bevy::{
     asset::{AssetServer, ReflectHandle, UntypedAssetId, UntypedHandle},
     ecs::{
         reflect::AppTypeRegistry,
-        resource::Resource,
         world::{FromWorld, World},
     },
     platform::collections::HashSet,

@@ -12,6 +12,7 @@ pub const ENTITY_FIELD_COMPONENTS: &str = "components";
 
 pub mod ser {
     use bevy::{
+        platform::collections::HashMap,
         reflect::{PartialReflect, TypeRegistry, serde::TypedReflectSerializer},
         scene::{
             DynamicEntity, DynamicScene,
@@ -23,7 +24,7 @@ pub mod ser {
         ser::{SerializeMap, SerializeStruct},
     };
 
-    use crate::serde::ser::EditorSerializerProcessor;
+    use crate::{scene::entity::PersistentEntity, serde::ser::EditorSerializerProcessor};
 
     /// Serializer for a [`DynamicScene`].
     ///
@@ -55,7 +56,7 @@ pub mod ser {
         pub scene: &'a DynamicScene,
         /// The type registry containing the types present in the scene.
         pub registry: &'a TypeRegistry,
-        pub processor: &'a EditorSerializerProcessor,
+        pub processor: EditorSerializerProcessor,
     }
 
     impl<'a> SceneSerializer<'a> {
@@ -68,13 +69,34 @@ pub mod ser {
         pub fn new(
             scene: &'a DynamicScene,
             registry: &'a TypeRegistry,
-            processor: &'a EditorSerializerProcessor,
+            processor: EditorSerializerProcessor,
         ) -> Self {
-            SceneSerializer {
+            let mut serializer = SceneSerializer {
                 scene,
                 registry,
                 processor,
+            };
+
+            serializer.collect_scene_entity_map();
+
+            serializer
+        }
+
+        pub fn collect_scene_entity_map(&mut self) {
+            let mut map = HashMap::new();
+
+            for entity in &self.scene.entities {
+                let persistent_entity = entity
+                    .components
+                    .iter()
+                    .find_map(|component| component.try_downcast_ref::<PersistentEntity>())
+                    .map(|entity| entity.0)
+                    .unwrap_or(entity.entity);
+
+                map.insert(entity.entity, persistent_entity);
             }
+
+            self.processor.scene_entity_map = Some(map);
         }
     }
 
@@ -89,7 +111,7 @@ pub mod ser {
                 &EntitiesSerializer {
                     entities: &self.scene.entities,
                     registry: self.registry,
-                    processor: self.processor,
+                    processor: &self.processor,
                 },
             )?;
             state.end()
@@ -113,7 +135,7 @@ pub mod ser {
             let mut state = serializer.serialize_map(Some(self.entities.len()))?;
             for entity in self.entities {
                 state.serialize_entry(
-                    &entity.entity,
+                    &self.processor.scene_entity_map.as_ref().unwrap()[&entity.entity],
                     &EntitySerializer {
                         entity,
                         registry: self.registry,
@@ -177,6 +199,7 @@ pub mod ser {
                 let mut entries = self
                     .entries
                     .iter()
+                    .filter(|entry| entry.try_downcast_ref::<PersistentEntity>().is_none())
                     .map(|entry| {
                         (
                             entry.get_represented_type_info().unwrap().type_path(),
@@ -222,7 +245,10 @@ pub mod de {
         de::{DeserializeSeed, Error, MapAccess, SeqAccess, Visitor},
     };
 
-    use crate::{scene::EditorScene, serde::de::EditorDeserializerProcessor};
+    use crate::{
+        scene::{EditorScene, entity::PersistentEntity},
+        serde::de::EditorDeserializerProcessor,
+    };
 
     #[derive(Deserialize)]
     #[serde(field_identifier, rename_all = "lowercase")]
@@ -431,12 +457,14 @@ pub mod de {
         where
             A: SeqAccess<'de>,
         {
-            let components = seq
+            let mut components = seq
                 .next_element_seed(SceneMapDeserializer {
                     type_registry: self.type_registry,
                     processor: self.processor,
                 })?
                 .ok_or_else(|| Error::missing_field(ENTITY_FIELD_COMPONENTS))?;
+
+            components.push(Box::new(PersistentEntity(self.entity)));
 
             Ok(DynamicEntity {
                 entity: self.entity,
@@ -464,9 +492,12 @@ pub mod de {
                 }
             }
 
-            let components = components
+            let mut components = components
                 .take()
                 .ok_or_else(|| Error::missing_field(ENTITY_FIELD_COMPONENTS))?;
+
+            components.push(Box::new(PersistentEntity(self.entity)));
+
             Ok(DynamicEntity {
                 entity: self.entity,
                 components,

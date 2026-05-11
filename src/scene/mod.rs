@@ -19,6 +19,16 @@ use crate::{
     settings::{ReflectSettings, Settings},
 };
 
+#[cfg(feature = "editor")]
+pub(crate) mod entity {
+    use bevy::{ecs::{component::Component, entity::Entity, reflect::ReflectComponent}, reflect::Reflect};
+    use derive_more::{Deref, DerefMut, From};
+
+    #[derive(Component, Deref, DerefMut, From, Reflect)]
+    #[reflect(Component)]
+    pub struct PersistentEntity(pub Entity);
+}
+
 #[derive(TypePath)]
 pub struct EditorScene {
     pub scene: DynamicScene,

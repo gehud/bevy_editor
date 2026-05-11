@@ -3,9 +3,10 @@ use std::path::PathBuf;
 use bevy::{
     asset::{AssetPath, ReflectHandle, UntypedHandle},
     ecs::{
-        resource::Resource,
+        entity::Entity,
         world::{FromWorld, World},
     },
+    platform::collections::HashMap,
     reflect::{PartialReflect, TypePath, TypeRegistry, serde::ReflectSerializerProcessor},
 };
 use serde::{Serialize, Serializer, ser::Error};
@@ -14,13 +15,15 @@ use crate::{asset::database::AssetDatabase, serde::AssetRef};
 
 #[derive(Clone, TypePath)]
 pub struct EditorSerializerProcessor {
-    asset_database: AssetDatabase,
+    pub asset_database: AssetDatabase,
+    pub scene_entity_map: Option<HashMap<Entity, Entity>>,
 }
 
 impl FromWorld for EditorSerializerProcessor {
     fn from_world(world: &mut World) -> Self {
         Self {
             asset_database: world.resource::<AssetDatabase>().clone(),
+            scene_entity_map: None,
         }
     }
 }
@@ -39,6 +42,12 @@ impl ReflectSerializerProcessor for EditorSerializerProcessor {
             // we don't have any info on this type; do the default serialization logic
             return Ok(Err(serializer));
         };
+
+        if let Some(map) = &self.scene_entity_map {
+            if let Some(entity) = value.downcast_ref::<Entity>() {
+                return Ok(Ok(map[entity].serialize(serializer)?));
+            }
+        }
 
         let type_id = value.reflect_type_info().type_id();
         let Some(reflect_handle) = registry.get_type_data::<ReflectHandle>(type_id) else {

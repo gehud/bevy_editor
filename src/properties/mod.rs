@@ -61,6 +61,7 @@ use crate::{
         utils::{self, pretty_type_name, pretty_type_name_str},
     },
     panel::{Panel, PanelApp},
+    scene::entity::PersistentEntity,
     scene_tree::MarkSceneDirty,
     selection::{EntitySelection, SelectionMap},
     utils::paint_collapsing_button,
@@ -893,6 +894,7 @@ impl Plugin for PropertiesPlugin {
             .ignore_component::<RenderTarget>()
             .ignore_component::<VisibleEntities>()
             .ignore_component::<Exposure>()
+            .ignore_component_inspection::<PersistentEntity>()
             .register_panel(PropertiesPane)
             .add_systems(Startup, collect_add_component_tree);
     }

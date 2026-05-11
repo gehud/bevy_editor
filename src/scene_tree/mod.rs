@@ -56,7 +56,7 @@ use crate::{
     panel::{Panel, PanelApp},
     prefs::{RegisterPref, Save},
     properties::ComponentIgnore,
-    scene::{EditorScene, serde::ser::SceneSerializer},
+    scene::{EditorScene, entity::PersistentEntity, serde::ser::SceneSerializer},
     selection::{EntitySelection, SelectionMap},
     serde::{de::EditorDeserializerProcessor, ser::EditorSerializerProcessor},
     style::ACCENT,
@@ -115,6 +115,7 @@ impl Panel for SceneTreePane {
         response.context_menu(|ui| {
             if ui.button("Spawn Entity").clicked() {
                 world.spawn(ChildOf(root));
+                world.write_message(MarkSceneDirty);
             }
         });
 
@@ -156,7 +157,12 @@ fn entity_ui_recurse(ui: &mut Ui, world: &mut World, entity: Entity, id: Id) {
 
     let global_id = id;
 
-    let id = id.with(entity);
+    let persistent = world
+        .entity(entity)
+        .get::<PersistentEntity>()
+        .map(|value| value.0)
+        .unwrap_or(entity);
+    let id = id.with(persistent);
 
     let mut collapsing_state =
         CollapsingState::load_with_default_open(ui.ctx(), id.with("collapsing"), false);
@@ -627,7 +633,7 @@ fn save_scene(world: &mut World, state: &mut SystemState<MessageReader<SaveScene
     let output = {
         let processor = EditorSerializerProcessor::from_world(world);
         let type_registry = world.resource::<AppTypeRegistry>().read();
-        let serializer = SceneSerializer::new(&scene, &type_registry, &processor);
+        let serializer = SceneSerializer::new(&scene, &type_registry, processor);
         ron::ser::to_string_pretty(&serializer, PrettyConfig::default())?
     };
 
