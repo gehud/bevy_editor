@@ -148,16 +148,12 @@ impl AssetBrowserEntry {
             if path.is_dir() {
                 Ok(Self::Directory)
             } else {
-                let extension = path
-                    .extension()
-                    .map(|extension| extension.to_string_lossy())
-                    .unwrap_or_else(|| "".into());
+                let extension = asset_path.get_full_extension().unwrap_or_default();
 
                 let asset_server = world.resource::<AssetServer>();
 
                 if block_on(asset_server.get_asset_loader_with_extension(&extension)).is_ok() {
                     let labels = asset_server.get_living_labeled_assets(asset_path);
-
                     Ok(Self::Asset { labels })
                 } else {
                     Ok(Self::File)

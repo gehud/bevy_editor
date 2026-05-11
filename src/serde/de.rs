@@ -6,30 +6,31 @@ use bevy::{
     },
     platform::collections::HashSet,
     reflect::{
-        PartialReflect, TypePath, TypeRegistration, TypeRegistry, serde::ReflectDeserializerProcessor, std_traits::ReflectDefault
+        PartialReflect, TypePath, TypeRegistration, TypeRegistry,
+        serde::ReflectDeserializerProcessor, std_traits::ReflectDefault,
     },
 };
-use serde::Deserialize;
+use serde::{Deserialize, de::Error};
 
-#[cfg(feature = "editor")]
-use crate::asset::database::AssetDatabase;
-use crate::serde::AssetRef;
+use crate::{
+    asset::{id::UntypedEditorAssetId, resolver::EditorAssetIdResolver},
+    serde::EditorAssetHandle,
+};
 
 #[derive(Clone, TypePath)]
 pub struct EditorDeserializerProcessor {
-    #[cfg(feature = "editor")]
-    pub asset_database: AssetDatabase,
     pub asset_server: AssetServer,
     pub type_registry: AppTypeRegistry,
+    pub asset_id_resolver: EditorAssetIdResolver,
     pub asset_collector: HashSet<UntypedAssetId>,
 }
 
 impl FromWorld for EditorDeserializerProcessor {
     fn from_world(world: &mut World) -> Self {
         Self {
-            asset_database: world.resource::<AssetDatabase>().clone(),
             asset_server: world.resource::<AssetServer>().clone(),
             type_registry: world.resource::<AppTypeRegistry>().clone(),
+            asset_id_resolver: world.resource::<EditorAssetIdResolver>().clone(),
             asset_collector: HashSet::new(),
         }
     }
@@ -55,50 +56,26 @@ impl ReflectDeserializerProcessor for EditorDeserializerProcessor {
             return Ok(Err(deserializer));
         };
 
-        let asset_ref = AssetRef::deserialize(deserializer)?;
+        let editor_handle = EditorAssetHandle::deserialize(deserializer)?;
 
-        let handle = match asset_ref {
-            AssetRef::Empty => reflect_default.default(),
-            AssetRef::Db(asset_path) => {
-                #[cfg(feature = "editor")]
-                {
-                    use std::str::FromStr;
+        let handle = match editor_handle {
+            EditorAssetHandle::Runtime => reflect_default.default(),
+            EditorAssetHandle::Db(uuid) => {
+                let id = UntypedEditorAssetId {
+                    type_id: reflect_handle.asset_type_id(),
+                    uuid,
+                };
 
-                    use serde::de::Error;
-                    use uuid::Uuid;
-
-                    let uuid = asset_path
-                        .path()
-                        .with_extension("")
-                        .to_string_lossy()
-                        .to_string();
-
-                    let uuid = Uuid::from_str(&uuid).map_err(|error| Error::custom(error))?;
-
-                    let label = asset_path.label().map(|label| label.to_string());
-                    let path = self
-                        .asset_database
-                        .get_path(&uuid)
-                        .map_err(|error| Error::custom(error))?;
-
-                    if let Some(path) = path {
-                        use bevy::asset::AssetPath;
-
-                        let mut asset_path = AssetPath::from(path);
-                        if let Some(label) = label {
-                            asset_path = asset_path.with_label(label);
-                        }
-                        reflect_handle.load(&self.asset_server, asset_path)
-                    } else {
-                        reflect_default.default()
-                    }
-                }
-                #[cfg(not(feature = "editor"))]
-                {
-                    reflect_handle.load(self.asset_server, asset_path)
-                }
+                let asset_path = self
+                    .asset_id_resolver
+                    .get_asset_path(id)
+                    .map_err(|error| Error::custom(error))?;
+                reflect_handle.load(&self.asset_server, asset_path)
             }
-            AssetRef::Uuid(uuid) => reflect_handle.typed(UntypedHandle::Uuid {
+            EditorAssetHandle::AssetPath(asset_path) => {
+                reflect_handle.load(&self.asset_server, asset_path)
+            }
+            EditorAssetHandle::Internal(uuid) => reflect_handle.typed(UntypedHandle::Uuid {
                 type_id: reflect_handle.asset_type_id(),
                 uuid,
             }),

@@ -1,17 +1,21 @@
 use std::{env, process::Command};
 
-use bevy::ecs::{
-    error::Result,
-    world::{Mut, World},
+use bevy::{
+    ecs::{
+        error::Result,
+        world::{Mut, World},
+    },
+    tasks::block_on,
 };
 use egui::{
-    Button, CentralPanel, Frame, Key, KeyboardShortcut, MenuBar, Modifiers, Panel, Ui, Widget,
-    WidgetText,
+    Button, CentralPanel, Frame, Key, KeyboardShortcut, MenuBar, Modal, Modifiers, Panel, Ui,
+    Widget, WidgetText,
 };
 use lucide_icons::Icon;
 
 use crate::{
     PLAY_MODE_VAR, PlaySession,
+    asset::database::RefreshTask,
     asset_browser::AssetPayload,
     assets::icons::MaterialIcon,
     build::Build,
@@ -171,6 +175,17 @@ pub(super) fn root(ui: &mut Ui, world: &mut World) -> Result {
     {
         if let Some(scene_root) = world.resource_mut::<DraggedSceneRoot>().0.take() {
             world.entity_mut(scene_root).despawn();
+        }
+    }
+
+    if let Some(refresh_task) = world.get_resource::<RefreshTask>() {
+        Modal::new("refreshing_assets".into()).show(ui.ctx(), |ui| {
+            ui.label("Refreshing assets...");
+        });
+
+        if refresh_task.0.is_finished() {
+            let refresh_task = world.remove_resource::<RefreshTask>().unwrap();
+            block_on(refresh_task.0)?;
         }
     }
 

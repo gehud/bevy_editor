@@ -27,6 +27,9 @@ impl EditorAssetApp for App {
     }
 }
 
+pub const FILE_PATH: &'static str = "assets";
+pub const PROCESSED_FILE_PATH: &'static str = "imported_assets/Default";
+
 pub struct EditorAssetPlugin;
 
 impl Plugin for EditorAssetPlugin {
@@ -35,6 +38,8 @@ impl Plugin for EditorAssetPlugin {
         {
             app.add_plugins(EditorAssetDatabasePlugin);
             app.add_plugins(AssetPlugin {
+                file_path: FILE_PATH.into(),
+                processed_file_path: PROCESSED_FILE_PATH.into(),
                 mode: AssetMode::Processed,
                 meta_check: AssetMetaCheck::Always,
                 ..default()
@@ -43,6 +48,8 @@ impl Plugin for EditorAssetPlugin {
         #[cfg(not(feature = "editor"))]
         {
             app.add_plugins(AssetPlugin {
+                file_path: FILE_PATH.into(),
+                processed_file_path: PROCESSED_FILE_PATH.into(),
                 mode: AssetMode::Processed,
                 meta_check: AssetMetaCheck::Never,
                 ..default()

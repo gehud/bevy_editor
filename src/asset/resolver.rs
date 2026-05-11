@@ -6,13 +6,14 @@ use bevy::{
         resource::Resource,
         world::{FromWorld, World},
     },
+    reflect::TypePath,
 };
 
 #[cfg(feature = "editor")]
 use crate::asset::database::AssetDatabase;
 use crate::asset::id::UntypedEditorAssetId;
 
-#[derive(Resource)]
+#[derive(Clone, TypePath, Resource)]
 pub struct EditorAssetIdResolver {
     #[cfg(feature = "editor")]
     asset_database: AssetDatabase,
@@ -32,33 +33,25 @@ impl EditorAssetIdResolver {
         let id = id.into();
         #[cfg(feature = "editor")]
         {
-            let Some(path) = self.asset_database.get_path(&id.uuid)? else {
-                return Ok(AssetPath::default());
-            };
-
-            if path
-                .extension()
-                .map(|extension| extension.to_string_lossy().to_string())
-                .unwrap_or_default()
-                != id.extension
-            {
-                return Ok(AssetPath::default());
-            }
-
-            let mut asset_path = AssetPath::from(path);
-
-            if let Some(label) = id.label {
-                asset_path = asset_path.with_label(label);
-            }
-
-            Ok(asset_path)
+            Ok(self
+                .asset_database
+                .get_asset_path(&id.uuid)?
+                .unwrap_or_default())
         }
         #[cfg(not(feature = "editor"))]
         {
-            Ok(id.asset_path())
+            use std::fs;
+
+            use bevy::asset::io::file::FileAssetReader;
+
+            let map_dir = FileAssetReader::get_base_path().join(MAP_PATH);
+            let asset_path = fs::read_to_string(map_dir.join(id.uuid.to_string()))?;
+            Ok(AssetPath::from(asset_path))
         }
     }
 }
+
+pub(crate) const MAP_PATH: &'static str = "imported_assets/Map";
 
 pub struct EditorAssetResolverPlugin;
 

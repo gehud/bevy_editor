@@ -7,8 +7,9 @@ pub mod de;
 pub mod ser;
 
 #[derive(TypePath, Serialize, Deserialize)]
-pub enum AssetRef {
-    Empty,
-    Db(AssetPath<'static>),
-    Uuid(Uuid),
+pub enum EditorAssetHandle {
+    Runtime,
+    AssetPath(AssetPath<'static>),
+    Db(Uuid),
+    Internal(Uuid),
 }

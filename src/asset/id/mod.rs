@@ -4,22 +4,20 @@ pub(crate) mod inspector;
 use std::{
     any::{Any, TypeId},
     marker::PhantomData,
-    path::PathBuf,
 };
 
 use bevy::{
-    asset::{Asset, AssetPath},
+    asset::Asset,
     reflect::{FromType, Reflect, std_traits::ReflectDefault},
     utils::default,
 };
 use uuid::Uuid;
 
+// TODO: Maybe allow serializing asset path with non-default souce (embedded).
 #[derive(Debug, Eq, Hash, PartialEq, Reflect)]
 #[reflect(Clone, Default)]
 pub struct EditorAssetId<A: Asset> {
-    pub uuid: Uuid,
-    pub extension: String,
-    pub label: Option<String>,
+    pub(crate) uuid: Uuid,
     #[reflect(ignore)]
     _phantom_data: PhantomData<A>,
 }
@@ -35,8 +33,6 @@ impl<A: Asset> EditorAssetId<A> {
 
         Some(Self {
             uuid: value.uuid,
-            extension: value.extension,
-            label: value.label,
             _phantom_data: default(),
         })
     }
@@ -45,19 +41,7 @@ impl<A: Asset> EditorAssetId<A> {
         UntypedEditorAssetId {
             type_id: TypeId::of::<A>(),
             uuid: self.uuid,
-            extension: self.extension,
-            label: self.label,
         }
-    }
-
-    pub fn asset_path<'a>(self) -> AssetPath<'a> {
-        let mut asset_path = AssetPath::from_path_buf(
-            PathBuf::from(self.uuid.to_string()).with_extension(self.extension),
-        );
-        if let Some(label) = self.label {
-            asset_path = asset_path.with_label(label);
-        }
-        asset_path
     }
 }
 
@@ -65,8 +49,6 @@ impl<A: Asset> Clone for EditorAssetId<A> {
     fn clone(&self) -> Self {
         Self {
             uuid: self.uuid.clone(),
-            extension: self.extension.clone(),
-            label: self.label.clone(),
             _phantom_data: self._phantom_data.clone(),
         }
     }
@@ -76,8 +58,6 @@ impl<A: Asset> Default for EditorAssetId<A> {
     fn default() -> Self {
         Self {
             uuid: default(),
-            extension: default(),
-            label: default(),
             _phantom_data: default(),
         }
     }
@@ -89,19 +69,11 @@ impl<A: Asset> Into<UntypedEditorAssetId> for EditorAssetId<A> {
     }
 }
 
-impl<'a, A: Asset> Into<AssetPath<'a>> for EditorAssetId<A> {
-    fn into(self) -> AssetPath<'a> {
-        self.asset_path()
-    }
-}
-
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Reflect)]
 #[reflect(Clone)]
 pub struct UntypedEditorAssetId {
-    pub type_id: TypeId,
-    pub uuid: Uuid,
-    pub extension: String,
-    pub label: Option<String>,
+    pub(crate) type_id: TypeId,
+    pub(crate) uuid: Uuid,
 }
 
 impl UntypedEditorAssetId {
@@ -109,21 +81,9 @@ impl UntypedEditorAssetId {
         self.type_id
     }
 
-    pub fn asset_path<'a>(self) -> AssetPath<'a> {
-        let mut asset_path = AssetPath::from_path_buf(
-            PathBuf::from(self.uuid.to_string()).with_extension(self.extension),
-        );
-        if let Some(label) = self.label {
-            asset_path = asset_path.with_label(label);
-        }
-        asset_path
-    }
-
     pub fn typed_unchecked<A: Asset>(self) -> EditorAssetId<A> {
         EditorAssetId {
             uuid: self.uuid,
-            extension: self.extension,
-            label: self.label,
             _phantom_data: default(),
         }
     }

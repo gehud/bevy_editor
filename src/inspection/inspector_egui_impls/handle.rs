@@ -60,23 +60,33 @@ impl Inspector for HandleInspector {
             .downcast_handle_untyped(value.try_as_reflect().unwrap().as_any())
             .unwrap();
 
-        let path = untyped
-            .path()
-            .map(|path| path.to_owned())
-            .unwrap_or_else(|| AssetPath::from("internal"));
+        let asset_path = untyped.path().map(|path| path.to_owned());
 
-        let label = path.label().map(|label| label.to_string());
-        let mut path = path.path().to_path_buf();
+        let label = match &untyped {
+            UntypedHandle::Strong(_) => match asset_path {
+                Some(asset_path) => {
+                    if asset_path.path().as_os_str().is_empty() {
+                        "Empty".into()
+                    } else {
+                        let mut path = asset_path.path().to_path_buf();
 
-        if let Some(parent) = path.parent() {
-            path = path.strip_prefix(parent)?.to_path_buf();
-        }
+                        if let Some(parent) = path.parent() {
+                            path = path.strip_prefix(parent)?.to_path_buf();
+                        }
 
-        let mut path = AssetPath::from(path);
+                        let mut path = AssetPath::from(path);
 
-        if let Some(label) = label {
-            path = path.with_label(label);
-        }
+                        if let Some(label) = asset_path.label().map(|label| label.to_string()) {
+                            path = path.with_label(label);
+                        }
+
+                        path.to_string()
+                    }
+                }
+                None => "Runtime".into(),
+            },
+            UntypedHandle::Uuid { .. } => "Internal".into(),
+        };
 
         let response = Frame::new()
             .inner_margin(ui.spacing().button_padding)
@@ -91,7 +101,7 @@ impl Inspector for HandleInspector {
                         changed = true;
                     }
 
-                    ui.label(path.to_string());
+                    ui.label(label);
                 });
             })
             .response;

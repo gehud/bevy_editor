@@ -57,23 +57,29 @@ impl Inspector for EditorAssetIdInspector {
 
         let asset_database = env.context.world.get_resource_mut::<AssetDatabase>()?;
 
-        let mut path = if untyped.uuid.is_nil() {
+        let label = if untyped.uuid.is_nil() {
             "Empty".into()
         } else {
-            asset_database
-                .get_path(&untyped.uuid)?
-                .unwrap_or_else(|| "Missing".into())
+            let asset_path = asset_database.get_asset_path(&untyped.uuid)?;
+            match &asset_path {
+                Some(asset_path) => {
+                    let mut path = asset_path.path().to_path_buf();
+
+                    if let Some(parent) = path.parent() {
+                        path = path.strip_prefix(parent)?.to_path_buf();
+                    }
+
+                    let mut path = AssetPath::from(path.to_path_buf());
+
+                    if let Some(label) = asset_path.label().map(|label| label.to_string()) {
+                        path = path.with_label(label);
+                    }
+
+                    path.to_string()
+                }
+                None => "Missing".into(),
+            }
         };
-
-        if let Some(parent) = path.parent() {
-            path = path.strip_prefix(parent)?.to_path_buf();
-        }
-
-        let mut path = AssetPath::from(path);
-
-        if let Some(label) = &untyped.label {
-            path = path.with_label(label);
-        }
 
         let response = Frame::new()
             .inner_margin(ui.spacing().button_padding)
@@ -88,25 +94,19 @@ impl Inspector for EditorAssetIdInspector {
                         changed = true;
                     }
 
-                    ui.label(path.to_string());
+                    ui.label(label);
                 });
             })
             .response;
 
         if let Some(payload) = response.dnd_release_payload::<AssetPayload>() {
             if is_payload_suitable {
-                let asset_path = payload.0.path().unwrap().to_owned();
+                let asset_path = payload.0.path().unwrap();
 
-                if let Some(uuid) = asset_database.get_uuid(asset_path.path())? {
+                if let Some(uuid) = asset_database.get_uuid(asset_path)? {
                     let untyped = UntypedEditorAssetId {
                         type_id: reflect_id.asset_type_id(),
                         uuid,
-                        extension: asset_path
-                            .path()
-                            .extension()
-                            .map(|extension| extension.to_string_lossy().to_string())
-                            .unwrap_or_default(),
-                        label: asset_path.label().map(|label| label.to_string()),
                     };
                     value.apply(reflect_id.typed(untyped).as_partial_reflect());
                     changed = true;

@@ -1,7 +1,5 @@
-use std::path::PathBuf;
-
 use bevy::{
-    asset::{AssetPath, ReflectHandle, UntypedHandle},
+    asset::{ReflectHandle, UntypedHandle, io::AssetSourceId},
     ecs::{
         entity::Entity,
         world::{FromWorld, World},
@@ -11,7 +9,7 @@ use bevy::{
 };
 use serde::{Serialize, Serializer, ser::Error};
 
-use crate::{asset::database::AssetDatabase, serde::AssetRef};
+use crate::{asset::database::AssetDatabase, serde::EditorAssetHandle};
 
 #[derive(Clone, TypePath)]
 pub struct EditorSerializerProcessor {
@@ -65,35 +63,23 @@ impl ReflectSerializerProcessor for EditorSerializerProcessor {
 
         let asset_ref = match untyped_handle {
             UntypedHandle::Strong(..) => {
-                if let Some(path) = untyped_handle.path() {
-                    let label = path.label().map(|label| label.to_string());
-                    let path = path.path();
-                    let extension = path
-                        .extension()
-                        .map(|extension| extension.to_string_lossy().to_string())
-                        .unwrap_or_default();
+                if let Some(asset_path) = untyped_handle.path() {
+                    if matches!(asset_path.source(), AssetSourceId::Default) {
+                        let uuid = self
+                            .asset_database
+                            .get_uuid(asset_path)
+                            .map_err(|error| Error::custom(error))?
+                            .unwrap_or_default();
 
-                    let uuid = self
-                        .asset_database
-                        .get_uuid(path)
-                        .map_err(|error| Error::custom(error))?;
-
-                    if let Some(uuid) = uuid {
-                        let mut asset_path = AssetPath::from_path_buf(
-                            PathBuf::from(uuid.to_string()).with_extension(extension),
-                        );
-                        if let Some(label) = label {
-                            asset_path = asset_path.with_label(label);
-                        }
-                        AssetRef::Db(asset_path)
+                        EditorAssetHandle::Db(uuid)
                     } else {
-                        AssetRef::Empty
+                        EditorAssetHandle::AssetPath(asset_path.clone())
                     }
                 } else {
-                    AssetRef::Empty
+                    EditorAssetHandle::Runtime
                 }
             }
-            UntypedHandle::Uuid { uuid, .. } => AssetRef::Uuid(uuid),
+            UntypedHandle::Uuid { uuid, .. } => EditorAssetHandle::Internal(uuid),
         };
 
         Ok(Ok(asset_ref.serialize(serializer)?))
