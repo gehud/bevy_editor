@@ -2,18 +2,20 @@ use std::{
     fs::{self},
     path::PathBuf,
     sync::{Arc, Mutex, MutexGuard, PoisonError},
+    task::{Context, Poll},
     time::Duration,
 };
 
 use bevy::{
     app::{App, Plugin, PreStartup, Update},
     asset::{
-        AssetApp, AssetPath, AssetServer,
+        AssetApp, AssetPath, AssetServer, Assets, DependencyLoadState, Handle, LoadState,
+        LoadedUntypedAsset, RecursiveDependencyLoadState, UntypedHandle,
         io::{AssetSource, AssetSourceBuilder, AssetSourceId, file::FileAssetReader},
         processor::AssetProcessor,
     },
     ecs::{
-        error::Result,
+        error::{BevyError, Result},
         reflect::AppTypeRegistry,
         resource::Resource,
         system::{Commands, Res},
@@ -190,16 +192,23 @@ async fn refresh_recurse(
     asset_processor: &AssetProcessor,
     path: PathBuf,
 ) -> Result {
-    let souce = asset_processor.get_source(AssetSourceId::Default)?;
-
-    let mut stream = souce.reader().read_directory(&path).await?;
+    let mut stream = asset_processor
+        .get_source(AssetSourceId::Default)?
+        .reader()
+        .read_directory(&path)
+        .await?;
 
     while let Some(path) = stream.next().await {
         let souce_meta =
             async_fs::metadata(FileAssetReader::get_base_path().join(FILE_PATH).join(&path))
                 .await?;
 
-        if souce.reader().is_directory(&path).await? {
+        if asset_processor
+            .get_source(AssetSourceId::Default)?
+            .reader()
+            .is_directory(&path)
+            .await?
+        {
             Box::pin(refresh_recurse(
                 type_registry,
                 asset_database,
