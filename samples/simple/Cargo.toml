@@ -3,6 +3,10 @@ name = "Simple"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+default = ["editor"]
+editor = ["dep:bevy_editor"]
+
 [dependencies]
 bevy = { git = "https://github.com/gehud/bevy.git", tag = "editor-v0.19.0-rc.1" }
-bevy_editor = { git = "https://github.com/gehud/bevy_editor.git", branch = "dev" }
+bevy_editor = { git = "https://github.com/gehud/bevy_editor.git", branch = "dev", optional = true }
