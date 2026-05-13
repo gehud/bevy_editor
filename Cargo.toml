@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["samples/simple"]
+members = ["samples/dev/editor", "samples/dev/runtime", "samples/dev/shared"]
 
 [profile.dev]
 opt-level = 1

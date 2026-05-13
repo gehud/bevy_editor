@@ -2,16 +2,13 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Launch",
             "type": "lldb",
             "request": "launch",
-            "name": "Launch",
-            "program": "${workspaceFolder}/target/debug/Simple",
-            "cwd": "${workspaceFolder}/samples/simple",
-            "env": {
-                "RUST_BACKTRACE": "1",
-                "BEVY_ASSET_ROOT": "${workspaceFolder}/samples/simple"
-            },
-            "preLaunchTask": "rust: cargo build"
-        },
+            "program": "${workspaceRoot}/target/debug/editor",
+            "args": [],
+            "cwd": "${workspaceRoot}",
+            "preLaunchTask": "build"
+        }
     ]
 }

@@ -1,7 +1,7 @@
 use bevy::app::{App, Plugin};
 
-pub struct EditorPlugin;
+pub struct SharedPlugin;
 
-impl Plugin for EditorPlugin {
+impl Plugin for SharedPlugin {
     fn build(&self, _app: &mut App) {}
 }

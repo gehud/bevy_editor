@@ -8,13 +8,14 @@
 				"$rustc"
 			],
 			"args": [
-				"--workspace"
+				"--package",
+				"editor"
 			],
+			"label": "build",
 			"group": {
 				"kind": "build",
 				"isDefault": true
-			},
-			"label": "rust: cargo build"
-		}
+			}
+		},
 	]
 }
