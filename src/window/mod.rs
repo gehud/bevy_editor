@@ -5,6 +5,7 @@ use bevy::{
     ecs::{
         component::Component,
         entity::Entity,
+        event::{EntityEvent, Event},
         query::{Added, With},
         schedule::{IntoScheduleConfigs, SystemSet},
         system::{Commands, Query},
@@ -13,6 +14,15 @@ use bevy::{
     utils::default,
     window::{ExitCondition, PrimaryWindow, Window, WindowPlugin, WindowRef},
 };
+
+#[derive(EntityEvent)]
+pub struct EditorWindowConfigured {
+    #[event_target]
+    pub window: Entity,
+}
+
+#[derive(Event)]
+pub struct PrimaryEditorWindowConfigured;
 
 #[derive(Component)]
 pub struct EditorWindowStructure {
@@ -63,6 +73,12 @@ fn configure_windows(
         commands
             .entity(window)
             .insert(EditorWindowStructure { root });
+
+        commands.trigger(EditorWindowConfigured { window });
+
+        if matches!(window_ref, WindowRef::Primary) {
+            commands.trigger(PrimaryEditorWindowConfigured);
+        }
     }
 }
 

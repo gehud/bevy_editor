@@ -1,5 +1,7 @@
+pub mod layout;
 pub mod panel;
 pub mod window;
+pub mod theme;
 
 use bevy::{
     DefaultPlugins,
