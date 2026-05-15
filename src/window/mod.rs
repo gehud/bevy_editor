@@ -1,7 +1,6 @@
 use bevy::{
     app::{App, Last, Plugin},
     camera::{Camera, Camera2d, RenderTarget},
-    color::Color,
     ecs::{
         component::Component,
         entity::Entity,
@@ -10,10 +9,12 @@ use bevy::{
         schedule::{IntoScheduleConfigs, SystemSet},
         system::{Commands, Query},
     },
-    ui::{BackgroundColor, Node, UiTargetCamera, percent},
+    ui::{Node, UiTargetCamera, percent},
     utils::default,
     window::{ExitCondition, PrimaryWindow, Window, WindowPlugin, WindowRef},
 };
+
+use crate::theme::{ThemedBackgroundColor, tokens::WINDOW_BG};
 
 #[derive(EntityEvent)]
 pub struct EditorWindowConfigured {
@@ -66,7 +67,7 @@ fn configure_windows(
                     height: percent(100),
                     ..default()
                 },
-                BackgroundColor(Color::BLACK),
+                ThemedBackgroundColor(WINDOW_BG),
             ))
             .id();
 

@@ -1,6 +1,9 @@
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+use bevy::reflect::Reflect;
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Reflect)]
+#[reflect(Clone, Debug, Hash, PartialEq)]
 pub struct EditorThemeToken(&'static str);
 
 impl Into<EditorThemeToken> for &'static str {

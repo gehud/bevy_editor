@@ -9,7 +9,7 @@ use crate::theme::{EditorTheme, palette, tokens};
 impl EditorTheme {
     pub fn dark(_world: &mut World) -> Self {
         Self {
-            color: HashMap::from([
+            colors: HashMap::from([
                 (tokens::WINDOW_BG, palette::GRAY_0),
                 (tokens::FOCUS_RING, palette::ACCENT.with_alpha(0.5)),
                 (tokens::TEXT_MAIN, palette::LIGHT_GRAY_1),
@@ -283,6 +283,7 @@ impl EditorTheme {
                 (tokens::GROUP_BODY_BG, palette::GRAY_2),
                 (tokens::GROUP_BODY_BORDER, palette::GRAY_3),
             ]),
+            fonts: HashMap::from([]),
         }
     }
 }
