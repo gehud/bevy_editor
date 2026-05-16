@@ -20,60 +20,58 @@ use bevy::{
         world::Ref,
     },
     platform::collections::HashMap,
-    reflect::Reflect,
-    text::{Font, TextColor, TextFont},
+    reflect::{Reflect, std_traits::ReflectDefault},
+    text::{TextColor, TextFont},
     ui::{BackgroundColor, BorderColor, widget::ImageNode},
 };
 
-use crate::theme::token::EditorThemeToken;
+use crate::theme::token::ThemeToken;
 
 #[derive(Clone, Debug, Resource)]
 pub struct EditorTheme {
-    pub colors: HashMap<EditorThemeToken, Color>,
-    pub fonts: HashMap<EditorThemeToken, TextFont>,
+    pub colors: HashMap<ThemeToken, Color>,
+    pub fonts: HashMap<ThemeToken, TextFont>,
 }
 
 impl EditorTheme {
-    pub fn color(&self, token: impl Into<EditorThemeToken>) -> Result<Color> {
-        let token = token.into();
+    pub fn color(&self, token: &ThemeToken) -> Result<Color> {
         self.colors
-            .get(&token)
+            .get(token)
             .cloned()
             .ok_or_else(|| format!("Theme color {} not found", token).into())
     }
 
-    pub fn font(&self, token: impl Into<EditorThemeToken>) -> Result<TextFont> {
-        let token = token.into();
+    pub fn font(&self, token: &ThemeToken) -> Result<TextFont> {
         self.fonts
-            .get(&token)
+            .get(token)
             .cloned()
             .ok_or_else(|| format!("Theme color {} not found", token).into())
     }
 }
 
-#[derive(Clone, Component, Debug, Eq, PartialEq, Reflect)]
-#[reflect(Clone, Component, Debug, PartialEq)]
+#[derive(Clone, Component, Debug, Default, Eq, PartialEq, Reflect)]
+#[reflect(Clone, Component, Debug, Default, PartialEq)]
 #[require(BackgroundColor)]
-pub struct ThemedBackgroundColor(pub EditorThemeToken);
+pub struct ThemedBackgroundColor(pub ThemeToken);
 
 impl ThemedBackgroundColor {
-    pub fn new(token: impl Into<EditorThemeToken>) -> Self {
+    pub fn new(token: impl Into<ThemeToken>) -> Self {
         Self(token.into())
     }
 }
 
-#[derive(Clone, Component, Debug, Eq, PartialEq, Reflect)]
-#[reflect(Clone, Component, Debug, PartialEq)]
+#[derive(Clone, Component, Debug, Default, Eq, PartialEq, Reflect)]
+#[reflect(Clone, Component, Debug, Default, PartialEq)]
 #[require(BorderColor)]
 pub struct ThemedBorderColor {
-    pub top: EditorThemeToken,
-    pub right: EditorThemeToken,
-    pub bottom: EditorThemeToken,
-    pub left: EditorThemeToken,
+    pub top: ThemeToken,
+    pub right: ThemeToken,
+    pub bottom: ThemeToken,
+    pub left: ThemeToken,
 }
 
 impl ThemedBorderColor {
-    pub fn all(token: impl Into<EditorThemeToken>) -> Self {
+    pub fn all(token: impl Into<ThemeToken>) -> Self {
         let token = token.into();
         Self {
             top: token.clone(),
@@ -84,35 +82,35 @@ impl ThemedBorderColor {
     }
 }
 
-#[derive(Clone, Component, Debug, Eq, PartialEq, Reflect)]
-#[reflect(Clone, Component, Debug, PartialEq)]
+#[derive(Clone, Component, Debug, Default, Eq, PartialEq, Reflect)]
+#[reflect(Clone, Component, Debug, Default, PartialEq)]
 #[require(ImageNode)]
-pub struct ThemedImageColor(pub EditorThemeToken);
+pub struct ThemedImageColor(pub ThemeToken);
 
 impl ThemedImageColor {
-    pub fn new(token: impl Into<EditorThemeToken>) -> Self {
+    pub fn new(token: impl Into<ThemeToken>) -> Self {
         Self(token.into())
     }
 }
 
-#[derive(Clone, Component, Debug, Eq, PartialEq, Reflect)]
-#[reflect(Clone, Component, Debug, PartialEq)]
+#[derive(Clone, Component, Debug, Default, Eq, PartialEq, Reflect)]
+#[reflect(Clone, Component, Debug, Default, PartialEq)]
 #[require(TextColor)]
-pub struct ThemedTextColor(pub EditorThemeToken);
+pub struct ThemedTextColor(pub ThemeToken);
 
 impl ThemedTextColor {
-    pub fn new(token: impl Into<EditorThemeToken>) -> Self {
+    pub fn new(token: impl Into<ThemeToken>) -> Self {
         Self(token.into())
     }
 }
 
-#[derive(Clone, Component, Debug, Eq, PartialEq, Reflect)]
-#[reflect(Clone, Component, Debug, PartialEq)]
+#[derive(Clone, Component, Debug, Default, Eq, PartialEq, Reflect)]
+#[reflect(Clone, Component, Debug, Default, PartialEq)]
 #[require(TextFont)]
-pub struct ThemedTextFont(pub EditorThemeToken);
+pub struct ThemedTextFont(pub ThemeToken);
 
 impl ThemedTextFont {
-    pub fn new(token: impl Into<EditorThemeToken>) -> Self {
+    pub fn new(token: impl Into<ThemeToken>) -> Self {
         Self(token.into())
     }
 }
@@ -130,7 +128,7 @@ pub fn update_theme(
             continue;
         }
 
-        background_color.0 = theme.color(themed.0)?;
+        background_color.0 = theme.color(&themed.0)?;
     }
 
     for (mut border_color, themed) in themed_border_colors {
@@ -138,10 +136,10 @@ pub fn update_theme(
             continue;
         }
 
-        border_color.top = theme.color(themed.top)?;
-        border_color.right = theme.color(themed.right)?;
-        border_color.bottom = theme.color(themed.bottom)?;
-        border_color.left = theme.color(themed.left)?;
+        border_color.top = theme.color(&themed.top)?;
+        border_color.right = theme.color(&themed.right)?;
+        border_color.bottom = theme.color(&themed.bottom)?;
+        border_color.left = theme.color(&themed.left)?;
     }
 
     for (mut image, themed) in themed_image_colors {
@@ -149,7 +147,7 @@ pub fn update_theme(
             continue;
         }
 
-        image.color = theme.color(themed.0)?;
+        image.color = theme.color(&themed.0)?;
     }
 
     for (mut text_color, themed) in themed_text_colors {
@@ -157,7 +155,7 @@ pub fn update_theme(
             continue;
         }
 
-        text_color.0 = theme.color(themed.0)?;
+        text_color.0 = theme.color(&themed.0)?;
     }
 
     for (mut text_font, themed) in themed_text_fonts {
@@ -165,7 +163,7 @@ pub fn update_theme(
             continue;
         }
 
-        *text_font = theme.font(themed.0)?;
+        *text_font = theme.font(&themed.0)?;
     }
 
     Ok(())

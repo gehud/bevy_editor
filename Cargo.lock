@@ -734,6 +734,7 @@ name = "bevy_editor"
 version = "0.1.0"
 dependencies = [
  "bevy",
+ "smol_str",
 ]
 
 [[package]]

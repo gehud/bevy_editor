@@ -1,24 +1,22 @@
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
 use bevy::reflect::Reflect;
+use smol_str::SmolStr;
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Reflect)]
-#[reflect(Clone, Debug, Hash, PartialEq)]
-pub struct EditorThemeToken(&'static str);
+#[derive(Clone, Debug, Default, Eq, Hash, PartialEq, Reflect)]
+pub struct ThemeToken(SmolStr);
 
-impl Into<EditorThemeToken> for &'static str {
-    fn into(self) -> EditorThemeToken {
-        EditorThemeToken::new(self)
-    }
-}
-
-impl EditorThemeToken {
-    pub const fn new(token: &'static str) -> Self {
+impl ThemeToken {
+    pub const fn new(token: SmolStr) -> Self {
         Self(token)
     }
+
+    pub const fn new_static(token: &'static str) -> Self {
+        Self(SmolStr::new_static(token))
+    }
 }
 
-impl Display for EditorThemeToken {
+impl Display for ThemeToken {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         write!(f, "{}", self.0)
     }

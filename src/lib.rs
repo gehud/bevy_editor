@@ -1,7 +1,9 @@
+pub mod assets;
 pub mod layout;
 pub mod panel;
-pub mod window;
 pub mod theme;
+pub mod widget;
+pub mod window;
 
 use bevy::{
     DefaultPlugins,
@@ -9,7 +11,9 @@ use bevy::{
     window::WindowPlugin,
 };
 
-use crate::{panel::EditorPanelPlugin, window::EditorWindowPlugin};
+use crate::{
+    assets::EditorAssetsPlugin, layout::EditorLayoutPlugin, panel::EditorPanelPlugin, theme::EditorThemePlugin, window::EditorWindowPlugin
+};
 
 pub struct EditorPlugins;
 
@@ -18,7 +22,10 @@ impl PluginGroup for EditorPlugins {
         PluginGroupBuilder::start::<EditorPlugins>()
             .add(EditorWindowPlugin)
             .add_group(DefaultPlugins.build().disable::<WindowPlugin>())
+            .add(EditorAssetsPlugin)
             .add(EditorPanelPlugin)
+            .add(EditorThemePlugin)
+            .add(EditorLayoutPlugin)
             .build()
     }
 }

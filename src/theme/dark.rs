@@ -1,19 +1,28 @@
 use bevy::{
+    asset::AssetServer,
     color::{Alpha, Color, Luminance},
     ecs::world::World,
     platform::collections::HashMap,
+    text::{FontSize, FontVariationTag, FontVariations, TextFont},
+    utils::default,
 };
 
-use crate::theme::{EditorTheme, palette, tokens};
+use crate::{
+    assets::{FONT_BOLD, FONT_REGULAR},
+    theme::{EditorTheme, palette, tokens},
+};
 
 impl EditorTheme {
-    pub fn dark(_world: &mut World) -> Self {
+    pub fn dark(world: &mut World) -> Self {
+        let asset_server = world.resource::<AssetServer>();
+
         Self {
             colors: HashMap::from([
                 (tokens::WINDOW_BG, palette::GRAY_0),
                 (tokens::FOCUS_RING, palette::ACCENT.with_alpha(0.5)),
-                (tokens::TEXT_MAIN, palette::LIGHT_GRAY_1),
-                (tokens::TEXT_DIM, palette::LIGHT_GRAY_2),
+                (tokens::TEXT_HEADING, Color::hsv(0.0, 0.0, 0.93)),
+                (tokens::TEXT_BODY, palette::LIGHT_GRAY_1),
+                (tokens::TEXT_WEAK, palette::LIGHT_GRAY_2),
                 // Button (normal)
                 (tokens::BUTTON_BG, palette::GRAY_3),
                 (tokens::BUTTON_BG_HOVER, palette::GRAY_3.lighter(0.05)),
@@ -283,7 +292,41 @@ impl EditorTheme {
                 (tokens::GROUP_BODY_BG, palette::GRAY_2),
                 (tokens::GROUP_BODY_BORDER, palette::GRAY_3),
             ]),
-            fonts: HashMap::from([]),
+            fonts: HashMap::from([
+                (
+                    tokens::TEXT_HEADING,
+                    TextFont {
+                        font: asset_server.load(FONT_BOLD).into(),
+                        font_size: FontSize::Px(13.5),
+                        font_variations: FontVariations::builder()
+                            .set(FontVariationTag::WEIGHT, 700.0)
+                            .build(),
+                        ..default()
+                    },
+                ),
+                (
+                    tokens::TEXT_BODY,
+                    TextFont {
+                        font: asset_server.load(FONT_REGULAR).into(),
+                        font_size: FontSize::Px(12.0),
+                        font_variations: FontVariations::builder()
+                            .set(FontVariationTag::WEIGHT, 400.0)
+                            .build(),
+                        ..default()
+                    },
+                ),
+                (
+                    tokens::TEXT_WEAK,
+                    TextFont {
+                        font: asset_server.load(FONT_REGULAR).into(),
+                        font_size: FontSize::Px(10.0),
+                        font_variations: FontVariations::builder()
+                            .set(FontVariationTag::WEIGHT, 400.0)
+                            .build(),
+                        ..default()
+                    },
+                ),
+            ]),
         }
     }
 }
