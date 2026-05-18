@@ -8,11 +8,12 @@ use bevy::{
         system::{Commands, Single},
     },
     scene::{CommandsSceneExt, Scene, bsn},
-    ui::{AlignItems, FlexDirection, JustifyContent, Node, UiRect, percent, px},
+    ui::{AlignItems, FlexDirection, JustifyContent, Node, UiRect, percent, px, widget::ImageNode},
     window::PrimaryWindow,
 };
 
 use crate::{
+    panel::PanelArea,
     widget::text::{EditorText, EditorTextStyle},
     window::{EditorWindowStructure, PrimaryEditorWindowConfigured},
 };
@@ -22,20 +23,37 @@ fn header() -> impl Scene {
         Node {
             width: percent(100),
             height: px(34),
-            padding: UiRect::horizontal(px(12)),
             align_items: AlignItems::Center
         }
         Children [
-            :EditorText { @text: "Bevy", @style: EditorTextStyle::Heading }
+            Node {
+                align_items: AlignItems::Center
+                padding: UiRect::left(px(12)),
+                column_gap: px(6)
+            }
+            Children [
+                (
+                    Node {
+                        width: px(20),
+                        height: px(20),
+                    }
+                    ImageNode {
+                        image: "embedded://bevy_editor/icons/branding/bevy.png"
+                    }
+                ),
+                :EditorText { @text: "Bevy", @style: EditorTextStyle::Heading }
+            ]
         ]
     }
 }
 
 fn body() -> impl Scene {
     bsn! {
+        PanelArea
         Node {
             width: percent(100),
             height: percent(100),
+            padding: UiRect::horizontal(px(4))
         }
     }
 }
@@ -48,6 +66,9 @@ fn footer() -> impl Scene {
             padding: UiRect::horizontal(px(8)),
             justify_content: JustifyContent::SpaceBetween,
         }
+        Children [
+            :EditorText { @text: "bevy-editor", @style: EditorTextStyle::Weak }
+        ]
     }
 }
 

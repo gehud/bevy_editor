@@ -1,6 +1,5 @@
 use bevy::{
-    app::{App, Plugin},
-    ecs::{
+    app::{App, Plugin}, color::Color, ecs::{
         component::Component,
         entity::Entity,
         error::Result,
@@ -9,11 +8,7 @@ use bevy::{
         observer::On,
         resource::Resource,
         system::{Commands, In, IntoSystem, SystemId},
-    },
-    log::warn,
-    platform::collections::HashMap,
-    ui::{Node, PositionType, percent},
-    utils::default,
+    }, log::warn, platform::collections::HashMap, ui::{BackgroundColor, Node, PositionType, percent}, utils::default
 };
 
 pub type PanelSystem = SystemId<In<PanelStructure>, Result>;
@@ -43,20 +38,19 @@ impl PanelRegistry {
     }
 }
 
-#[derive(Component)]
+#[derive(Clone, Component, Copy, Default)]
 pub struct PanelArea;
 
-#[derive(Component)]
+#[derive(Clone, Component, Copy, Default)]
 pub(crate) struct PanelAreaRoot;
 
 pub fn setup_area(trigger: On<Add, PanelArea>, mut commands: Commands) {
-    let root = trigger.event_target();
+    let area = trigger.event_target();
 
-    commands.entity(root).with_children(|commands| {
+    commands.entity(area).with_children(|commands| {
         commands.spawn((
             PanelAreaRoot,
             Node {
-                position_type: PositionType::Absolute,
                 width: percent(100),
                 height: percent(100),
                 ..default()
