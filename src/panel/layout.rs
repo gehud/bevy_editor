@@ -11,20 +11,26 @@ use bevy::{
         query::{Changed, With},
         resource::Resource,
         schedule::IntoScheduleConfigs,
-        system::{Commands, In, IntoSystem, Query, SystemId},
+        system::{Commands, In, IntoSystem, Query, ResMut, SystemId},
         template::FromTemplate,
     },
     log::warn,
-    picking::events::{DragStart, Pointer},
+    picking::{
+        events::{Cancel, Drag, DragEnd, DragStart, Pointer},
+        pointer::PointerButton,
+    },
     platform::collections::HashMap,
     scene::{CommandsSceneExt, Scene, bsn, on},
-    ui::{AlignItems, FlexDirection, Node, UiRect, UiSystems, Val, percent, px},
+    ui::{
+        AlignItems, ComputedNode, FlexDirection, Node, UiGlobalTransform, UiRect, UiSystems, Val,
+        percent, px,
+    },
     utils::default,
     window::SystemCursorIcon,
 };
 
 use crate::{
-    cursor::EntityCursor,
+    cursor::{EntityCursor, OverrideCursor},
     panel::PanelStructure,
     theme::{
         RoundedCorners, ThemedBackgroundColor, ThemedBorderColor,
@@ -61,15 +67,17 @@ fn divider(divider: Divider, size: f32) -> impl Scene {
     }
 }
 
-#[derive(Clone, Component, Copy, Default)]
-struct ResizeHandle;
+#[derive(Clone, Component, Copy, Default, FromTemplate)]
+struct ResizeHandle {
+    divider: Divider,
+}
+
+#[derive(Resource, Default)]
+struct ResizeHandleDragState {
+    parent_node_size: f32,
+}
 
 fn resize_handle(divider: Divider) -> impl Scene {
-    let cursor_icon = match divider {
-        Divider::Horizontal => SystemCursorIcon::EwResize,
-        Divider::Vertical => SystemCursorIcon::NsResize,
-    };
-
     bsn! {
         Node {
             flex_shrink: 0.0,
@@ -86,13 +94,119 @@ fn resize_handle(divider: Divider) -> impl Scene {
                 }
             },
         }
-        EntityCursor::System(cursor_icon)
-        ResizeHandle
+        EntityCursor::System({
+            match divider {
+                Divider::Horizontal => SystemCursorIcon::EwResize,
+                Divider::Vertical => SystemCursorIcon::NsResize,
+            }
+        })
+        ResizeHandle {
+            divider: divider
+        }
         on(resize_handle_drag_start)
+        on(resize_handle_drag)
+        on(resize_handle_drag_end)
+        on(resize_handle_drag_canel)
     }
 }
 
-fn resize_handle_drag_start(trigger: On<Pointer<DragStart>>) {}
+fn resize_handle_drag_start(
+    trigger: On<Pointer<DragStart>>,
+    mut drag_state: ResMut<ResizeHandleDragState>,
+    parents: Query<&ChildOf>,
+    entity_cursors: Query<&EntityCursor>,
+    resize_handles: Query<&ResizeHandle>,
+    computed_nodes: Query<&ComputedNode>,
+    mut override_cursor: ResMut<OverrideCursor>,
+) -> Result {
+    if trigger.button != PointerButton::Primary {
+        return Ok(());
+    }
+
+    let target = trigger.event_target();
+    let entity_cursor = entity_cursors.get(target)?.clone();
+    let resize_handle = resize_handles.get(target)?.clone();
+
+    override_cursor.0 = Some(entity_cursor);
+    let parent = parents.get(target)?.parent();
+
+    let parent_node_size = computed_nodes.get(parent)?.size();
+    let parent_node_size = match resize_handle.divider {
+        Divider::Horizontal => parent_node_size.x,
+        Divider::Vertical => parent_node_size.y,
+    };
+
+    drag_state.parent_node_size = parent_node_size;
+
+    Ok(())
+}
+
+fn resize_handle_drag(
+    trigger: On<Pointer<Drag>>,
+    drag_state: ResMut<ResizeHandleDragState>,
+    parents: Query<&ChildOf>,
+    children: Query<&Children>,
+    resize_handles: Query<&ResizeHandle>,
+    ui_global_transforms: Query<&UiGlobalTransform>,
+    mut sizes: Query<&mut Size>,
+) -> Result {
+    let target = trigger.event_target();
+    let parent = parents.get(target)?.parent();
+    let siblings = children.get(parent)?;
+    let resize_handle = resize_handles.get(target)?.clone();
+
+    let index = siblings
+        .iter()
+        .position(|entity| *entity == target)
+        .unwrap();
+
+    let min_size = MIN_PANE_SIZE / drag_state.parent_node_size;
+
+    let pointer_position = match resize_handle.divider {
+        Divider::Horizontal => trigger.pointer_location.position.x,
+        Divider::Vertical => trigger.pointer_location.position.y,
+    };
+
+    let handle_position = match resize_handle.divider {
+        Divider::Horizontal => ui_global_transforms.get(target)?.translation.x,
+        Divider::Vertical => ui_global_transforms.get(target)?.translation.y,
+    };
+
+    let delta = match resize_handle.divider {
+        Divider::Horizontal => trigger.delta.x,
+        Divider::Vertical => trigger.delta.y,
+    }
+    .abs()
+        / drag_state.parent_node_size;
+
+    if pointer_position > handle_position {
+        let mut next = sizes.get_mut(siblings[index + 1])?;
+        let last_next_size = next.0;
+        next.0 = (next.0 - delta).max(min_size);
+        let size_change = last_next_size - next.0;
+
+        let mut prev = sizes.get_mut(siblings[index - 1])?;
+        prev.0 += size_change;
+    } else {
+        let mut prev = sizes.get_mut(siblings[index - 1])?;
+        let last_prev_size = prev.0;
+        prev.0 = (prev.0 - delta).max(min_size);
+        let size_change = last_prev_size - prev.0;
+
+        let mut next = sizes.get_mut(siblings[index + 1])?;
+        next.0 += size_change;
+    }
+
+    Ok(())
+}
+
+fn resize_handle_drag_end(_: On<Pointer<DragEnd>>, mut override_cursor: ResMut<OverrideCursor>) {
+    override_cursor.0 = None;
+}
+
+fn resize_handle_drag_canel(_: On<Pointer<Cancel>>, mut override_cursor: ResMut<OverrideCursor>) {
+    override_cursor.0 = None;
+}
 
 fn panel<'a>(size: f32, tabs: Vec<String>) -> impl Scene {
     assert!(tabs.len() != 0, "Cannot spawn pane without tabs");
@@ -139,28 +253,35 @@ fn remove_dividers(
     mut dividers: Query<(Entity, &Children, &ChildOf), (Changed<Children>, With<Divider>)>,
     mut commands: Commands,
 ) -> Result {
-    // for (entity, parts, parent) in dividers.iter_mut() {
-    //     let mut iter = parts
-    //         .iter()
-    //         .filter(|child| !resize_handles.contains(**child));
+    for (entity, parts, parent) in dividers.iter_mut() {
+        let mut parts = parts
+            .iter()
+            .filter(|child| !resize_handles.contains(**child));
 
-    //     let child = iter.next().unwrap();
-    //     if iter.next().is_some() {
-    //         continue;
-    //     }
+        let Some(first) = parts.next().cloned() else {
+            commands.entity(entity).despawn();
+            continue;
+        };
 
-    //     let size = sizes.get(entity)?.0;
-    //     sizes.get_mut(*child)?.0 = size;
+        if parts.next().is_some() {
+            continue;
+        }
 
-    //     let siblings = children.get(parent.parent())?;
-    //     let index = siblings.iter().position(|s| *s == entity).unwrap();
+        let size = sizes.get(entity)?.0;
+        sizes.get_mut(first)?.0 = size;
 
-    //     commands
-    //         .entity(parent.parent())
-    //         .insert_children(index, &[*child]);
+        let siblings = children.get(parent.parent())?;
+        let index = siblings
+            .iter()
+            .position(|sibling| *sibling == entity)
+            .unwrap();
 
-    //     commands.entity(entity).despawn();
-    // }
+        commands
+            .entity(parent.parent())
+            .insert_children(index, &[first]);
+
+        commands.entity(entity).despawn();
+    }
 
     Ok(())
 }
@@ -231,12 +352,13 @@ pub struct EditorPanelLayoutPlugin;
 
 impl Plugin for EditorPanelLayoutPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
-            PostUpdate,
-            (remove_dividers, apply_size)
-                .chain()
-                .before(UiSystems::Layout),
-        )
-        .add_observer(setup_area);
+        app.init_resource::<ResizeHandleDragState>()
+            .add_systems(
+                PostUpdate,
+                (remove_dividers, apply_size)
+                    .chain()
+                    .before(UiSystems::Layout),
+            )
+            .add_observer(setup_area);
     }
 }
