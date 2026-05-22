@@ -278,7 +278,7 @@ impl EditorTheme {
                 (tokens::PANE_HEADER_BORDER, palette::WARM_GRAY_1),
                 (tokens::PANE_HEADER_TEXT, palette::LIGHT_GRAY_1),
                 (tokens::PANE_HEADER_DIVIDER, palette::WARM_GRAY_1),
-                (tokens::PANE_BODY_BG, palette::GRAY_1),
+                (tokens::PANEL_BODY_BG, palette::GRAY_1),
                 // Subpane
                 (tokens::SUBPANE_HEADER_BG, palette::GRAY_2),
                 (tokens::SUBPANE_HEADER_BORDER, palette::GRAY_3),

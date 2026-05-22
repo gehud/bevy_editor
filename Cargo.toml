@@ -30,6 +30,7 @@ bevy = { git = "https://github.com/gehud/bevy.git", tag = "editor-v0.19.0-rc.1",
     "serialize",
 ] }
 smol_str = "0.2.2"
+derive_more = "2.1.1"
 
 [patch.crates-io]
 bevy = { git = "https://github.com/gehud/bevy.git", tag = "editor-v0.19.0-rc.1" }

@@ -1,25 +1,48 @@
+pub(crate) mod layout;
+
 use bevy::{
-    app::{App, Plugin}, color::Color, ecs::{
+    app::{App, Plugin},
+    ecs::{
         component::Component,
         entity::Entity,
         error::Result,
         event::EntityEvent,
+        hierarchy::Children,
         lifecycle::Add,
         observer::On,
         resource::Resource,
         system::{Commands, In, IntoSystem, SystemId},
-    }, log::warn, platform::collections::HashMap, ui::{BackgroundColor, Node, PositionType, percent}, utils::default
+        template::FromTemplate,
+    },
+    log::warn,
+    picking::events::{DragStart, Pointer},
+    platform::collections::HashMap,
+    scene::{Scene, bsn, on},
+    ui::{FlexDirection, Node, percent, px},
+    utils::default,
+    window::SystemCursorIcon,
 };
+
+use crate::{cursor::EntityCursor, panel::layout::EditorPanelLayoutPlugin};
 
 pub type PanelSystem = SystemId<In<PanelStructure>, Result>;
 
+#[derive(Clone, Component, Copy, FromTemplate)]
 pub struct PanelStructure {
-    root: Entity,
+    content: Entity,
+}
+
+impl Default for PanelStructure {
+    fn default() -> Self {
+        Self {
+            content: Entity::PLACEHOLDER,
+        }
+    }
 }
 
 impl PanelStructure {
-    pub fn root(&self) -> Entity {
-        self.root
+    pub fn content(&self) -> Entity {
+        self.content
     }
 }
 
@@ -36,27 +59,6 @@ impl PanelRegistry {
         }
         self
     }
-}
-
-#[derive(Clone, Component, Copy, Default)]
-pub struct PanelArea;
-
-#[derive(Clone, Component, Copy, Default)]
-pub(crate) struct PanelAreaRoot;
-
-pub fn setup_area(trigger: On<Add, PanelArea>, mut commands: Commands) {
-    let area = trigger.event_target();
-
-    commands.entity(area).with_children(|commands| {
-        commands.spawn((
-            PanelAreaRoot,
-            Node {
-                width: percent(100),
-                height: percent(100),
-                ..default()
-            },
-        ));
-    });
 }
 
 pub trait EditorPanelApp {
@@ -85,7 +87,7 @@ pub struct EditorPanelPlugin;
 
 impl Plugin for EditorPanelPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<PanelRegistry>()
-            .add_observer(setup_area);
+        app.add_plugins(EditorPanelLayoutPlugin)
+            .init_resource::<PanelRegistry>();
     }
 }

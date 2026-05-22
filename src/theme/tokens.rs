@@ -338,7 +338,7 @@ pub const PANE_HEADER_TEXT: ThemeToken = ThemeToken::new_static("editor.pane.hea
 /// Pane header divider color
 pub const PANE_HEADER_DIVIDER: ThemeToken = ThemeToken::new_static("editor.pane.header.divider");
 /// Pane body background
-pub const PANE_BODY_BG: ThemeToken = ThemeToken::new_static("editor.pane.body.bg");
+pub const PANEL_BODY_BG: ThemeToken = ThemeToken::new_static("editor.pane.body.bg");
 
 // Subpane
 

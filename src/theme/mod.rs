@@ -82,6 +82,12 @@ impl ThemedBorderColor {
     }
 }
 
+impl From<ThemeToken> for ThemedBorderColor {
+    fn from(value: ThemeToken) -> Self {
+        Self::all(value)
+    }
+}
+
 #[derive(Clone, Component, Debug, Default, Eq, PartialEq, Reflect)]
 #[reflect(Clone, Component, Debug, Default, PartialEq)]
 #[require(ImageNode)]

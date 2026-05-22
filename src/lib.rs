@@ -4,6 +4,7 @@ pub mod panel;
 pub mod theme;
 pub mod widget;
 pub mod window;
+pub mod cursor;
 
 use bevy::{
     DefaultPlugins,
@@ -12,7 +13,7 @@ use bevy::{
 };
 
 use crate::{
-    assets::EditorAssetsPlugin, layout::EditorLayoutPlugin, panel::EditorPanelPlugin, theme::EditorThemePlugin, window::EditorWindowPlugin
+    assets::EditorAssetsPlugin, cursor::EditorCursorPlugin, layout::EditorLayoutPlugin, panel::EditorPanelPlugin, theme::EditorThemePlugin, window::EditorWindowPlugin
 };
 
 pub struct EditorPlugins;
@@ -26,6 +27,7 @@ impl PluginGroup for EditorPlugins {
             .add(EditorPanelPlugin)
             .add(EditorThemePlugin)
             .add(EditorLayoutPlugin)
+            .add(EditorCursorPlugin)
             .build()
     }
 }

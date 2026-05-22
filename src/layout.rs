@@ -13,7 +13,7 @@ use bevy::{
 };
 
 use crate::{
-    panel::PanelArea,
+    panel::layout::PanelArea,
     widget::text::{EditorText, EditorTextStyle},
     window::{EditorWindowStructure, PrimaryEditorWindowConfigured},
 };
@@ -65,6 +65,7 @@ fn footer() -> impl Scene {
             height: px(24),
             padding: UiRect::horizontal(px(8)),
             justify_content: JustifyContent::SpaceBetween,
+            align_items: AlignItems::Center
         }
         Children [
             :EditorText { @text: "bevy-editor", @style: EditorTextStyle::Weak }
