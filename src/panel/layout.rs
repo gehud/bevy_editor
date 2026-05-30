@@ -1,6 +1,5 @@
 use bevy::{
-    app::{App, Plugin, PostUpdate},
-    ecs::{
+    app::{App, Plugin, PostUpdate}, color::Color, ecs::{
         component::Component,
         entity::Entity,
         error::Result,
@@ -13,20 +12,12 @@ use bevy::{
         schedule::IntoScheduleConfigs,
         system::{Commands, In, IntoSystem, Query, ResMut, SystemId},
         template::FromTemplate,
-    },
-    log::warn,
-    picking::{
+    }, log::warn, picking::{
         events::{Cancel, Drag, DragEnd, DragStart, Pointer},
         pointer::PointerButton,
-    },
-    platform::collections::HashMap,
-    scene::{CommandsSceneExt, Scene, bsn, on},
-    ui::{
-        AlignItems, ComputedNode, FlexDirection, Node, UiGlobalTransform, UiRect, UiSystems, Val,
-        percent, px,
-    },
-    utils::default,
-    window::SystemCursorIcon,
+    }, platform::collections::HashMap, scene::{CommandsSceneExt, Scene, bsn, on}, ui::{
+        AlignItems, BackgroundColor, ComputedNode, FlexDirection, Node, UiGlobalTransform, UiRect, UiSystems, Val, percent, px
+    }, utils::default, window::SystemCursorIcon
 };
 
 use crate::{
@@ -36,6 +27,7 @@ use crate::{
         RoundedCorners, ThemedBackgroundColor, ThemedBorderColor,
         tokens::{PANEL_BODY_BG, WINDOW_BG},
     },
+    widget::scroll::EditorScrollArea,
 };
 
 const BORDER_RADIUS: Val = Val::Px(6.0);
@@ -208,7 +200,9 @@ fn resize_handle_drag_canel(_: On<Pointer<Cancel>>, mut override_cursor: ResMut<
     override_cursor.0 = None;
 }
 
-fn panel<'a>(size: f32, tabs: Vec<String>) -> impl Scene {
+fn tabbar() -> impl Scene {}
+
+fn panel(size: f32, tabs: Vec<String>) -> impl Scene {
     assert!(tabs.len() != 0, "Cannot spawn pane without tabs");
 
     bsn! {
@@ -224,7 +218,7 @@ fn panel<'a>(size: f32, tabs: Vec<String>) -> impl Scene {
                 flex_direction: FlexDirection::Column,
                 border_radius: {RoundedCorners::All.to_border_radius(BORDER_RADIUS)},
             }
-            ThemedBackgroundColor(PANEL_BODY_BG)
+            ThemedBackgroundColor::new(PANEL_BODY_BG)
             Children [
                 #Header
                 Node {
@@ -235,8 +229,24 @@ fn panel<'a>(size: f32, tabs: Vec<String>) -> impl Scene {
                     flex_shrink: 0.0,
                     border_radius: {RoundedCorners::Top.to_border_radius(BORDER_RADIUS)},
                 }
-                ThemedBackgroundColor::new(WINDOW_BG),
-                ThemedBorderColor::all(PANEL_BODY_BG),
+                ThemedBackgroundColor::new(WINDOW_BG)
+                ThemedBorderColor::all(PANEL_BODY_BG)
+                Children [
+                    #Tabbar
+                    :EditorScrollArea {
+                        // target: #Tabs,
+                        horizontal: true
+                    }
+                    Node {
+                        flex_grow: 1.0
+                    }
+                    // Children [
+                    //     #Tabs
+                    //     Node {
+                    //         flex_grow: 1.0
+                    //     }
+                    // ]
+                ],
                 #Content
                 Node {
                     flex_grow: 1.0
