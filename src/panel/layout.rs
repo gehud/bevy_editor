@@ -21,7 +21,7 @@ use bevy::{
         pointer::PointerButton,
     },
     platform::collections::HashMap,
-    scene::{CommandsSceneExt, Scene, bsn, bsn_list, on},
+    scene::{CommandsSceneExt, Scene, SceneList, bsn, bsn_list, on},
     ui::{
         AlignItems, BackgroundColor, ComputedNode, FlexDirection, Node, Overflow,
         UiGlobalTransform, UiRect, UiSystems, Val, percent, px,
@@ -38,7 +38,10 @@ use crate::{
         RoundedCorners, ThemedBackgroundColor, ThemedBorderColor,
         tokens::{PANEL_BODY_BG, WINDOW_BG},
     },
-    widget::scroll::{EditorScrollArea, ScrollAxes},
+    widget::{
+        scroll::{EditorScrollArea, ScrollAxes},
+        text::{EditorText, EditorTextStyle},
+    },
 };
 
 const BORDER_RADIUS: Val = Val::Px(6.0);
@@ -211,8 +214,6 @@ fn resize_handle_drag_canel(_: On<Pointer<Cancel>>, mut override_cursor: ResMut<
     override_cursor.0 = None;
 }
 
-fn tabbar() -> impl Scene {}
-
 fn panel(size: f32, tabs: Vec<String>) -> impl Scene {
     assert!(tabs.len() != 0, "Cannot spawn pane without tabs");
 
@@ -246,6 +247,14 @@ fn panel(size: f32, tabs: Vec<String>) -> impl Scene {
                     :EditorScrollArea {
                         axes: ScrollAxes::HORIZONTAL,
                         orientation: ControlOrientation::Horizontal,
+                        @content: {bsn! {
+                            Node {
+                                height: percent(100)
+                            }
+                            Children [
+                                {tab_list(tabs)}
+                            ]
+                        }}
                     }
                     Node {
                         flex_grow: 1.0
@@ -258,6 +267,33 @@ fn panel(size: f32, tabs: Vec<String>) -> impl Scene {
             ]
         ]
     }
+}
+
+fn tab(name: String) -> impl Scene {
+    bsn! {
+        Node {
+            height: percent(100),
+            padding: UiRect::horizontal(px(8)),
+            align_items: AlignItems::Center,
+            border_radius: {RoundedCorners::Top.to_border_radius(px(2))}
+        }
+        ThemedBackgroundColor(PANEL_BODY_BG)
+        Children [
+            :EditorText {
+                @text: name
+            }
+        ]
+    }
+}
+
+fn tab_list(tabs: Vec<String>) -> impl SceneList {
+    let mut scenes = Vec::new();
+
+    for name in tabs {
+        scenes.push(tab(name));
+    }
+
+    scenes
 }
 
 fn remove_dividers(
@@ -332,9 +368,9 @@ fn default_layout() -> impl Scene {
     bsn! {
         divider(Divider::Horizontal, 1.0)
         Children [
-            panel(0.5, vec!["Left".into()]),
+            panel(0.5, vec!["Left".into(), "Left".into()]),
             resize_handle(Divider::Horizontal),
-            panel(0.5, vec!["Right".into()]),
+            panel(0.5, vec!["Right".into(), "Right".into()]),
         ]
     }
 }
