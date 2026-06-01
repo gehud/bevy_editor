@@ -1,5 +1,7 @@
 use bevy::{
-    app::{App, Plugin, PostUpdate}, color::Color, ecs::{
+    app::{App, Plugin, PostUpdate},
+    color::Color,
+    ecs::{
         component::Component,
         entity::Entity,
         error::Result,
@@ -12,12 +14,21 @@ use bevy::{
         schedule::IntoScheduleConfigs,
         system::{Commands, In, IntoSystem, Query, ResMut, SystemId},
         template::FromTemplate,
-    }, log::warn, picking::{
+    },
+    log::warn,
+    picking::{
         events::{Cancel, Drag, DragEnd, DragStart, Pointer},
         pointer::PointerButton,
-    }, platform::collections::HashMap, scene::{CommandsSceneExt, Scene, bsn, bsn_list, on}, ui::{
-        AlignItems, BackgroundColor, ComputedNode, FlexDirection, Node, Overflow, UiGlobalTransform, UiRect, UiSystems, Val, percent, px
-    }, utils::default, window::SystemCursorIcon
+    },
+    platform::collections::HashMap,
+    scene::{CommandsSceneExt, Scene, bsn, bsn_list, on},
+    ui::{
+        AlignItems, BackgroundColor, ComputedNode, FlexDirection, Node, Overflow,
+        UiGlobalTransform, UiRect, UiSystems, Val, percent, px,
+    },
+    ui_widgets::ControlOrientation,
+    utils::default,
+    window::SystemCursorIcon,
 };
 
 use crate::{
@@ -27,7 +38,7 @@ use crate::{
         RoundedCorners, ThemedBackgroundColor, ThemedBorderColor,
         tokens::{PANEL_BODY_BG, WINDOW_BG},
     },
-    widget::scroll::EditorScrollArea,
+    widget::scroll::{EditorScrollArea, ScrollAxes},
 };
 
 const BORDER_RADIUS: Val = Val::Px(6.0);
@@ -233,45 +244,8 @@ fn panel(size: f32, tabs: Vec<String>) -> impl Scene {
                 ThemedBorderColor::all(PANEL_BODY_BG)
                 Children [
                     :EditorScrollArea {
-                        horizontal: true,
-                        @content: {bsn! {
-                            Node {
-                                height: percent(100),
-                                column_gap: px(5)
-                            }
-                            Children [
-                                Node {
-                                    width: px(50),
-                                    height: percent(100),
-                                }
-                                BackgroundColor(Color::BLACK),
-                                Node {
-                                    width: px(50),
-                                    height: percent(100),
-                                }
-                                BackgroundColor(Color::BLACK),
-                                Node {
-                                    width: px(50),
-                                    height: percent(100),
-                                }
-                                BackgroundColor(Color::BLACK),
-                                Node {
-                                    width: px(50),
-                                    height: percent(100),
-                                }
-                                BackgroundColor(Color::BLACK),
-                                Node {
-                                    width: px(50),
-                                    height: percent(100),
-                                }
-                                BackgroundColor(Color::BLACK),
-                                Node {
-                                    width: px(50),
-                                    height: percent(100),
-                                }
-                                BackgroundColor(Color::BLACK),
-                            ]
-                        }}
+                        axes: ScrollAxes::HORIZONTAL,
+                        orientation: ControlOrientation::Horizontal,
                     }
                     Node {
                         flex_grow: 1.0
