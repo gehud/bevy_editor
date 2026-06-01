@@ -2,14 +2,16 @@ use bevy::{
     app::{App, Plugin, Update},
     color::Color,
     ecs::{component::Component, entity::Entity, hierarchy::Children, template::FromTemplate},
-    scene::{Scene, SceneComponent, bsn},
-    ui::{BackgroundColor, BorderRadius, Node, PositionType, percent, px},
+    scene::{Scene, SceneComponent, SceneList, bsn, bsn_list},
+    ui::{BackgroundColor, BorderRadius, Node, Overflow, PositionType, percent, px},
     ui_widgets::{ControlOrientation, Scrollbar, ScrollbarPlugin, ScrollbarThumb},
 };
 
+use crate::theme::{ThemedBackgroundColor, tokens::SCROLLBAR_THUMB};
+
 #[derive(Clone, Copy, FromTemplate, SceneComponent)]
+#[scene(EditorScrollAreaProps)]
 pub struct EditorScrollArea {
-    pub target: Entity,
     pub horizontal: bool,
     pub vertical: bool,
     pub main_axis: ControlOrientation,
@@ -20,7 +22,6 @@ pub struct EditorScrollArea {
 impl Default for EditorScrollArea {
     fn default() -> Self {
         Self {
-            target: Entity::PLACEHOLDER,
             horizontal: false,
             vertical: false,
             main_axis: ControlOrientation::default(),
@@ -30,16 +31,38 @@ impl Default for EditorScrollArea {
     }
 }
 
+pub struct EditorScrollAreaProps {
+    pub content: Box<dyn SceneList>
+}
+
+impl Default for EditorScrollAreaProps {
+    fn default() -> Self {
+        Self { content: Box::new(bsn_list!()) }
+    }
+}
+
 impl EditorScrollArea {
-    fn scene() -> impl Scene {
+    fn scene(props: EditorScrollAreaProps) -> impl Scene {
         bsn! {
             EditorScrollAreaScrollbars {
                 horizontal: #Horizontal,
                 vertical: #Vertical
             }
+            Node
             Children [
+                #Area
+                Node {
+                    flex_grow: 1.0,
+                    overflow: Overflow::scroll()
+                }
+                Children [
+                    {props.content}
+                ],
                 #Horizontal
-                Scrollbar
+                Scrollbar {
+                    target: #Area,
+                    orientation: ControlOrientation::Horizontal
+                }
                 Node {
                     position_type: PositionType::Absolute,
                     width: percent(100),
@@ -50,9 +73,13 @@ impl EditorScrollArea {
                     ScrollbarThumb {
                         border_radius: BorderRadius::all(px(4))
                     }
+                    ThemedBackgroundColor(SCROLLBAR_THUMB)
                 ],
                 #Vertical
-                Scrollbar
+                Scrollbar {
+                    target: #Area,
+                    orientation: ControlOrientation::Vertical
+                }
                 Node {
                     position_type: PositionType::Absolute,
                     height: percent(100),
@@ -63,7 +90,8 @@ impl EditorScrollArea {
                     ScrollbarThumb {
                         border_radius: BorderRadius::all(px(4))
                     }
-                ]
+                    ThemedBackgroundColor(SCROLLBAR_THUMB)
+                ],
             ]
         }
     }

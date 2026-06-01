@@ -15,8 +15,8 @@ use bevy::{
     }, log::warn, picking::{
         events::{Cancel, Drag, DragEnd, DragStart, Pointer},
         pointer::PointerButton,
-    }, platform::collections::HashMap, scene::{CommandsSceneExt, Scene, bsn, on}, ui::{
-        AlignItems, BackgroundColor, ComputedNode, FlexDirection, Node, UiGlobalTransform, UiRect, UiSystems, Val, percent, px
+    }, platform::collections::HashMap, scene::{CommandsSceneExt, Scene, bsn, bsn_list, on}, ui::{
+        AlignItems, BackgroundColor, ComputedNode, FlexDirection, Node, Overflow, UiGlobalTransform, UiRect, UiSystems, Val, percent, px
     }, utils::default, window::SystemCursorIcon
 };
 
@@ -232,20 +232,50 @@ fn panel(size: f32, tabs: Vec<String>) -> impl Scene {
                 ThemedBackgroundColor::new(WINDOW_BG)
                 ThemedBorderColor::all(PANEL_BODY_BG)
                 Children [
-                    #Tabbar
                     :EditorScrollArea {
-                        // target: #Tabs,
-                        horizontal: true
+                        horizontal: true,
+                        @content: {bsn! {
+                            Node {
+                                height: percent(100),
+                                column_gap: px(5)
+                            }
+                            Children [
+                                Node {
+                                    width: px(50),
+                                    height: percent(100),
+                                }
+                                BackgroundColor(Color::BLACK),
+                                Node {
+                                    width: px(50),
+                                    height: percent(100),
+                                }
+                                BackgroundColor(Color::BLACK),
+                                Node {
+                                    width: px(50),
+                                    height: percent(100),
+                                }
+                                BackgroundColor(Color::BLACK),
+                                Node {
+                                    width: px(50),
+                                    height: percent(100),
+                                }
+                                BackgroundColor(Color::BLACK),
+                                Node {
+                                    width: px(50),
+                                    height: percent(100),
+                                }
+                                BackgroundColor(Color::BLACK),
+                                Node {
+                                    width: px(50),
+                                    height: percent(100),
+                                }
+                                BackgroundColor(Color::BLACK),
+                            ]
+                        }}
                     }
                     Node {
                         flex_grow: 1.0
                     }
-                    // Children [
-                    //     #Tabs
-                    //     Node {
-                    //         flex_grow: 1.0
-                    //     }
-                    // ]
                 ],
                 #Content
                 Node {
