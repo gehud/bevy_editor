@@ -32,6 +32,7 @@ impl Into<ThemeToken> for EditorTextStyle {
 #[derive(Default)]
 pub struct EditorTextProps {
     pub text: String,
+    pub style: Option<EditorTextStyle>,
 }
 
 #[derive(Clone, SceneComponent)]
@@ -70,9 +71,16 @@ impl Default for EditorText {
 }
 
 impl EditorText {
-    fn scene(props: EditorTextProps) -> impl Scene {
-        bsn! {
-            Text::new(props.text)
+    fn scene(props: EditorTextProps) -> Box<dyn Scene> {
+        if let Some(style) = props.style {
+            Box::new(bsn! {
+                Text::new(props.text)
+                EditorText::styled(style)
+            })
+        } else {
+            Box::new(bsn! {
+                Text::new(props.text)
+            })
         }
     }
 }

@@ -43,8 +43,7 @@ fn header() -> impl Scene {
                 ),
                 @EditorText {
                     @text: "Bevy",
-                    color_style: EditorTextStyle::Heading,
-                    font_style: EditorTextStyle::Heading,
+                    @style: EditorTextStyle::Heading,
                 }
             ]
         ]
@@ -74,8 +73,7 @@ fn footer() -> impl Scene {
         Children [
             @EditorText {
                 @text: "bevy-editor",
-                color_style: EditorTextStyle::Weak,
-                font_style: EditorTextStyle::Weak,
+                @style: EditorTextStyle::Weak,
             }
         ]
     }
