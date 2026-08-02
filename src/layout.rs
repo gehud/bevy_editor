@@ -41,7 +41,11 @@ fn header() -> impl Scene {
                         image: "embedded://bevy_editor/icons/branding/bevy.png"
                     }
                 ),
-                :EditorText { @text: "Bevy", @style: EditorTextStyle::Heading }
+                @EditorText {
+                    @text: "Bevy",
+                    color_style: EditorTextStyle::Heading,
+                    font_style: EditorTextStyle::Heading,
+                }
             ]
         ]
     }
@@ -68,7 +72,11 @@ fn footer() -> impl Scene {
             align_items: AlignItems::Center
         }
         Children [
-            :EditorText { @text: "bevy-editor", @style: EditorTextStyle::Weak }
+            @EditorText {
+                @text: "bevy-editor",
+                color_style: EditorTextStyle::Weak,
+                font_style: EditorTextStyle::Weak,
+            }
         ]
     }
 }

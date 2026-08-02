@@ -20,9 +20,9 @@ impl EditorTheme {
             colors: HashMap::from([
                 (tokens::WINDOW_BG, palette::GRAY_0),
                 (tokens::FOCUS_RING, palette::ACCENT.with_alpha(0.5)),
-                (tokens::TEXT_HEADING, Color::hsv(0.0, 0.0, 0.93)),
-                (tokens::TEXT_BODY, palette::LIGHT_GRAY_1),
-                (tokens::TEXT_WEAK, palette::LIGHT_GRAY_2),
+                (tokens::TEXT_HEADING, Color::hsl(0.0, 0.0, 0.93)),
+                (tokens::TEXT_BODY, Color::hsl(0.0, 0.0, 0.85)),
+                (tokens::TEXT_WEAK, Color::hsl(0.0, 0.0, 0.66)),
                 // Button (normal)
                 (tokens::BUTTON_BG, palette::GRAY_3),
                 (tokens::BUTTON_BG_HOVER, palette::GRAY_3.lighter(0.05)),

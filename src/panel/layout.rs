@@ -21,7 +21,7 @@ use bevy::{
         pointer::PointerButton,
     },
     platform::collections::HashMap,
-    scene::{CommandsSceneExt, Scene, SceneList, bsn, bsn_list, on},
+    scene::{CommandsSceneExt, EntityCommandsSceneExt, Scene, SceneList, bsn, bsn_list, on},
     ui::{
         AlignItems, BackgroundColor, ComputedNode, FlexDirection, Node, Overflow,
         UiGlobalTransform, UiRect, UiSystems, Val, percent, px,
@@ -244,7 +244,7 @@ fn panel(size: f32, tabs: Vec<String>) -> impl Scene {
                 ThemedBackgroundColor::new(WINDOW_BG)
                 ThemedBorderColor::all(PANEL_BODY_BG)
                 Children [
-                    :EditorScrollArea {
+                    @EditorScrollArea {
                         axes: ScrollAxes::HORIZONTAL,
                         orientation: ControlOrientation::Horizontal,
                         @content: {bsn! {
@@ -279,7 +279,7 @@ fn tab(name: String) -> impl Scene {
         }
         ThemedBackgroundColor(PANEL_BODY_BG)
         Children [
-            :EditorText {
+            @EditorText {
                 @text: name
             }
         ]
