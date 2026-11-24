@@ -1,4 +1,4 @@
-//! Bottom panel: a vertical tool strip (terminal / files) and the asset browser.
+//! The Assets panel: a browser for the project's asset folder.
 //!
 //! The browser shows the design's sample folder; reading the real `assets/` directory is
 //! a follow-up.
@@ -7,92 +7,11 @@ use bevy::{feathers::constants::icons, prelude::*, ui_widgets::Button};
 
 use super::{
     style::{HoverBackground, Weight, colors, icon_sq, ink, text},
-    widgets::{grip, search_field},
+    widgets::search_field,
 };
 
-pub fn bottom_panel() -> impl Scene {
-    bsn! {
-        Node {
-            height: px(245),
-            width: percent(100),
-            flex_shrink: 0.0,
-            overflow: Overflow::clip(),
-            border_radius: BorderRadius::all(px(5)),
-        }
-        BackgroundColor(colors::PANE_BG)
-        Children [
-            @tool_strip()
-            --
-            @asset_browser()
-        ]
-    }
-}
-
-fn tool_strip() -> impl Scene {
-    bsn! {
-        Node {
-            width: px(32),
-            height: percent(100),
-            flex_shrink: 0.0,
-            flex_direction: FlexDirection::Column,
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::SpaceBetween,
-            padding: UiRect { left: px(1), top: px(7), bottom: px(7) },
-            border: UiRect { left: px(1), top: px(1), bottom: px(1) },
-            border_radius: BorderRadius::left(px(5)),
-        }
-        BackgroundColor(colors::WINDOW_BG)
-        BorderColor { top: colors::PANEL_BORDER_ALT, bottom: colors::PANEL_BORDER_ALT, left: colors::PANEL_BORDER_ALT }
-        Children [
-            Node { flex_direction: FlexDirection::Column, row_gap: px(4), width: px(24) }
-            Children [
-                @tool_button(icons::TERMINAL, ink::A8A8, false)
-                --
-                @tool_button(icons::FOLDER_OPEN, ink::E6, true)
-            ]
-            --
-            @grip()
-        ]
-    }
-}
-
-/// A 24px tool button; the selected one has a background and a blue bar along its bottom.
-fn tool_button(icon_path: &'static str, color: Color, selected: bool) -> impl Scene {
-    let background = if selected {
-        colors::ITEM_BG
-    } else {
-        Color::NONE
-    };
-    let indicator = if selected {
-        colors::SELECTOR
-    } else {
-        Color::NONE
-    };
-    bsn! {
-        Button
-        Node {
-            width: px(24),
-            height: px(24),
-            flex_direction: FlexDirection::Column,
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::SpaceBetween,
-            overflow: Overflow::clip(),
-            border_radius: BorderRadius::all(px(5)),
-        }
-        BackgroundColor(background)
-        HoverBackground { normal: background, hover: colors::ITEM_BG }
-        Children [
-            Node { width: px(13), height: px(2) }
-            --
-            @icon_sq(icon_path, 16.0, color)
-            --
-            Node { width: px(13), height: px(2), border_radius: BorderRadius::all(px(999)) }
-            BackgroundColor(indicator)
-        ]
-    }
-}
-
-fn asset_browser() -> impl Scene {
+/// Assets panel contents: breadcrumb, search and the current folder's contents.
+pub fn asset_browser_content() -> impl Scene {
     let entries = [
         ("animation", false),
         ("audio", false),

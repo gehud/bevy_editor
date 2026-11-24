@@ -1,0 +1,378 @@
+//! Turns the [`DockLayout`] into UI entities.
+//!
+//! Only the chrome (splits, splitters, leaf frames, tab bars) is rebuilt when the layout
+//! changes. Panel contents are spawned once and re-parented into whichever leaf shows them, so
+//! their state (viewport cameras, typed text, scroll positions) survives layout changes.
+//! Contents not on screen wait in a hidden "stash" node.
+
+use bevy::{
+    feathers::constants::icons, picking::cursor::EntityCursor, prelude::*, ui_widgets::Button,
+    window::SystemCursorIcon,
+};
+
+use super::{
+    interact,
+    layout::{Axis, DockLayout, DockNode, NodeId, PanelId},
+};
+use crate::ui::{
+    panels::Panels,
+    style::{colors, icon_sq, ink, label},
+};
+
+/// Space between docked areas; also the grab area of the splitters.
+pub const GAP: f32 = 4.0;
+
+/// The node the dock tree is built into.
+#[derive(Component, Clone, Default)]
+pub struct DockRoot;
+
+/// Hidden holder for panel contents that are not currently displayed.
+#[derive(Component, Clone, Default)]
+pub struct DockStash;
+
+/// Root entity of a panel's contents.
+#[derive(Component, Clone, Default)]
+pub struct PanelContent(pub PanelId);
+
+/// The frame of a leaf; used to find drop targets.
+#[derive(Component, Clone, Default)]
+pub struct DockLeafArea(pub NodeId);
+
+/// Where a leaf's active panel contents are placed.
+#[derive(Component, Clone, Default)]
+pub struct LeafContentSlot(pub NodeId);
+
+/// The container of a split's children.
+#[derive(Component, Clone, Default)]
+pub struct DockSplitArea {
+    pub split: NodeId,
+    pub axis: Axis,
+}
+
+/// A child of a split; its `flex_grow` is the child's size.
+#[derive(Component, Clone, Default)]
+pub struct DockSplitChild {
+    pub split: NodeId,
+    pub index: usize,
+}
+
+/// The draggable gap between children `index` and `index + 1` of a split.
+#[derive(Component, Clone, Default)]
+pub struct Splitter {
+    pub split: NodeId,
+    pub index: usize,
+    pub axis: Axis,
+}
+
+/// A tab in a leaf's tab bar.
+#[derive(Component, Clone, Default)]
+pub struct DockTab {
+    pub leaf: NodeId,
+    pub index: usize,
+}
+
+/// Dragging this entity (a tab or a tab bar's grip) moves the panel to another place.
+#[derive(Component, Clone, Default)]
+pub struct DragsPanel(pub PanelId);
+
+/// Creates the stash and spawns every panel's contents into it.
+pub(super) fn setup_dock(mut commands: Commands, panels: Res<Panels>) {
+    let stash = commands
+        .spawn((
+            Name::new("Dock Stash"),
+            DockStash,
+            Node {
+                display: Display::None,
+                ..default()
+            },
+        ))
+        .id();
+    for id in panels.ids() {
+        commands
+            .spawn((
+                Name::new(panels.get(id).title()),
+                PanelContent(id),
+                Node {
+                    flex_grow: 1.0,
+                    min_height: px(0),
+                    width: percent(100),
+                    flex_direction: FlexDirection::Column,
+                    ..default()
+                },
+                ChildOf(stash),
+            ))
+            .queue_apply_scene(panels.get(id).content());
+    }
+}
+
+/// Rebuilds the dock chrome whenever the layout changes.
+pub(super) fn rebuild_dock(
+    mut commands: Commands,
+    layout: Res<DockLayout>,
+    panels: Res<Panels>,
+    root: Single<(Entity, Option<&Children>), With<DockRoot>>,
+    stash: Single<Entity, With<DockStash>>,
+    contents: Query<Entity, With<PanelContent>>,
+) {
+    if !layout.is_changed() {
+        return;
+    }
+    // Move contents to safety first: despawning the chrome despawns its descendants.
+    for content in &contents {
+        commands.entity(content).insert(ChildOf(*stash));
+    }
+    let (root, children) = *root;
+    for &child in children.into_iter().flatten() {
+        commands.entity(child).despawn();
+    }
+    commands
+        .entity(root)
+        .queue_spawn_related_scenes::<Children>(vec![node_scene(&layout, &panels, layout.root())]);
+}
+
+/// Puts each leaf's active panel into the leaf, and every other panel into the stash.
+pub(super) fn place_panel_contents(
+    mut commands: Commands,
+    layout: Res<DockLayout>,
+    slots: Query<(Entity, &LeafContentSlot)>,
+    contents: Query<(Entity, &PanelContent, &ChildOf)>,
+    stash: Single<Entity, With<DockStash>>,
+) {
+    for (content, PanelContent(panel), child_of) in &contents {
+        let wanted_parent = layout
+            .leaf_of(*panel)
+            .filter(|leaf| layout.active_panel(*leaf) == Some(*panel))
+            .and_then(|leaf| {
+                slots
+                    .iter()
+                    .find(|(_, slot)| slot.0 == leaf)
+                    .map(|(entity, _)| entity)
+            })
+            .unwrap_or(*stash);
+        if child_of.parent() != wanted_parent {
+            commands.entity(content).insert(ChildOf(wanted_parent));
+        }
+    }
+}
+
+fn node_scene(layout: &DockLayout, panels: &Panels, id: NodeId) -> Box<dyn Scene> {
+    match layout.node(id) {
+        DockNode::Leaf { tabs, active } => Box::new(leaf_scene(panels, id, tabs, *active)),
+        DockNode::Split {
+            axis,
+            children,
+            sizes,
+        } => {
+            let mut items: Vec<Box<dyn Scene>> = Vec::new();
+            for (index, (child, size)) in children.iter().zip(sizes).enumerate() {
+                if index > 0 {
+                    items.push(Box::new(splitter(id, index - 1, *axis)));
+                }
+                let child = node_scene(layout, panels, *child);
+                let size = *size;
+                items.push(Box::new(bsn! {
+                    @{child}
+                    Node {
+                        flex_grow: size,
+                        flex_shrink: 1.0,
+                        flex_basis: px(0),
+                        min_width: px(0),
+                        min_height: px(0),
+                    }
+                    DockSplitChild { split: id, index: index }
+                }));
+            }
+            let direction = match axis {
+                Axis::Horizontal => FlexDirection::Row,
+                Axis::Vertical => FlexDirection::Column,
+            };
+            let axis = *axis;
+            Box::new(bsn! {
+                Node {
+                    flex_grow: 1.0,
+                    flex_direction: direction,
+                    min_width: px(0),
+                    min_height: px(0),
+                }
+                DockSplitArea { split: id, axis: axis }
+                Children [ {items} ]
+            })
+        }
+    }
+}
+
+fn splitter(split: NodeId, index: usize, axis: Axis) -> impl Scene {
+    let (width, height, cursor) = match axis {
+        Axis::Horizontal => (px(GAP), Val::Auto, SystemCursorIcon::EwResize),
+        Axis::Vertical => (Val::Auto, px(GAP), SystemCursorIcon::NsResize),
+    };
+    bsn! {
+        Node {
+            width: width,
+            height: height,
+            flex_shrink: 0.0,
+            align_self: AlignSelf::Stretch,
+        }
+        Splitter { split: split, index: index, axis: axis }
+        EntityCursor::System(cursor)
+        on(interact::drag_splitter)
+    }
+}
+
+fn leaf_scene(panels: &Panels, leaf: NodeId, tabs: &[PanelId], active: usize) -> impl Scene {
+    bsn! {
+        Node {
+            flex_grow: 1.0,
+            min_width: px(0),
+            min_height: px(0),
+            flex_direction: FlexDirection::Column,
+            overflow: Overflow::clip(),
+            border_radius: BorderRadius::all(px(6)),
+        }
+        BackgroundColor(colors::PANE_BG)
+        DockLeafArea(leaf)
+        Children [
+            @tab_bar(panels, leaf, tabs, active)
+            --
+            Node {
+                flex_grow: 1.0,
+                min_height: px(0),
+                width: percent(100),
+                flex_direction: FlexDirection::Column,
+            }
+            LeafContentSlot(leaf)
+        ]
+    }
+}
+
+/// Makes a tab: switches to its panel on click, and moves the panel when dragged.
+fn tab(look: Box<dyn Scene>, leaf: NodeId, index: usize, panel: PanelId) -> impl Scene {
+    let handle = DragsPanel(panel);
+    bsn! {
+        @{look}
+        Button
+        DockTab { leaf: leaf, index: index }
+        handle
+        on(interact::click_tab)
+        on(interact::start_panel_drag)
+        on(interact::drag_panel)
+        on(interact::end_panel_drag)
+    }
+}
+
+/// The grip at the end of a tab bar; dragging it moves the leaf's active panel.
+fn grip(panel: Option<PanelId>) -> Vec<Box<dyn Scene>> {
+    panel
+        .map(|panel| -> Box<dyn Scene> {
+            let handle = DragsPanel(panel);
+            Box::new(bsn! {
+                Node {
+                    width: px(12),
+                    padding: UiRect::axes(px(1), px(3)),
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::Center,
+                    flex_shrink: 0.0,
+                }
+                handle
+                EntityCursor::System(SystemCursorIcon::Grab)
+                on(interact::start_panel_drag)
+                on(interact::drag_panel)
+                on(interact::end_panel_drag)
+                Children [ @icon_sq(icons::GRIP_VERTICAL, 12.0, ink::B3B3) Pickable::IGNORE ]
+            })
+        })
+        .into_iter()
+        .collect()
+}
+
+/// Titled tabs along the top of the leaf.
+fn tab_bar(panels: &Panels, leaf: NodeId, tabs: &[PanelId], active: usize) -> impl Scene {
+    let tab_items = tabs
+        .iter()
+        .enumerate()
+        .map(|(index, panel)| {
+            let title = panels.get(*panel).title();
+            let look: Box<dyn Scene> = if index == active {
+                Box::new(active_tab(title))
+            } else {
+                Box::new(inactive_tab(title))
+            };
+            tab(look, leaf, index, *panel)
+        })
+        .collect::<Vec<_>>();
+    let grip = grip(tabs.get(active).copied());
+
+    bsn! {
+        Node {
+            height: px(30),
+            width: percent(100),
+            flex_shrink: 0.0,
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::SpaceBetween,
+            padding: UiRect { left: px(6), right: px(8), top: px(1) },
+            border: UiRect { left: px(1), right: px(1), top: px(1) },
+            border_radius: BorderRadius::top(px(6)),
+        }
+        BackgroundColor(colors::WINDOW_BG)
+        BorderColor { top: colors::PANEL_BORDER, left: colors::PANEL_BORDER, right: colors::PANEL_BORDER }
+        Children [
+            Node {
+                height: percent(100),
+                align_items: AlignItems::Center,
+                column_gap: px(5),
+            }
+            Children [
+                {tab_items}
+                --
+                @icon_sq(icons::PLUS, 18.0, ink::A8A8)
+            ]
+            --
+            {grip}
+        ]
+    }
+}
+
+fn active_tab(title: String) -> impl Scene {
+    bsn! {
+        Node {
+            height: percent(100),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            padding: UiRect::horizontal(px(8)),
+            border: UiRect { top: px(2) },
+            border_radius: BorderRadius::top(px(2)),
+        }
+        BackgroundColor(colors::PANE_BG)
+        BorderColor { top: colors::ACCENT }
+        Children [
+            @label(title, ink::F2F2)
+            --
+            // Concave corners that blend the tab into the panel below it.
+            @tab_corner()
+            Node { position_type: PositionType::Absolute, bottom: px(0), right: px(-4) }
+            --
+            @tab_corner()
+            Node { position_type: PositionType::Absolute, bottom: px(0), left: px(-4) }
+            UiTransform { scale: Vec2::new(-1.0, 1.0) }
+        ]
+    }
+}
+
+fn tab_corner() -> impl Scene {
+    bsn! {
+        @icon_sq(icons::TAB_CORNER, 4.0, ink::TAB_CORNER)
+        Pickable::IGNORE
+    }
+}
+
+fn inactive_tab(title: String) -> impl Scene {
+    bsn! {
+        Node {
+            height: percent(100),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            padding: UiRect::horizontal(px(8)),
+        }
+        Children [ @label(title, ink::A8A8) ]
+    }
+}

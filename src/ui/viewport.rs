@@ -1,78 +1,29 @@
-//! Viewport grid: three views of the edited scene, each with its own tool bar.
+//! Viewport panels: a tool bar above a live view of the edited scene.
 //!
-//! Every viewport is a UI node showing the output of its own 3D camera
-//! ([`ViewportNode`]), so the views are live renders, not images.
+//! Each view is a UI node showing the output of its own editor camera
+//! (see [`crate::editor_camera`]).
 
-use bevy::{
-    camera::RenderTarget, feathers::constants::icons, prelude::*,
-    render::render_resource::TextureFormat, ui::widget::ViewportNode,
-};
+use bevy::{feathers::constants::icons, prelude::*};
 
 use super::{
     style::{colors, hex, icon, icon_sq, ink, label},
-    widgets::{grip, vertical_divider},
+    widgets::vertical_divider,
 };
-
-/// Background of the 3D views.
-const VIEWPORT_CLEAR: Color = hex(0x3B3B3B);
 
 /// Marks the node that displays viewport `index` (0 = main view).
 #[derive(Component, Clone, Copy, Default)]
 pub struct ViewportSlot(pub u8);
 
-/// Camera poses for the three views, looking at the origin.
-const CAMERA_POSITIONS: [Vec3; 3] = [
-    Vec3::new(-5.5, 3.2, 6.5),
-    Vec3::new(-6.5, 3.0, 5.0),
-    Vec3::new(-6.5, 1.5, 5.0),
-];
-
-pub fn viewport_grid() -> impl Scene {
-    bsn! {
-        Node {
-            flex_grow: 1.0,
-            min_height: px(0),
-            width: percent(100),
-            column_gap: px(4),
-        }
-        Children [
-            // Main view.
-            Node {
-                flex_grow: 1.0,
-                min_width: px(0),
-                height: percent(100),
-                flex_direction: FlexDirection::Column,
-                overflow: Overflow::clip(),
-                border_radius: BorderRadius::all(px(6)),
-            }
-            Children [ @viewport_pane(0, true) ]
-            --
-            // Two secondary views stacked on the right.
-            Node {
-                width: px(351),
-                flex_shrink: 0.0,
-                height: percent(100),
-                flex_direction: FlexDirection::Column,
-                row_gap: px(4),
-            }
-            Children [
-                @viewport_pane(1, false)
-                --
-                @viewport_pane(2, false)
-            ]
-        ]
-    }
-}
-
-fn viewport_pane(index: u8, active: bool) -> impl Scene {
+/// A viewport panel: tool bar above a live 3D view.
+///
+/// `active` shows the tool bar's "snapping on" state, as the design does for the main view.
+pub fn viewport_content(index: u8, active: bool) -> impl Scene {
     bsn! {
         Node {
             flex_grow: 1.0,
             min_height: px(0),
             width: percent(100),
             flex_direction: FlexDirection::Column,
-            overflow: Overflow::clip(),
-            border_radius: BorderRadius::all(px(5)),
         }
         Children [
             @viewport_toolbar(active)
@@ -90,6 +41,7 @@ fn viewport_pane(index: u8, active: bool) -> impl Scene {
             Children [
                 Node { width: px(53.947), height: px(50) }
                 ImageNode { image: "axis-gizmo.png" }
+                Pickable::IGNORE
             ]
         ]
     }
@@ -117,7 +69,7 @@ fn viewport_toolbar(active: bool) -> impl Scene {
             align_items: AlignItems::Center,
             justify_content: JustifyContent::SpaceBetween,
             border: UiRect::all(px(1)),
-            border_radius: BorderRadius::top(px(6)),
+
         }
         BackgroundColor(colors::WINDOW_BG)
         BorderColor { top: colors::PANEL_BORDER, bottom: colors::PANEL_BORDER, left: colors::PANEL_BORDER, right: colors::PANEL_BORDER }
@@ -166,37 +118,7 @@ fn viewport_toolbar(active: bool) -> impl Scene {
                 BorderColor { top: value_border, bottom: value_border, left: value_border, right: value_border }
                 Children [ @label("5.00", ink::B9B9) ]
             ]
-            --
-            @grip()
         ]
-    }
-}
-
-/// Spawns a camera for every new viewport node and connects the two.
-pub(super) fn attach_viewport_cameras(
-    mut commands: Commands,
-    slots: Query<(Entity, &ViewportSlot), Without<ViewportNode>>,
-    mut images: ResMut<Assets<Image>>,
-) {
-    for (node, slot) in &slots {
-        // The render target is resized to the node's size by `ViewportNode`.
-        let image = Image::new_target_texture(1, 1, TextureFormat::Bgra8UnormSrgb, None);
-        let position = CAMERA_POSITIONS[slot.0 as usize % CAMERA_POSITIONS.len()];
-        let camera = commands
-            .spawn((
-                Name::new(format!("Viewport Camera {}", slot.0)),
-                Camera3d::default(),
-                Camera {
-                    // Render before the UI camera that displays the result.
-                    order: -1 - slot.0 as isize,
-                    clear_color: ClearColorConfig::Custom(VIEWPORT_CLEAR),
-                    ..default()
-                },
-                RenderTarget::Image(images.add(image).into()),
-                Transform::from_translation(position).looking_at(Vec3::new(0.0, 0.8, 0.0), Vec3::Y),
-            ))
-            .id();
-        commands.entity(node).insert(ViewportNode::new(camera));
     }
 }
 

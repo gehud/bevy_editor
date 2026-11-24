@@ -1,4 +1,4 @@
-//! Pieces shared by several panels: panel tab bars, search fields, wide buttons.
+//! Pieces shared by several panels: search fields, wide buttons, dividers.
 
 use bevy::{
     feathers::{
@@ -11,114 +11,9 @@ use bevy::{
 };
 
 use super::{
-    style::{HoverBackground, Weight, colors, icon_sq, ink, label, text},
+    style::{HoverBackground, Weight, colors, icon_sq, ink, text},
     tokens,
 };
-
-/// One tab in a panel's top bar.
-pub struct PanelTab {
-    pub title: &'static str,
-    pub active: bool,
-}
-
-/// Top bar of a side panel: tabs, an "add tab" button and a drag grip.
-pub fn panel_top_bar(tabs: Vec<PanelTab>, border: Color) -> impl Scene {
-    let tabs = tabs
-        .into_iter()
-        .map(|tab| -> Box<dyn SceneList> {
-            if tab.active {
-                Box::new(bsn_list! { @active_panel_tab(tab.title) })
-            } else {
-                Box::new(bsn_list! { @inactive_panel_tab(tab.title) })
-            }
-        })
-        .collect::<Vec<_>>();
-
-    bsn! {
-        Node {
-            height: px(30),
-            width: percent(100),
-            flex_shrink: 0.0,
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::SpaceBetween,
-            padding: UiRect { left: px(6), right: px(8), top: px(1) },
-            border: UiRect { left: px(1), right: px(1), top: px(1) },
-            border_radius: BorderRadius::top(px(6)),
-        }
-        BackgroundColor(colors::WINDOW_BG)
-        BorderColor { top: border, left: border, right: border }
-        Children [
-            Node {
-                height: percent(100),
-                align_items: AlignItems::Center,
-                column_gap: px(5),
-            }
-            Children [
-                {tabs}
-                --
-                @icon_sq(icons::PLUS, 18.0, ink::A8A8)
-            ]
-            --
-            @grip()
-        ]
-    }
-}
-
-fn active_panel_tab(title: &'static str) -> impl Scene {
-    bsn! {
-        Node {
-            height: percent(100),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            padding: UiRect::horizontal(px(8)),
-            border: UiRect { top: px(2) },
-            border_radius: BorderRadius::top(px(2)),
-        }
-        BackgroundColor(colors::PANE_BG)
-        BorderColor { top: colors::ACCENT }
-        Children [
-            @label(title, ink::F2F2)
-            --
-            // Concave corners that blend the tab into the bar below it.
-            @tab_corner()
-            Node { position_type: PositionType::Absolute, bottom: px(0), right: px(-4) }
-            --
-            @tab_corner()
-            Node { position_type: PositionType::Absolute, bottom: px(0), left: px(-4) }
-            UiTransform { scale: Vec2::new(-1.0, 1.0) }
-        ]
-    }
-}
-
-fn tab_corner() -> impl Scene {
-    icon_sq(icons::TAB_CORNER, 4.0, ink::TAB_CORNER)
-}
-
-fn inactive_panel_tab(title: &'static str) -> impl Scene {
-    bsn! {
-        Node {
-            height: percent(100),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            padding: UiRect::horizontal(px(8)),
-        }
-        Children [ @label(title, ink::A8A8) ]
-    }
-}
-
-/// The vertical grip used to drag panels around.
-pub fn grip() -> impl Scene {
-    bsn! {
-        Node {
-            width: px(12),
-            padding: UiRect::axes(px(1), px(3)),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            flex_shrink: 0.0,
-        }
-        Children [ @icon_sq(icons::GRIP_VERTICAL, 12.0, ink::B3B3) ]
-    }
-}
 
 /// An editable search / filter field with a placeholder and a trailing icon.
 pub fn search_field(

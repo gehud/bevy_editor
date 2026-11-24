@@ -1,6 +1,7 @@
 //! The editor window's user interface, built with `bevy_feathers`.
 //!
-//! Layout follows the "Bevy Editor" Figma design:
+//! Panels live in a docking layout ([`dock`]) that starts out as the "Bevy Editor" Figma
+//! design:
 //!
 //! ```text
 //! ┌ title bar ──────────────────────────────────────────────────────────────┐
@@ -13,7 +14,9 @@
 //! ```
 
 mod asset_browser;
+mod dock;
 mod inspector;
+mod panels;
 mod scene_tree;
 mod status_bar;
 mod style;
@@ -34,6 +37,8 @@ use bevy::{
 
 use style::colors;
 
+pub use viewport::ViewportSlot;
+
 /// Theme tokens the editor adds on top of the feathers dark theme.
 pub mod tokens {
     use bevy::feathers::theme::ThemeToken;
@@ -46,8 +51,12 @@ pub struct EditorUiPlugin;
 
 impl Plugin for EditorUiPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(FeathersPlugins)
+        let panels = panels::Panels::default();
+        let layout = panels::default_layout(&panels);
+        app.add_plugins((FeathersPlugins, dock::DockPlugin))
             .insert_resource(UiTheme(editor_theme()))
+            .insert_resource(panels)
+            .insert_resource(layout)
             .init_resource::<window_frame::WindowMaximized>()
             .add_systems(
                 Startup,
@@ -61,7 +70,6 @@ impl Plugin for EditorUiPlugin {
                 Update,
                 (
                     style::update_hover_backgrounds,
-                    viewport::attach_viewport_cameras,
                     viewport::draw_grid,
                     (
                         window_frame::sync_window_maximized,
@@ -105,7 +113,7 @@ fn editor_root() -> impl Scene {
         Children [
             @title_bar::title_bar()
             --
-            // Editor area: three columns above a status bar.
+            // Editor area: the dock above a status bar.
             Node {
                 flex_grow: 1.0,
                 min_height: px(0),
@@ -118,27 +126,8 @@ fn editor_root() -> impl Scene {
                     flex_grow: 1.0,
                     min_height: px(0),
                     width: percent(100),
-                    column_gap: px(4),
                 }
-                Children [
-                    @scene_tree::left_column()
-                    --
-                    // Middle column: viewports above the bottom panel.
-                    Node {
-                        flex_grow: 1.0,
-                        min_width: px(0),
-                        height: percent(100),
-                        flex_direction: FlexDirection::Column,
-                        row_gap: px(4),
-                    }
-                    Children [
-                        @viewport::viewport_grid()
-                        --
-                        @asset_browser::bottom_panel()
-                    ]
-                    --
-                    @inspector::inspector_panel()
-                ]
+                dock::DockRoot
                 --
                 @status_bar::status_bar()
             ]

@@ -36,8 +36,6 @@ pub mod colors {
     pub const TOGGLE_ACTIVE_BG: Color = hex(0x505050);
     /// Selection outline, active tab marker.
     pub const ACCENT: Color = palette::ACCENT; // #206EC9
-    /// Selected bottom-bar button indicator.
-    pub const SELECTOR: Color = hex(0x0F6CBD);
     /// Marker of the "Schedule Explorer" document tab.
     pub const TAB_MARKER_YELLOW: Color = hex(0xFFCA39);
 
@@ -45,8 +43,6 @@ pub mod colors {
     pub const WINDOW_BORDER: Color = hex(0x404040);
     /// Border of the left panels and viewport toolbars.
     pub const PANEL_BORDER: Color = hex(0x303030);
-    /// Border of the right panel and the bottom bar.
-    pub const PANEL_BORDER_ALT: Color = hex(0x373737);
     /// Inputs and component cards.
     pub const ITEM_BORDER: Color = palette::WARM_GRAY_1; // #414142
     /// Tree guide lines.

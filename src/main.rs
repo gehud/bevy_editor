@@ -1,6 +1,7 @@
 //! Bevy Editor: a scene editor, asset inspector and plugin host for Bevy.
 
 mod dev;
+mod editor_camera;
 mod ui;
 
 use bevy::{prelude::*, window::WindowResolution};
@@ -17,6 +18,10 @@ fn main() {
             }),
             ..default()
         }))
-        .add_plugins((ui::EditorUiPlugin, dev::DevPlugin))
+        .add_plugins((
+            ui::EditorUiPlugin,
+            editor_camera::EditorCameraPlugin,
+            dev::DevPlugin,
+        ))
         .run();
 }

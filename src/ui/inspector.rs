@@ -1,4 +1,4 @@
-//! Right panel: Components / Resources / Systems, showing the selected entity's components.
+//! The Components panel: the selected entity's components.
 //!
 //! The cards reproduce the design's sample (a Transform and a reflected component). The number
 //! fields are live `bevy_feathers` number inputs; wiring them to the selected entity through
@@ -16,53 +16,35 @@ use bevy::{
 
 use super::{
     style::{Weight, colors, icon_sq, ink, label, text},
-    widgets::{PanelTab, filter_bar, panel_top_bar, wide_button},
+    widgets::{filter_bar, wide_button},
 };
 
-pub fn inspector_panel() -> impl Scene {
+/// Components panel contents: filter, "Add Component" and the component cards.
+pub fn components_content() -> impl Scene {
     bsn! {
         Node {
-            width: px(310),
-            height: percent(100),
-            flex_shrink: 0.0,
+            flex_grow: 1.0,
+            min_height: px(0),
             flex_direction: FlexDirection::Column,
-            overflow: Overflow::clip(),
-            border_radius: BorderRadius::all(px(6)),
+            row_gap: px(8),
+            padding: UiRect::all(px(6)),
         }
-        BackgroundColor(colors::PANE_BG)
         Children [
-            @panel_top_bar(
-                vec![
-                    PanelTab { title: "Components", active: true },
-                    PanelTab { title: "Resources", active: false },
-                    PanelTab { title: "Systems", active: false },
-                ],
-                colors::PANEL_BORDER_ALT,
-            )
-            --
-            Node {
-                flex_grow: 1.0,
-                min_height: px(0),
-                flex_direction: FlexDirection::Column,
-                row_gap: px(8),
-                padding: UiRect::all(px(6)),
-            }
+            Node { flex_direction: FlexDirection::Column, row_gap: px(6), width: percent(100) }
             Children [
-                Node { flex_direction: FlexDirection::Column, row_gap: px(6), width: percent(100) }
-                Children [
-                    @filter_bar()
-                    --
-                    @wide_button(icons::PACKAGE_PLUS, "Add Component")
-                ]
+                @filter_bar()
                 --
-                Node { flex_direction: FlexDirection::Column, row_gap: px(6), width: percent(100) }
-                Children [
-                    @transform_card()
-                    --
-                    @reflected_card()
-                ]
+                @wide_button(icons::PACKAGE_PLUS, "Add Component")
+            ]
+            --
+            Node { flex_direction: FlexDirection::Column, row_gap: px(6), width: percent(100) }
+            Children [
+                @transform_card()
+                --
+                @reflected_card()
             ]
         ]
+        BackgroundColor(colors::PANE_BG)
     }
 }
 
