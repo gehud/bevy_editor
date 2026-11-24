@@ -19,7 +19,7 @@ use bevy::{
     input_focus::InputFocus,
     prelude::*,
     render::render_resource::TextureFormat,
-    ui::{UiGlobalTransform, widget::ViewportNode},
+    ui::{UiGlobalTransform, UiSystems, widget::ViewportNode},
     window::{CursorGrabMode, CursorOptions, PrimaryWindow},
 };
 
@@ -55,14 +55,17 @@ pub struct EditorCameraPlugin;
 
 impl Plugin for EditorCameraPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<Navigation>().add_systems(
-            Update,
-            (
-                attach_viewport_cameras,
-                pause_hidden_cameras,
-                (begin_end_navigation, fly, pan, dolly).chain(),
-            ),
-        );
+        app.init_resource::<Navigation>()
+            .add_systems(
+                Update,
+                (
+                    attach_viewport_cameras,
+                    (begin_end_navigation, fly, pan, dolly).chain(),
+                ),
+            )
+            // After layout, so a viewport that just became visible renders in the same frame
+            // instead of showing an empty image for one frame.
+            .add_systems(PostUpdate, pause_hidden_cameras.after(UiSystems::Layout));
     }
 }
 

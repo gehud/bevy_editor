@@ -125,9 +125,12 @@ pub(super) fn rebuild_dock(
     for &child in children.into_iter().flatten() {
         commands.entity(child).despawn();
     }
+    // Spawn immediately rather than queued: a queued spawn can land a frame later, which
+    // would show the dock empty for a frame (visible as flicker on every tab switch or drop).
+    let tree = vec![node_scene(&layout, &panels, layout.root())];
     commands
         .entity(root)
-        .queue_spawn_related_scenes::<Children>(vec![node_scene(&layout, &panels, layout.root())]);
+        .apply_scene(bsn! { Children [ {tree} ] });
 }
 
 /// Puts each leaf's active panel into the leaf, and every other panel into the stash.
