@@ -823,6 +823,7 @@ name = "bevy_editor"
 version = "0.1.0"
 dependencies = [
  "bevy",
+ "bevy_ui_svg",
 ]
 
 [[package]]
@@ -1751,6 +1752,14 @@ dependencies = [
  "indexmap",
  "smallvec",
  "tracing",
+]
+
+[[package]]
+name = "bevy_ui_svg"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "resvg",
 ]
 
 [[package]]
@@ -4600,13 +4609,6 @@ name = "range-alloc"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ca45419789ae5a7899559e9512e58ca889e41f04f1f2445e9f4b290ceccd1d08"
-
-[[package]]
-name = "rasterize_svg"
-version = "0.1.0"
-dependencies = [
- "resvg",
-]
 
 [[package]]
 name = "raw-window-handle"

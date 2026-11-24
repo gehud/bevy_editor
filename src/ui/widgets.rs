@@ -2,13 +2,14 @@
 
 use bevy::{
     feathers::{
-        constants::icons,
         controls::{FeathersTextInput, FeathersTextInputContainer, text_input_placeholder},
         theme::InheritableThemeTextColor,
     },
     prelude::*,
     ui_widgets::Button,
 };
+
+use crate::ui::icons;
 
 use super::{
     style::{HoverBackground, Weight, colors, icon_sq, ink, text},

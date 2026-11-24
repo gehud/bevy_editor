@@ -3,7 +3,9 @@
 //! Both trees currently show the sample content from the design. Binding the Scene Tree to the
 //! edited world and Project Files to the file system are the next steps.
 
-use bevy::{feathers::constants::icons, prelude::*, ui_widgets::Button};
+use bevy::{prelude::*, ui_widgets::Button};
+
+use crate::ui::icons;
 
 use super::{
     style::{HoverBackground, Weight, colors, icon_sq, ink, label, text},

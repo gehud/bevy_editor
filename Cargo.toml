@@ -11,10 +11,11 @@ dev = ["bevy/dynamic_linking"]
 
 [dependencies]
 bevy = { workspace = true }
+bevy_ui_svg = { path = "crates/bevy_ui_svg" }
 
 [workspace]
 # The Bevy fork is a git submodule with its own workspace; keep it out of ours.
-members = ["tools/rasterize_svg"]
+members = ["crates/*"]
 exclude = ["bevy"]
 
 [workspace.dependencies]

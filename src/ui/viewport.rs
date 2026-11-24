@@ -3,7 +3,11 @@
 //! Each view is a UI node showing the output of its own editor camera
 //! (see [`crate::editor_camera`]).
 
-use bevy::{feathers::constants::icons, prelude::*};
+use bevy::prelude::*;
+
+use bevy_ui_svg::SvgIcon;
+
+use crate::ui::icons;
 
 use super::{
     style::{colors, hex, icon, icon_sq, ink, label},
@@ -78,7 +82,7 @@ fn viewport_toolbar(active: bool) -> impl Scene {
             Children [
                 // Select tool (active: the image includes its highlighted background).
                 Node { width: px(18), height: px(19), margin: UiRect::top(px(1)) }
-                ImageNode { image: "icons/select-tool-active.png" }
+                SvgIcon { svg: icons::SELECT_TOOL_ACTIVE, mask: false, trim: false }
                 --
                 @vertical_divider()
                 --

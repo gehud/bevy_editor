@@ -1,6 +1,8 @@
 //! Footer: VCS branch, project build, error / warning counters.
 
-use bevy::{feathers::constants::icons, prelude::*};
+use bevy::prelude::*;
+
+use crate::ui::icons;
 
 use super::style::{icon, icon_sq, ink, label};
 

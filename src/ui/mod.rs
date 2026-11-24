@@ -15,6 +15,7 @@
 
 mod asset_browser;
 mod dock;
+pub mod icons;
 mod inspector;
 mod panels;
 mod scene_tree;
@@ -53,7 +54,7 @@ impl Plugin for EditorUiPlugin {
     fn build(&self, app: &mut App) {
         let panels = panels::Panels::default();
         let layout = panels::default_layout(&panels);
-        app.add_plugins((FeathersPlugins, dock::DockPlugin))
+        app.add_plugins((FeathersPlugins, bevy_ui_svg::SvgPlugin, dock::DockPlugin))
             .insert_resource(UiTheme(editor_theme()))
             .insert_resource(panels)
             .insert_resource(layout)

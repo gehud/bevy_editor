@@ -3,7 +3,9 @@
 //! The browser shows the design's sample folder; reading the real `assets/` directory is
 //! a follow-up.
 
-use bevy::{feathers::constants::icons, prelude::*, ui_widgets::Button};
+use bevy::{prelude::*, ui_widgets::Button};
+
+use crate::ui::icons;
 
 use super::{
     style::{HoverBackground, Weight, colors, icon_sq, ink, text},

@@ -6,13 +6,14 @@
 
 use bevy::{
     feathers::{
-        constants::icons,
         controls::{FeathersNumberInput, NumberInputValue},
         palette, tokens as feathers_tokens,
     },
     prelude::*,
     ui_widgets::Button,
 };
+
+use crate::ui::icons;
 
 use super::{
     style::{Weight, colors, icon_sq, ink, label, text},

@@ -1,0 +1,10 @@
+[package]
+name = "bevy_ui_svg"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Crisp SVG icons for bevy_ui: rasterized at each node's exact physical size."
+
+[dependencies]
+bevy = { workspace = true }
+resvg = "0.50"

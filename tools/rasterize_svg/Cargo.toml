@@ -1,9 +1,0 @@
-[package]
-name = "rasterize_svg"
-version = "0.1.0"
-edition = "2024"
-publish = false
-description = "Rasterizes design SVG icons into PNGs Bevy can load."
-
-[dependencies]
-resvg = "0.50"

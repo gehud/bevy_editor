@@ -9,6 +9,7 @@ use bevy::{
     prelude::*,
     text::{FontSourceTemplate, FontWeight},
 };
+use bevy_ui_svg::SvgIcon;
 
 /// Builds an opaque color from a `0xRRGGBB` literal, so values can be copied from the design.
 pub const fn hex(rgb: u32) -> Color {
@@ -140,9 +141,10 @@ pub fn label(value: impl Into<String>, color: Color) -> impl Scene {
     text(value, 12.0, Weight::Regular, color)
 }
 
-/// An icon image of a fixed size, tinted with `color`.
+/// An icon of a fixed size, tinted with `color`.
 ///
-/// Icons are white masks (see `tools/rasterize_svg`), so the tint is the icon's color.
+/// `path` is an SVG (see [`super::icons`]). It is rendered as a white silhouette at the node's
+/// exact pixel size and colored with `color`, so it stays sharp at any size and display scale.
 pub fn icon(path: &'static str, width: f32, height: f32, color: Color) -> impl Scene {
     bsn! {
         Node {
@@ -150,10 +152,8 @@ pub fn icon(path: &'static str, width: f32, height: f32, color: Color) -> impl S
             height: px(height),
             flex_shrink: 0.0,
         }
-        ImageNode {
-            image: path,
-            color: color,
-        }
+        SvgIcon { svg: path, mask: true, trim: false }
+        ImageNode { color: color }
     }
 }
 

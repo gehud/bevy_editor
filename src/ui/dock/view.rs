@@ -6,9 +6,10 @@
 //! Contents not on screen wait in a hidden "stash" node.
 
 use bevy::{
-    feathers::constants::icons, picking::cursor::EntityCursor, prelude::*, ui_widgets::Button,
-    window::SystemCursorIcon,
+    picking::cursor::EntityCursor, prelude::*, ui_widgets::Button, window::SystemCursorIcon,
 };
+
+use crate::ui::icons;
 
 use super::{
     interact,

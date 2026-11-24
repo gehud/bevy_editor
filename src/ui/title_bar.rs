@@ -5,12 +5,15 @@
 
 use bevy::{
     app::AppExit,
-    feathers::constants::icons,
     picking::events::{PointerClick, PointerPress},
     prelude::*,
     text::{FontSourceTemplate, FontWeight},
     ui_widgets::Button,
 };
+
+use bevy_ui_svg::SvgIcon;
+
+use crate::ui::icons;
 
 use super::{
     style::{HoverBackground, Weight, colors, icon, icon_sq, ink, label, text},
@@ -84,7 +87,8 @@ fn logo() -> impl Scene {
                     width: percent(93.71),
                     height: percent(69.23),
                 }
-                ImageNode { image: "bevy-logo.png" }
+                // Bevy's own logo (assets/branding/bevy_bird_dark.svg), trimmed to the birds.
+                SvgIcon { svg: icons::BEVY_LOGO, mask: false, trim: true }
             ]
             --
             @text("Bevy", 13.5, Weight::Bold, ink::ECEC)

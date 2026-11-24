@@ -1,0 +1,5 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="lucide/calendar-search">
+<path id="Vector" d="M8 1V3M10.5 5.875V3C10.5 2.73478 10.3946 2.48043 10.2071 2.29289C10.0196 2.10536 9.76522 2 9.5 2H2.5C2.23478 2 1.98043 2.10536 1.79289 2.29289C1.60536 2.48043 1.5 2.73478 1.5 3V10C1.5 10.2652 1.60536 10.5196 1.79289 10.7071C1.98043 10.8946 2.23478 11 2.5 11H6.125M11 11L10.0625 10.0625M1.5 5H10.5M4 1V3M10.5 9C10.5 9.82843 9.82843 10.5 9 10.5C8.17157 10.5 7.5 9.82843 7.5 9C7.5 8.17157 8.17157 7.5 9 7.5C9.82843 7.5 10.5 8.17157 10.5 9Z" stroke-linecap="round" stroke-linejoin="round" stroke="#838385"/>
+</g>
+</svg>
