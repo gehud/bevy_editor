@@ -3,12 +3,15 @@
 //! The OS title bar is disabled (`Window::decorations = false`), so this bar also moves the
 //! window when dragged and provides minimize / maximize / close.
 
+use std::time::{Duration, Instant};
+
 use bevy::{
     app::AppExit,
     picking::events::{PointerClick, PointerPress},
     prelude::*,
     text::{FontSourceTemplate, FontWeight},
     ui_widgets::Button,
+    window::WindowPosition,
 };
 
 use bevy_ui_svg::SvgIcon;
@@ -317,21 +320,52 @@ pub(super) fn update_maximize_glyph(
     }
 }
 
+/// Longest gap between the two presses of a title-bar double-click (the Windows default).
+const DOUBLE_CLICK_TIME: Duration = Duration::from_millis(500);
+/// How far the pointer may move between the two presses of a double-click, in logical pixels.
+const DOUBLE_CLICK_SLOP: f32 = 4.0;
+
+/// The previous press on the title bar, for double-click detection.
+struct TitleBarPress {
+    at: Instant,
+    pointer: Vec2,
+    window_position: WindowPosition,
+}
+
 /// On an empty part of the title bar: drag moves the window, double-click maximizes or
 /// restores it.
+///
+/// Double-clicks are detected here rather than with [`PointerPress::count`]: that count uses
+/// frame time, which stands still while the OS runs its window-move loop, so the first press
+/// after any drag would look like a double-click. Here, a second press only counts if it
+/// comes soon enough by the wall clock and the window did not move in between.
 fn start_window_drag(
     press: On<PointerPress>,
     drag_areas: Query<(), With<DragsWindow>>,
     mut window: Single<&mut Window>,
     maximized: Res<WindowMaximized>,
+    mut previous: Local<Option<TitleBarPress>>,
 ) {
     if press.button != PointerButton::Primary || !drag_areas.contains(press.original_event_target())
     {
         return;
     }
-    if press.count >= 2 {
+    let now = Instant::now();
+    let pointer = press.pointer.position;
+    let is_double_click = previous.take().is_some_and(|first| {
+        now.duration_since(first.at) <= DOUBLE_CLICK_TIME
+            && first.pointer.distance(pointer) <= DOUBLE_CLICK_SLOP
+            && first.window_position == window.position
+    });
+
+    if is_double_click {
         window.set_maximized(!maximized.0);
     } else {
+        *previous = Some(TitleBarPress {
+            at: now,
+            pointer,
+            window_position: window.position,
+        });
         window.start_drag_move();
     }
 }
