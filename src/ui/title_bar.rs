@@ -12,14 +12,17 @@ use bevy::{
     ui_widgets::Button,
 };
 
-use super::style::{HoverBackground, Weight, colors, icon, icon_sq, ink, label, text};
+use super::{
+    style::{HoverBackground, Weight, colors, icon, icon_sq, ink, label, text},
+    window_frame::WindowMaximized,
+};
 
 /// Marks title-bar areas that start a window drag when pressed.
 #[derive(Component, Clone, Default)]
 pub struct DragsWindow;
 
 #[derive(Component, Clone, Copy, Default, PartialEq)]
-enum CaptionButton {
+pub(super) enum CaptionButton {
     #[default]
     Minimize,
     Maximize,
@@ -227,7 +230,7 @@ fn caption_buttons() -> impl Scene {
         Children [
             @caption_button(CaptionButton::Minimize, "\u{E921}", colors::CAPTION_HOVER)
             --
-            @caption_button(CaptionButton::Maximize, "\u{E922}", colors::CAPTION_HOVER)
+            @caption_button(CaptionButton::Maximize, MAXIMIZE_GLYPH, colors::CAPTION_HOVER)
             --
             @caption_button(CaptionButton::Close, "\u{E8BB}", colors::CAPTION_CLOSE_HOVER)
             Node { border_radius: BorderRadius::top_right(px(7)) }
@@ -266,7 +269,7 @@ fn caption_button_click(
     click: On<PointerClick>,
     buttons: Query<&CaptionButton>,
     mut window: Single<&mut Window>,
-    mut maximized: ResMut<WindowMaximized>,
+    maximized: Res<WindowMaximized>,
     mut exit: MessageWriter<AppExit>,
 ) {
     let Ok(button) = buttons.get(click.entity) else {
@@ -274,37 +277,56 @@ fn caption_button_click(
     };
     match button {
         CaptionButton::Minimize => window.set_minimized(true),
-        CaptionButton::Maximize => maximized.toggle(&mut window),
+        CaptionButton::Maximize => window.set_maximized(!maximized.0),
         CaptionButton::Close => {
             exit.write(AppExit::Success);
         }
     }
 }
 
-/// Whether the editor window is maximized. Tracked here because `Window` has no getter for it.
-#[derive(Resource, Default)]
-pub struct WindowMaximized(bool);
+/// Glyphs of the maximize button: "maximize" normally, "restore" while maximized.
+const MAXIMIZE_GLYPH: &str = "\u{E922}";
+const RESTORE_GLYPH: &str = "\u{E923}";
 
-impl WindowMaximized {
-    fn toggle(&mut self, window: &mut Window) {
-        self.0 = !self.0;
-        window.set_maximized(self.0);
+/// Switches the maximize button between its maximize and restore glyphs.
+pub(super) fn update_maximize_glyph(
+    maximized: Res<WindowMaximized>,
+    buttons: Query<(&CaptionButton, &Children)>,
+    mut texts: Query<&mut Text>,
+) {
+    let glyph = if maximized.0 {
+        RESTORE_GLYPH
+    } else {
+        MAXIMIZE_GLYPH
+    };
+    for (button, children) in &buttons {
+        if *button != CaptionButton::Maximize {
+            continue;
+        }
+        for &child in children {
+            if let Ok(mut text) = texts.get_mut(child)
+                && text.0 != glyph
+            {
+                text.0 = glyph.to_string();
+            }
+        }
     }
 }
 
-/// On an empty part of the title bar: drag moves the window, double-click maximizes it.
+/// On an empty part of the title bar: drag moves the window, double-click maximizes or
+/// restores it.
 fn start_window_drag(
     press: On<PointerPress>,
     drag_areas: Query<(), With<DragsWindow>>,
     mut window: Single<&mut Window>,
-    mut maximized: ResMut<WindowMaximized>,
+    maximized: Res<WindowMaximized>,
 ) {
     if press.button != PointerButton::Primary || !drag_areas.contains(press.original_event_target())
     {
         return;
     }
     if press.count >= 2 {
-        maximized.toggle(&mut window);
+        window.set_maximized(!maximized.0);
     } else {
         window.start_drag_move();
     }

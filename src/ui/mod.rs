@@ -20,6 +20,7 @@ mod style;
 mod title_bar;
 mod viewport;
 mod widgets;
+mod window_frame;
 
 use bevy::{
     feathers::{
@@ -47,7 +48,7 @@ impl Plugin for EditorUiPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(FeathersPlugins)
             .insert_resource(UiTheme(editor_theme()))
-            .init_resource::<title_bar::WindowMaximized>()
+            .init_resource::<window_frame::WindowMaximized>()
             .add_systems(
                 Startup,
                 (
@@ -62,6 +63,14 @@ impl Plugin for EditorUiPlugin {
                     style::update_hover_backgrounds,
                     viewport::attach_viewport_cameras,
                     viewport::draw_grid,
+                    (
+                        window_frame::sync_window_maximized,
+                        (
+                            title_bar::update_maximize_glyph,
+                            window_frame::toggle_resize_handles,
+                        ),
+                    )
+                        .chain(),
                 ),
             );
     }
@@ -133,6 +142,8 @@ fn editor_root() -> impl Scene {
                 --
                 @status_bar::status_bar()
             ]
+            --
+            @window_frame::resize_handles()
         ]
     }
 }
