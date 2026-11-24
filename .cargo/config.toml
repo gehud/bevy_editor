@@ -1,0 +1,5 @@
+# Fast builds on Windows (see bevy/.cargo/config_fast_builds.toml).
+# Requires: rustup component add llvm-tools
+[target.x86_64-pc-windows-msvc]
+linker = "rust-lld.exe"
+rustdocflags = ["-Clinker=rust-lld.exe"]

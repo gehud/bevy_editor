@@ -3,4 +3,39 @@ name = "bevy_editor"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+default = ["dev"]
+# Fast iteration: link Bevy as a dylib. Disable for release/distribution builds:
+#   cargo build --release --no-default-features
+dev = ["bevy/dynamic_linking"]
+
 [dependencies]
+bevy = { workspace = true }
+
+[workspace]
+# The Bevy fork is a git submodule with its own workspace; keep it out of ours.
+exclude = ["bevy"]
+
+[workspace.dependencies]
+bevy = { path = "bevy", version = "0.20.1" }
+
+# Bevy fork (git submodule at ./bevy, branch `editor/0.20`, based on v0.20.1).
+#
+# Third-party crates (bevy_egui, bevy-inspector-egui, ...) depend on Bevy's
+# sub-crates from crates.io. Every sub-crate they name must be redirected here,
+# otherwise two copies of Bevy get compiled and types won't match.
+# Check with `cargo tree -d`: no `bevy_*` crate should appear twice.
+[patch.crates-io]
+bevy = { path = "bevy" }
+# Add entries as third-party dependencies require them, e.g.:
+# bevy_app     = { path = "bevy/crates/bevy_app" }
+# bevy_ecs     = { path = "bevy/crates/bevy_ecs" }
+# bevy_reflect = { path = "bevy/crates/bevy_reflect" }
+
+# Our own code: light optimization, fast incremental rebuilds.
+[profile.dev]
+opt-level = 1
+
+# Dependencies (including the Bevy fork): fully optimized, rebuilt rarely.
+[profile.dev.package."*"]
+opt-level = 3
