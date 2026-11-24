@@ -1,6 +1,7 @@
 //! Bevy Editor: a scene editor, asset inspector and plugin host for Bevy.
 
 mod dev;
+mod editing;
 mod editor_camera;
 mod grid;
 mod ui;
@@ -21,6 +22,7 @@ fn main() {
         }))
         .add_plugins((
             ui::EditorUiPlugin,
+            editing::EditingPlugin,
             editor_camera::EditorCameraPlugin,
             grid::InfiniteGridPlugin,
             dev::DevPlugin,

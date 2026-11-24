@@ -15,6 +15,8 @@ use bevy::{
     shader::ShaderRef,
 };
 
+use crate::editing::EditorOnly;
+
 const SHADER: &str = "shaders/infinite_grid.wesl";
 
 pub struct InfiniteGridPlugin;
@@ -105,5 +107,6 @@ fn spawn_grid(
         // The shader moves the quad to the camera, so its bounds on the CPU mean nothing.
         NoFrustumCulling,
         NotShadowCaster,
+        EditorOnly,
     ));
 }

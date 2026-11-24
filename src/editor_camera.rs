@@ -23,7 +23,7 @@ use bevy::{
     window::{CursorGrabMode, CursorOptions, PrimaryWindow},
 };
 
-use crate::ui::ViewportSlot;
+use crate::{editing::EditorOnly, ui::ViewportSlot};
 
 /// Background of the 3D views.
 const CLEAR_COLOR: Color = Color::srgb_u8(0x3B, 0x3B, 0x3B);
@@ -167,6 +167,7 @@ fn attach_viewport_cameras(
             .spawn((
                 Name::new(format!("Editor Camera {}", slot.0 + 1)),
                 EditorCamera,
+                EditorOnly,
                 FlyCamera::from_transform(&transform),
                 Camera3d::default(),
                 Camera {

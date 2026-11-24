@@ -5,7 +5,7 @@ use bevy::prelude::*;
 use super::{
     asset_browser,
     dock::{Axis, DockLayout, PanelId},
-    inspector, scene_tree,
+    hierarchy, inspector, project_files,
     style::{colors, ink, label},
     viewport,
 };
@@ -42,8 +42,8 @@ impl PanelKind {
     /// The panel's contents. Spawned once and kept alive while the layout changes.
     pub fn content(self) -> Box<dyn Scene> {
         match self {
-            PanelKind::SceneTree => Box::new(scene_tree::scene_tree_content()),
-            PanelKind::ProjectFiles => Box::new(scene_tree::project_files_content()),
+            PanelKind::SceneTree => Box::new(hierarchy::scene_tree_content()),
+            PanelKind::ProjectFiles => Box::new(project_files::project_files_content()),
             PanelKind::Viewport(index) => Box::new(viewport::viewport_content(index, index == 0)),
             PanelKind::Assets => Box::new(asset_browser::asset_browser_content()),
             PanelKind::Components => Box::new(inspector::components_content()),

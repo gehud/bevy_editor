@@ -61,8 +61,11 @@ cargo fmt && cargo clippy --all-targets
 
 ## Architecture (`src/`)
 
-- `main.rs`: borderless window (`decorations: false`), adds `EditorUiPlugin`,
+- `main.rs`: borderless window (`decorations: false`), adds `EditorUiPlugin`, `EditingPlugin`,
   `EditorCameraPlugin`, `InfiniteGridPlugin`, `DevPlugin`.
+- `editing.rs`: `EditorOnly` marker (editor entities hidden from scene views; UI nodes count as
+  editor-only automatically) and the `Selection` resource. **Mark every editor-owned entity
+  that has a `Transform` with `EditorOnly`.**
 - `grid.rs`: infinite ground grid (custom `Material`; the vertex shader recenters a unit quad
   under whichever camera renders it, so it works in every viewport; `NoFrustumCulling`).
 - `editor_camera.rs`: one `EditorCamera` per viewport panel, created when a `ViewportSlot` node
@@ -83,7 +86,9 @@ cargo fmt && cargo clippy --all-targets
   - Only horizontal tab bars exist, and every leaf shows one (no inlined panel headers).
 - `ui/panels.rs`: `PanelKind` registry (title, content scene) and the default layout, which
   reproduces the Figma arrangement (with a Console placeholder tab next to Assets).
-- Panel contents: `scene_tree.rs` (Scene Tree, Project Files), `viewport.rs` (toolbar, view, demo
+- Panel contents: `hierarchy.rs` (Scene Tree: live world hierarchy; rebuilt only when a row
+  snapshot changes; select, expand/collapse, visibility toggle, Add Entity),
+  `project_files.rs` (Project Files), `viewport.rs` (toolbar, view, demo
   scene), `axis_gizmo.rs` (orientation gizmo per viewport, UI nodes positioned from the camera
   rotation each frame; clicking an axis calls `look_along`), `asset_browser.rs`, `inspector.rs` (Components), plus `title_bar.rs`,
   `status_bar.rs`, `window_frame.rs` (resize zones, maximized state from winit).
@@ -92,9 +97,9 @@ cargo fmt && cargo clippy --all-targets
 
 ## Current state
 
-- Panels show the design's **sample data** (scene tree, files, Transform values). Next steps:
-  bind the Scene Tree to the world, the inspector to reflection, and the files and asset browser
-  to disk.
+- The Scene Tree shows the real world. The other panels still show the design's **sample
+  data** (files, Transform values). Next steps: bind the inspector to the selection via
+  reflection, and the files and asset browser to disk; the Scene Tree filter field is not wired.
 - Not done: layout persistence, the "+" button in tab bars, closing tabs, orthographic axis
   views, and window corner rounding.
 - Known issue: when a viewport changes size, its render looks stretched for one frame (Bevy

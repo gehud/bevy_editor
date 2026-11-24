@@ -16,10 +16,11 @@
 mod asset_browser;
 mod axis_gizmo;
 mod dock;
+mod hierarchy;
 pub mod icons;
 mod inspector;
 mod panels;
-mod scene_tree;
+mod project_files;
 mod status_bar;
 mod style;
 mod title_bar;
@@ -60,6 +61,7 @@ impl Plugin for EditorUiPlugin {
             .insert_resource(panels)
             .insert_resource(layout)
             .init_resource::<window_frame::WindowMaximized>()
+            .init_resource::<hierarchy::SceneTreeState>()
             .add_systems(
                 Startup,
                 (
@@ -76,6 +78,7 @@ impl Plugin for EditorUiPlugin {
                 Update,
                 (
                     style::update_hover_backgrounds,
+                    hierarchy::sync_scene_tree,
                     (
                         window_frame::sync_window_maximized,
                         (
@@ -102,7 +105,12 @@ fn editor_theme() -> ThemeProps {
 }
 
 fn setup_ui_camera(mut commands: Commands) {
-    commands.spawn((Name::new("UI Camera"), Camera2d, IsDefaultUiCamera));
+    commands.spawn((
+        Name::new("UI Camera"),
+        Camera2d,
+        IsDefaultUiCamera,
+        crate::editing::EditorOnly,
+    ));
 }
 
 fn editor_root() -> impl Scene {
