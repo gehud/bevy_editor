@@ -14,6 +14,7 @@
 //! ```
 
 mod asset_browser;
+mod axis_gizmo;
 mod dock;
 pub mod icons;
 mod inspector;
@@ -68,10 +69,13 @@ impl Plugin for EditorUiPlugin {
                 ),
             )
             .add_systems(
+                PostUpdate,
+                axis_gizmo::update_axis_gizmos.before(bevy::ui::UiSystems::Layout),
+            )
+            .add_systems(
                 Update,
                 (
                     style::update_hover_backgrounds,
-                    viewport::draw_grid,
                     (
                         window_frame::sync_window_maximized,
                         (

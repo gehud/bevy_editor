@@ -2,6 +2,7 @@
 
 mod dev;
 mod editor_camera;
+mod grid;
 mod ui;
 
 use bevy::{prelude::*, window::WindowResolution};
@@ -21,6 +22,7 @@ fn main() {
         .add_plugins((
             ui::EditorUiPlugin,
             editor_camera::EditorCameraPlugin,
+            grid::InfiniteGridPlugin,
             dev::DevPlugin,
         ))
         .run();

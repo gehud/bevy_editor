@@ -10,7 +10,7 @@ plugins. The UI is built with `bevy_feathers` and follows a Figma design.
 - `src/` is the editor binary (crate `bevy_editor`).
 - `crates/bevy_ui_svg/` renders SVG icons in `bevy_ui` at each node's exact pixel size (Bevy has
   no SVG support, and down-scaled bitmaps look jagged).
-- `assets/` holds editor-only assets loaded from disk: `icons/*.svg`, the axis gizmo image.
+- `assets/` holds editor-only assets loaded from disk: `icons/*.svg`, `shaders/infinite_grid.wesl`.
 
 ## Build, run, test
 
@@ -62,10 +62,13 @@ cargo fmt && cargo clippy --all-targets
 ## Architecture (`src/`)
 
 - `main.rs`: borderless window (`decorations: false`), adds `EditorUiPlugin`,
-  `EditorCameraPlugin`, `DevPlugin`.
+  `EditorCameraPlugin`, `InfiniteGridPlugin`, `DevPlugin`.
+- `grid.rs`: infinite ground grid (custom `Material`; the vertex shader recenters a unit quad
+  under whichever camera renders it, so it works in every viewport; `NoFrustumCulling`).
 - `editor_camera.rs`: one `EditorCamera` per viewport panel, created when a `ViewportSlot` node
   appears and rendered into it through `ViewportNode`. Fly-cam: hold RMB (WASD/QE, Shift, scroll
-  changes speed), MMB to pan, scroll to dolly. Cameras pause while their viewport is hidden;
+  changes speed), MMB to pan, scroll to dolly. `look_along` snaps a camera to an axis view,
+  orbiting around the ground point it was looking at (unit-tested). Cameras pause while their viewport is hidden;
   that check runs after UI layout.
 - `ui/mod.rs`: root layout (title bar, dock, status bar, resize handles), theme tokens, plugins
   (`FeathersPlugins`, `bevy_ui_svg::SvgPlugin`, `DockPlugin`).
@@ -81,7 +84,8 @@ cargo fmt && cargo clippy --all-targets
 - `ui/panels.rs`: `PanelKind` registry (title, content scene) and the default layout, which
   reproduces the Figma arrangement (with a Console placeholder tab next to Assets).
 - Panel contents: `scene_tree.rs` (Scene Tree, Project Files), `viewport.rs` (toolbar, view, demo
-  scene, grid), `asset_browser.rs`, `inspector.rs` (Components), plus `title_bar.rs`,
+  scene), `axis_gizmo.rs` (orientation gizmo per viewport, UI nodes positioned from the camera
+  rotation each frame; clicking an axis calls `look_along`), `asset_browser.rs`, `inspector.rs` (Components), plus `title_bar.rs`,
   `status_bar.rs`, `window_frame.rs` (resize zones, maximized state from winit).
 - `ui/style.rs`: colors, text/icon helpers, `HoverBackground`. `ui/widgets.rs`: search fields,
   wide buttons, dividers. `ui/icons.rs`: icon paths.
@@ -91,8 +95,8 @@ cargo fmt && cargo clippy --all-targets
 - Panels show the design's **sample data** (scene tree, files, Transform values). Next steps:
   bind the Scene Tree to the world, the inspector to reflection, and the files and asset browser
   to disk.
-- Not done: layout persistence, the "+" button in tab bars, closing tabs, a live axis gizmo
-  (currently a static PNG), and window corner rounding.
+- Not done: layout persistence, the "+" button in tab bars, closing tabs, orthographic axis
+  views, and window corner rounding.
 - Known issue: when a viewport changes size, its render looks stretched for one frame (Bevy
   updates the camera's target size a frame after `ViewportNode` resizes the image).
 

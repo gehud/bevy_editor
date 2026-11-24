@@ -98,6 +98,37 @@ impl FlyCamera {
     }
 }
 
+/// Largest pitch magnitude: just short of straight up/down, so yaw stays well defined.
+const MAX_PITCH: f32 = std::f32::consts::FRAC_PI_2 - 0.001;
+/// Orbit distance used by [`look_along`] when the view doesn't hit the ground.
+const DEFAULT_ORBIT_DISTANCE: f32 = 10.0;
+
+/// Turns the camera to look in `direction`, orbiting around the point it was looking at, so that
+/// point stays in view (as when clicking an axis on the orientation gizmo).
+///
+/// The orbit pivot is where the view ray meets the ground plane, if that is reasonably close,
+/// and otherwise a point [`DEFAULT_ORBIT_DISTANCE`] ahead.
+pub fn look_along(transform: &mut Transform, fly: &mut FlyCamera, direction: Vec3) {
+    let direction = direction.normalize();
+    let forward = *transform.forward();
+    let ground_distance = (forward.y < -0.01)
+        .then(|| -transform.translation.y / forward.y)
+        .filter(|distance| (0.1..1000.0).contains(distance));
+    let distance = ground_distance.unwrap_or(DEFAULT_ORBIT_DISTANCE);
+    let pivot = transform.translation + forward * distance;
+
+    // A camera's forward is -Z rotated by yaw (around Y) and then pitch (around X).
+    fly.pitch = direction.y.asin().clamp(-MAX_PITCH, MAX_PITCH);
+    fly.yaw = if direction.x.abs() > 1e-4 || direction.z.abs() > 1e-4 {
+        (-direction.x).atan2(-direction.z)
+    } else {
+        // Straight up or down: align the view so +X points right, as in top/bottom views.
+        0.0
+    };
+    transform.rotation = fly.rotation();
+    transform.translation = pivot - *transform.forward() * distance;
+}
+
 #[derive(Clone, Copy, PartialEq)]
 enum NavigationMode {
     Fly,
@@ -247,8 +278,7 @@ fn fly(
 
     // Look around.
     fly.yaw -= motion.delta.x * LOOK_SENSITIVITY;
-    let max_pitch = std::f32::consts::FRAC_PI_2 - 0.01;
-    fly.pitch = (fly.pitch - motion.delta.y * LOOK_SENSITIVITY).clamp(-max_pitch, max_pitch);
+    fly.pitch = (fly.pitch - motion.delta.y * LOOK_SENSITIVITY).clamp(-MAX_PITCH, MAX_PITCH);
     transform.rotation = fly.rotation();
 
     // Scrolling while flying changes speed, exponentially so it feels the same at any speed.
@@ -313,5 +343,36 @@ fn dolly(
     if let Ok((mut transform, fly)) = cameras.get_mut(camera) {
         let forward = transform.forward();
         transform.translation += forward * lines * fly.speed * DOLLY_PER_LINE;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn camera_at(position: Vec3) -> (Transform, FlyCamera) {
+        let transform = Transform::from_translation(position).looking_at(Vec3::ZERO, Vec3::Y);
+        let fly = FlyCamera::from_transform(&transform);
+        (transform, fly)
+    }
+
+    #[test]
+    fn look_along_faces_the_direction_and_keeps_the_ground_pivot_in_view() {
+        let (mut transform, mut fly) = camera_at(Vec3::new(-5.0, 5.0, 5.0));
+        look_along(&mut transform, &mut fly, Vec3::NEG_X);
+        assert!(transform.forward().dot(Vec3::NEG_X) > 0.999);
+        // The camera was looking at the origin; it still is, from the +X side.
+        let pivot_distance = Vec3::new(5.0, 5.0, 5.0).length();
+        assert!((transform.translation - Vec3::new(pivot_distance, 0.0, 0.0)).length() < 1e-3);
+    }
+
+    #[test]
+    fn look_along_straight_down_is_a_top_view_with_x_to_the_right() {
+        let (mut transform, mut fly) = camera_at(Vec3::new(0.0, 4.0, 4.0));
+        look_along(&mut transform, &mut fly, Vec3::NEG_Y);
+        assert!(transform.forward().dot(Vec3::NEG_Y) > 0.999);
+        assert!(transform.right().dot(Vec3::X) > 0.999);
+        assert!(transform.translation.x.abs() < 1e-3 && transform.translation.z.abs() < 1e-2);
+        assert!(transform.translation.y > 0.0);
     }
 }

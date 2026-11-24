@@ -7,6 +7,7 @@ use bevy::prelude::*;
 
 use bevy_ui_svg::SvgIcon;
 
+use super::axis_gizmo::axis_gizmo;
 use crate::ui::icons;
 
 use super::{
@@ -42,11 +43,7 @@ pub fn viewport_content(index: u8, active: bool) -> impl Scene {
                 padding: UiRect::axes(px(12), px(11)),
             }
             ViewportSlot(index)
-            Children [
-                Node { width: px(53.947), height: px(50) }
-                ImageNode { image: "axis-gizmo.png" }
-                Pickable::IGNORE
-            ]
+            Children [ @axis_gizmo() ]
         ]
     }
 }
@@ -124,27 +121,6 @@ fn viewport_toolbar(active: bool) -> impl Scene {
             ]
         ]
     }
-}
-
-/// Ground grid and world axes, drawn in every view.
-pub(super) fn draw_grid(mut gizmos: Gizmos) {
-    gizmos.grid(
-        Quat::from_rotation_x(std::f32::consts::FRAC_PI_2),
-        UVec2::splat(40),
-        Vec2::splat(1.0),
-        hex(0x4A4A4A),
-    );
-    let extent = 20.0;
-    gizmos.line(
-        Vec3::new(-extent, 0.001, 0.0),
-        Vec3::new(extent, 0.001, 0.0),
-        hex(0xC0392B),
-    );
-    gizmos.line(
-        Vec3::new(0.0, 0.001, -extent),
-        Vec3::new(0.0, 0.001, extent),
-        hex(0x2F6FD0),
-    );
 }
 
 /// Sample content standing in for the design's "Stanford Dragon".
