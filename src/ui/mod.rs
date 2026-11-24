@@ -77,6 +77,7 @@ impl Plugin for EditorUiPlugin {
                         (
                             title_bar::update_maximize_glyph,
                             window_frame::toggle_resize_handles,
+                            window_frame::toggle_window_outline,
                         ),
                     )
                         .chain(),
@@ -110,6 +111,7 @@ fn editor_root() -> impl Scene {
         }
         BackgroundColor(colors::WINDOW_BG)
         BorderColor::all(colors::WINDOW_BORDER)
+        window_frame::WindowOutline
         TabGroup
         Children [
             @title_bar::title_bar()

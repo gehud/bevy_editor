@@ -143,3 +143,24 @@ pub(super) fn toggle_resize_handles(
         }
     }
 }
+
+/// The editor's root node, whose border outlines the borderless window.
+#[derive(Component, Clone, Default)]
+pub struct WindowOutline;
+
+/// A maximized window fills the screen, so its outline is removed.
+pub(super) fn toggle_window_outline(
+    maximized: Res<WindowMaximized>,
+    mut outlines: Query<&mut Node, With<WindowOutline>>,
+) {
+    let border = if maximized.0 {
+        UiRect::ZERO
+    } else {
+        UiRect::all(px(1))
+    };
+    for mut node in &mut outlines {
+        if node.border != border {
+            node.border = border;
+        }
+    }
+}
