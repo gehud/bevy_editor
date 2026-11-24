@@ -14,10 +14,11 @@ bevy = { workspace = true }
 
 [workspace]
 # The Bevy fork is a git submodule with its own workspace; keep it out of ours.
+members = ["tools/rasterize_svg"]
 exclude = ["bevy"]
 
 [workspace.dependencies]
-bevy = { path = "bevy", version = "0.20.1" }
+bevy = { path = "bevy", version = "0.20.1", features = ["bevy_feathers", "system_font_discovery"] }
 
 # Bevy fork (git submodule at ./bevy, branch `editor/0.20`, based on v0.20.1).
 #

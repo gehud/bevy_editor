@@ -1,22 +1,22 @@
-use bevy::prelude::*;
+//! Bevy Editor: a scene editor, asset inspector and plugin host for Bevy.
+
+mod dev;
+mod ui;
+
+use bevy::{prelude::*, window::WindowResolution};
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "Bevy Editor".into(),
+                // Sized like the design's window; the editor draws its own title bar.
+                resolution: WindowResolution::new(1660, 880),
+                decorations: false,
                 ..default()
             }),
             ..default()
         }))
-        .add_systems(Startup, setup)
+        .add_plugins((ui::EditorUiPlugin, dev::DevPlugin))
         .run();
-}
-
-fn setup(mut commands: Commands) {
-    commands.spawn(Camera2d);
-    commands.spawn(Text::new(format!(
-        "Bevy Editor (v{}) - running on the Bevy fork",
-        env!("CARGO_PKG_VERSION")
-    )));
 }
