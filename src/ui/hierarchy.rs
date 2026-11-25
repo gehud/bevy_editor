@@ -35,7 +35,7 @@ use bevy::{
     prelude::*,
     text::{EditableText, TextEdit},
     ui::UiGlobalTransform,
-    ui_widgets::{Button, TextInput},
+    ui_widgets::{Button, ScrollArea, TextInput},
 };
 
 use super::{
@@ -86,6 +86,7 @@ pub fn scene_tree_content() -> impl Scene {
                 min_height: px(0),
                 overflow: Overflow::scroll_y(),
             }
+            ScrollArea
             SceneTreeRows
         ]
     }

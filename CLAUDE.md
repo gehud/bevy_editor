@@ -95,16 +95,20 @@ cargo fmt && cargo clippy --all-targets
   lives in `SceneTreeState::root_order`),
   `project_files.rs` (Project Files), `viewport.rs` (toolbar, view, demo
   scene), `axis_gizmo.rs` (orientation gizmo per viewport, UI nodes positioned from the camera
-  rotation each frame; clicking an axis calls `look_along`), `asset_browser.rs`, `inspector.rs` (Components), plus `title_bar.rs`,
+  rotation each frame; clicking an axis calls `look_along`), `asset_browser.rs`, `inspector.rs` (Components: the primary selection's components
+  through reflection; cards rebuilt only when the entity/component set/collapse/filter change,
+  values refreshed into the widgets every frame via `FieldBinding` (component `TypeId` +
+  reflect path), edits written back with `ReflectComponent::reflect_mut`), plus `title_bar.rs`,
   `status_bar.rs`, `window_frame.rs` (resize zones, maximized state from winit).
 - `ui/style.rs`: colors, text/icon helpers, `HoverBackground`. `ui/widgets.rs`: search fields,
   wide buttons, dividers. `ui/icons.rs`: icon paths.
 
 ## Current state
 
-- The Scene Tree shows the real world. The other panels still show the design's **sample
-  data** (files, Transform values). Next steps: bind the inspector to the selection via
-  reflection, and the files and asset browser to disk.
+- The Scene Tree and the Components panel show the real world. Project Files and the asset
+  browser still show the design's **sample data**; next step: bind them to disk. Inspector
+  gaps: enums, lists, maps and handles are read-only; "Add Component" and the card "…" menu do
+  nothing; no undo.
 - Not done: layout persistence, the "+" button in tab bars, closing tabs, orthographic axis
   views, and window corner rounding.
 - Known issue: when a viewport changes size, its render looks stretched for one frame (Bevy
@@ -131,6 +135,11 @@ cargo fmt && cargo clippy --all-targets
 - `commands.entity(e).apply_scene(..)` spawns immediately. `queue_*` variants may land a frame
   later, which causes visible flicker for UI rebuilds.
 - The feathers text-input container has `flex_grow: 1`. Override it in column layouts.
+- A root node with `height: percent(100)` still grows to fit its content unless it has
+  `min_height: px(0)` (Taffy's automatic minimum size). The editor root sets it.
+- `overflow: scroll` alone doesn't react to the mouse wheel: add `ui_widgets::ScrollArea`.
+- `NumberInputValue` is immutable: insert a new one to change the shown value, and only when it
+  differs (the widget rewrites its text on every insert).
 - UI images are drawn with bilinear filtering and no mipmaps: never show a bitmap much smaller
   than its pixel size (use SVG via `SvgIcon` instead).
 

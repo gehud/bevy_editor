@@ -62,6 +62,7 @@ impl Plugin for EditorUiPlugin {
             .insert_resource(layout)
             .init_resource::<window_frame::WindowMaximized>()
             .init_resource::<hierarchy::SceneTreeState>()
+            .init_resource::<inspector::InspectorState>()
             .add_systems(
                 Startup,
                 (
@@ -85,6 +86,12 @@ impl Plugin for EditorUiPlugin {
                         hierarchy::read_scene_tree_filter,
                         hierarchy::sync_scene_tree,
                         hierarchy::init_rename_fields,
+                    )
+                        .chain(),
+                    (
+                        inspector::read_inspector_filter,
+                        inspector::sync_inspector,
+                        inspector::refresh_inspector_fields,
                     )
                         .chain(),
                     (
@@ -126,6 +133,9 @@ fn editor_root() -> impl Scene {
         Node {
             width: percent(100),
             height: percent(100),
+            // Without these the root grows to fit tall panel contents instead of the window.
+            min_width: px(0),
+            min_height: px(0),
             flex_direction: FlexDirection::Column,
             border: UiRect::all(px(1)),
         }

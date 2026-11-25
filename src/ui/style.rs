@@ -52,8 +52,6 @@ pub mod colors {
     pub const DIVIDER: Color = hexa(0xFFFFFF, 26);
     /// Border of the active document tab.
     pub const TAB_BORDER: Color = hexa(0xFFFFFF, 13);
-    /// Border of the number fields.
-    pub const FIELD_BORDER: Color = hexa(0x000000, 20);
 
     /// Caption button hover.
     pub const CAPTION_HOVER: Color = hexa(0xFFFFFF, 15);
