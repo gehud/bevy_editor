@@ -7,6 +7,8 @@
 //!
 //! - Click a row to select its entity ([`Selection`]); Ctrl+click adds or removes it, Shift+click
 //!   selects the range from the last clicked row.
+//! - Type in the filter field to show only entities whose name contains the text (ignoring
+//!   case), with their ancestors (dimmed) and everything expanded.
 //! - Click the chevron to collapse or expand its children.
 //! - Click the eye to hide or show the entity ([`Visibility`]).
 //! - Delete removes the selected entities (with their descendants).
@@ -70,6 +72,7 @@ pub fn scene_tree_content() -> impl Scene {
             Node { flex_direction: FlexDirection::Column, row_gap: px(6), width: percent(100) }
             Children [
                 @filter_bar()
+                SceneTreeFilter
                 --
                 @wide_button(icons::PACKAGE_PLUS, "Add Entity")
                 on(add_entity)
@@ -92,6 +95,10 @@ pub fn scene_tree_content() -> impl Scene {
 #[derive(Component, Clone, Default)]
 pub struct SceneTreeRows;
 
+/// Marks the Scene Tree's filter bar (the text input is inside it).
+#[derive(Component, Clone, Default)]
+pub(super) struct SceneTreeFilter;
+
 /// Scene Tree state that is not part of the scene.
 #[derive(Resource, Default)]
 pub struct SceneTreeState {
@@ -108,8 +115,12 @@ pub struct SceneTreeState {
     last_click: Option<(Entity, f64)>,
     /// The row being dragged, if any.
     drag: Option<RowDrag>,
+    /// The filter text, trimmed and lowercased; empty shows the whole tree.
+    filter: String,
     /// Row snapshot of the last rebuild, top to bottom.
     rows: Vec<Row>,
+    /// The last rebuild showed "No matches" (the filter hid every row).
+    no_matches: bool,
 }
 
 /// A row drag in progress.
@@ -140,6 +151,7 @@ enum DropTarget {
 
 /// What a row reads from its entity.
 type RowData = (
+    Entity,
     Option<&'static Name>,
     Option<&'static Children>,
     Option<&'static Visibility>,
@@ -178,14 +190,44 @@ struct Row {
     active: bool,
     /// The row shows a text field to rename its entity.
     renaming: bool,
+    /// Shown only as an ancestor of filter matches: the name is drawn dimmed.
+    unmatched: bool,
 }
 
+/// The name a row shows for an entity.
+fn display_name(entity: Entity, name: Option<&Name>) -> String {
+    name.map_or_else(|| format!("Entity {entity}"), |n| n.as_str().to_owned())
+}
+
+/// Copies the Scene Tree filter field's text into [`SceneTreeState::filter`].
+pub(super) fn read_scene_tree_filter(
+    inputs: Query<(Entity, &EditableText), Changed<EditableText>>,
+    filter_bars: Query<(), With<SceneTreeFilter>>,
+    parents: Query<&ChildOf>,
+    mut state: ResMut<SceneTreeState>,
+) {
+    for (input, text) in &inputs {
+        if !parents
+            .iter_ancestors(input)
+            .any(|ancestor| filter_bars.contains(ancestor))
+        {
+            continue;
+        }
+        let filter = text.value().to_string().trim().to_lowercase();
+        if state.filter != filter {
+            state.filter = filter;
+        }
+    }
+}
+
+#[expect(clippy::too_many_arguments, reason = "a Bevy system")]
 pub(super) fn sync_scene_tree(
     mut commands: Commands,
     container: Single<Entity, With<SceneTreeRows>>,
     roots: Query<Entity, (SceneFilter, Without<ChildOf>)>,
     scene: Query<RowData, SceneFilter>,
     tree_rows: Query<(), With<TreeRow>>,
+    parents: Query<&ChildOf>,
     mut state: ResMut<SceneTreeState>,
     selection: Res<Selection>,
 ) {
@@ -207,10 +249,31 @@ pub(super) fn sync_scene_tree(
     new_roots.sort();
     state.root_order.extend(new_roots);
 
+    // With a filter, only matches and their ancestors are shown, all expanded.
+    let filtering = !state.filter.is_empty();
+    let mut matched = HashSet::new();
+    let mut shown = HashSet::new();
+    if filtering {
+        for (entity, name, ..) in &scene {
+            if display_name(entity, name)
+                .to_lowercase()
+                .contains(&state.filter)
+            {
+                matched.insert(entity);
+                shown.insert(entity);
+                shown.extend(parents.iter_ancestors(entity));
+            }
+        }
+    }
+    let is_shown = |entity: &Entity| !filtering || shown.contains(entity);
+
     let mut rows = Vec::new();
-    let mut stack: Vec<(Entity, usize)> = state.root_order.iter().rev().map(|e| (*e, 0)).collect();
+    let mut stack: Vec<(Entity, usize)> = (state.root_order.iter().rev())
+        .filter(|e| is_shown(e))
+        .map(|e| (*e, 0))
+        .collect();
     while let Some((entity, depth)) = stack.pop() {
-        let Ok((name, children, visibility, inherited, camera, dir_light, point, spot, mesh)) =
+        let Ok((_, name, children, visibility, inherited, camera, dir_light, point, spot, mesh)) =
             scene.get(entity)
         else {
             continue;
@@ -219,14 +282,14 @@ pub(super) fn sync_scene_tree(
             .into_iter()
             .flatten()
             .copied()
-            .filter(|child| scene.contains(*child))
+            .filter(|child| scene.contains(*child) && is_shown(child))
             .collect();
-        let expanded = !state.collapsed.contains(&entity);
+        let expanded = filtering || !state.collapsed.contains(&entity);
         let visible = visibility != Some(&Visibility::Hidden);
         rows.push(Row {
             entity,
             depth,
-            name: name.map_or_else(|| format!("Entity {entity}"), |n| n.as_str().to_owned()),
+            name: display_name(entity, name),
             kind: if camera {
                 RowKind::Camera
             } else if dir_light || point || spot {
@@ -243,6 +306,7 @@ pub(super) fn sync_scene_tree(
             selected: selection.contains(entity),
             active: selection.primary() == Some(entity),
             renaming: state.renaming == Some(entity),
+            unmatched: filtering && !matched.contains(&entity),
         });
         if expanded {
             stack.extend(scene_children.into_iter().rev().map(|c| (c, depth + 1)));
@@ -263,15 +327,26 @@ pub(super) fn sync_scene_tree(
         }
     }
 
-    if rows == state.rows {
+    let no_matches = filtering && rows.is_empty();
+    if rows == state.rows && no_matches == state.no_matches {
         return;
     }
-    let scenes = rows.iter().map(row_scene).collect::<Vec<_>>();
+    let mut scenes: Vec<Box<dyn Scene>> = rows
+        .iter()
+        .map(|row| -> Box<dyn Scene> { Box::new(row_scene(row)) })
+        .collect();
+    if no_matches {
+        scenes.push(Box::new(bsn! {
+            @text("No matches", 12.0, Weight::Regular, ink::DIM)
+            Node { margin: UiRect::axes(px(6), px(4)) }
+        }));
+    }
     commands
         .entity(*container)
         .despawn_related::<Children>()
         .apply_scene(bsn! { Children [ {scenes} ] });
     state.rows = rows;
+    state.no_matches = no_matches;
 }
 
 /// Identifies the entity a row (or a button in it) acts on.
@@ -330,13 +405,14 @@ fn row_scene(row: &Row) -> impl Scene + use<> {
     } else {
         Weight::Regular
     };
+    let name_color = if row.unmatched { ink::DIM } else { ink::DDD };
     let indent = row.depth as f32 * INDENT;
     let name = row.name.clone();
     let label: Box<dyn Scene> = if row.renaming {
         Box::new(rename_field(row.entity, name))
     } else {
         Box::new(bsn! {
-            @text(name, 12.0, weight, ink::DDD.with_alpha(alpha))
+            @text(name, 12.0, weight, name_color.with_alpha(alpha))
             Pickable::IGNORE
         })
     };

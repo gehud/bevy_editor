@@ -82,6 +82,7 @@ impl Plugin for EditorUiPlugin {
                     (
                         hierarchy::scene_tree_shortcuts,
                         hierarchy::cancel_lost_drag,
+                        hierarchy::read_scene_tree_filter,
                         hierarchy::sync_scene_tree,
                         hierarchy::init_rename_fields,
                     )

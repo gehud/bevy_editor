@@ -88,7 +88,8 @@ cargo fmt && cargo clippy --all-targets
 - `ui/panels.rs`: `PanelKind` registry (title, content scene) and the default layout, which
   reproduces the Figma arrangement (with a Console placeholder tab next to Assets).
 - Panel contents: `hierarchy.rs` (Scene Tree: live world hierarchy; rebuilt only when a row
-  snapshot changes, and never while a rename field is open or a row is dragged; Ctrl/Shift
+  snapshot changes, and never while a rename field is open or a row is dragged; name filter
+  (matches plus dimmed ancestors, fully expanded); Ctrl/Shift
   multi-select, expand/collapse, visibility toggle, Add Entity, Delete, F2/double-click rename
   of the whole selection, drag-and-drop reorder/reparent keeping world transforms; root order
   lives in `SceneTreeState::root_order`),
@@ -103,7 +104,7 @@ cargo fmt && cargo clippy --all-targets
 
 - The Scene Tree shows the real world. The other panels still show the design's **sample
   data** (files, Transform values). Next steps: bind the inspector to the selection via
-  reflection, and the files and asset browser to disk; the Scene Tree filter field is not wired.
+  reflection, and the files and asset browser to disk.
 - Not done: layout persistence, the "+" button in tab bars, closing tabs, orthographic axis
   views, and window corner rounding.
 - Known issue: when a viewport changes size, its render looks stretched for one frame (Bevy
