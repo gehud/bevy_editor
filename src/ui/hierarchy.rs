@@ -31,7 +31,7 @@ use bevy::{
     input_focus::{AutoFocus, FocusLost, FocusedInput, InputFocus},
     light::{DirectionalLight, PointLight, SpotLight},
     picking::events::{PointerClick, PointerDrag, PointerDragEnd, PointerDragStart},
-    platform::collections::HashSet,
+    platform::collections::{HashMap, HashSet},
     prelude::*,
     text::{EditableText, TextEdit},
     ui::UiGlobalTransform,
@@ -114,6 +114,10 @@ pub struct SceneTreeState {
     /// The last plain click and when it happened (in real seconds), to detect double-clicks.
     /// (Rows are rebuilt on selection changes, so picking's own click count doesn't work here.)
     last_click: Option<(Entity, f64)>,
+    /// When each entity got its `Transform` (a counter), to list new roots in spawn order:
+    /// entity ids are reused, so their order says nothing about when an entity appeared.
+    spawn_order: HashMap<Entity, u64>,
+    next_spawn: u64,
     /// The row being dragged, if any.
     drag: Option<RowDrag>,
     /// The filter text, trimmed and lowercased; empty shows the whole tree.
@@ -200,6 +204,17 @@ fn display_name(entity: Entity, name: Option<&Name>) -> String {
     name.map_or_else(|| format!("Entity {entity}"), |n| n.as_str().to_owned())
 }
 
+/// Records when an entity gets a `Transform` (see [`SceneTreeState::spawn_order`]).
+pub(super) fn record_spawn_order(add: On<Add<Transform>>, mut state: ResMut<SceneTreeState>) {
+    state.next_spawn += 1;
+    let order = state.next_spawn;
+    state.spawn_order.insert(add.entity, order);
+}
+
+pub(super) fn forget_spawn_order(remove: On<Remove<Transform>>, mut state: ResMut<SceneTreeState>) {
+    state.spawn_order.remove(&remove.entity);
+}
+
 /// Copies the Scene Tree filter field's text into [`SceneTreeState::filter`].
 pub(super) fn read_scene_tree_filter(
     inputs: Query<(Entity, &EditableText), Changed<EditableText>>,
@@ -247,7 +262,7 @@ pub(super) fn sync_scene_tree(
     state.root_order.retain(|root| current.contains(root));
     let known: HashSet<Entity> = state.root_order.iter().copied().collect();
     let mut new_roots: Vec<Entity> = current.into_iter().filter(|e| !known.contains(e)).collect();
-    new_roots.sort();
+    new_roots.sort_by_key(|e| (state.spawn_order.get(e).copied().unwrap_or(u64::MAX), *e));
     state.root_order.extend(new_roots);
 
     // With a filter, only matches and their ancestors are shown, all expanded.

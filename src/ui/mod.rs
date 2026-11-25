@@ -40,7 +40,7 @@ use bevy::{
 
 use style::colors;
 
-pub use viewport::ViewportSlot;
+pub use viewport::{ViewportSlot, spawn_demo_scene};
 
 /// Theme tokens the editor adds on top of the feathers dark theme.
 pub mod tokens {
@@ -62,12 +62,13 @@ impl Plugin for EditorUiPlugin {
             .insert_resource(layout)
             .init_resource::<window_frame::WindowMaximized>()
             .init_resource::<hierarchy::SceneTreeState>()
+            .add_observer(hierarchy::record_spawn_order)
+            .add_observer(hierarchy::forget_spawn_order)
             .init_resource::<inspector::InspectorState>()
             .add_systems(
                 Startup,
                 (
                     setup_ui_camera,
-                    viewport::spawn_demo_scene,
                     hierarchy::setup_drop_indicator,
                     editor_root.spawn(),
                 ),
@@ -80,6 +81,7 @@ impl Plugin for EditorUiPlugin {
                 Update,
                 (
                     style::update_hover_backgrounds,
+                    status_bar::update_project_label,
                     (
                         hierarchy::scene_tree_shortcuts,
                         hierarchy::cancel_lost_drag,

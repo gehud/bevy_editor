@@ -7,7 +7,10 @@ plugins. The UI is built with `bevy_feathers` and follows a Figma design.
 
 - `bevy/` is a git submodule holding **our Bevy fork** (`github.com/gehud/bevy`, branch
   `editor/0.20`, based on tag `v0.20.1`). Engine and widget changes go there.
-- `src/` is the editor binary (crate `bevy_editor`).
+- `src/` is the editor (crate `bevy_editor`): a library (`lib.rs`, `EditorPlugin`) plus a thin
+  binary (`main.rs`) so that examples can reuse it.
+- `examples/` holds editor test entry points (`cargo run --example …`) and
+  `examples/sample_project/`, a small Bevy game (workspace member) to test against.
 - `crates/bevy_ui_svg/` renders SVG icons in `bevy_ui` at each node's exact pixel size (Bevy has
   no SVG support, and down-scaled bitmaps look jagged).
 - `assets/` holds editor-only assets loaded from disk: `icons/*.svg`, `shaders/infinite_grid.wesl`.
@@ -17,9 +20,14 @@ plugins. The UI is built with `bevy_feathers` and follows a Figma design.
 ```sh
 git submodule update --init      # first checkout
 cargo run                        # dev build, dynamic linking via the default `dev` feature
+cargo run -- <project folder>    # open a project (only its name is used so far)
+cargo run --example open_sample_project   # sample game's scene + project in the editor
+cargo run --example inspector_fields      # every inspector field kind, preselected
+cargo run --example large_scene           # ~600 entities (LARGE_SCENE_ROOTS=n to scale)
+cargo run -p sample_project      # run the sample game itself
 cargo test                       # dock layout unit tests
 cargo build --release --no-default-features   # release without dynamic linking
-cargo fmt && cargo clippy --all-targets
+cargo fmt && cargo fmt -p sample_project && cargo clippy --workspace --all-targets
 ```
 
 - `BEVY_EDITOR_SCREENSHOT=<path.png> cargo run` saves a screenshot after 120 frames and exits
@@ -28,7 +36,9 @@ cargo fmt && cargo clippy --all-targets
 
 ## Cargo setup (important)
 
-- The root is a workspace with `members = ["crates/*"]` that **excludes `bevy/`** (it has its
+- `cargo fmt --all` fails on Windows (it also walks the Bevy fork: command line too long).
+- The root is a workspace with `members = ["crates/*", "examples/sample_project"]` that
+  **excludes `bevy/`** (it has its
   own workspace). Do not add `"."` to `members`: that triggers a "multiple workspace roots" error.
 - `bevy` comes from the submodule path, and `[patch.crates-io]` points `bevy` at it. When adding
   a third-party crate that depends on Bevy sub-crates (`bevy_ecs`, `bevy_app`, …), add those to
@@ -61,8 +71,12 @@ cargo fmt && cargo clippy --all-targets
 
 ## Architecture (`src/`)
 
-- `main.rs`: borderless window (`decorations: false`), adds `EditorUiPlugin`, `EditingPlugin`,
-  `EditorCameraPlugin`, `InfiniteGridPlugin`, `DevPlugin`.
+- `lib.rs`: `EditorPlugin { demo_scene, project }` adds `DefaultPlugins` with the borderless
+  window (`decorations: false`), `EditorUiPlugin`, `EditingPlugin`, `EditorCameraPlugin`,
+  `InfiniteGridPlugin`, `DevPlugin`, and optionally the demo scene. `main.rs` takes an optional
+  project folder argument. `project.rs`: `ProjectRoot` (shown in the status bar).
+- Examples include `examples/sample_project/src/scene.rs` via `#[path]`; keep that file to
+  `bevy` APIs only. `editing::Selection` is public so examples can preselect entities.
 - `editing.rs`: `EditorOnly` marker (editor entities hidden from scene views; UI nodes count as
   editor-only automatically) and the `Selection` resource (multi-selection, in selection order;
   the last entity is the primary one). **Mark every editor-owned entity
@@ -92,7 +106,8 @@ cargo fmt && cargo clippy --all-targets
   (matches plus dimmed ancestors, fully expanded); Ctrl/Shift
   multi-select, expand/collapse, visibility toggle, Add Entity, Delete, F2/double-click rename
   of the whole selection, drag-and-drop reorder/reparent keeping world transforms; root order
-  lives in `SceneTreeState::root_order`),
+  lives in `SceneTreeState::root_order`; new roots are listed in spawn order, recorded by an
+  `On<Add<Transform>>` observer, because entity ids are reused and don't follow spawn order),
   `project_files.rs` (Project Files), `viewport.rs` (toolbar, view, demo
   scene), `axis_gizmo.rs` (orientation gizmo per viewport, UI nodes positioned from the camera
   rotation each frame; clicking an axis calls `look_along`), `asset_browser.rs`, `inspector.rs` (Components: the primary selection's components

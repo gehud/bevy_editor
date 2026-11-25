@@ -1,31 +1,16 @@
-//! Bevy Editor: a scene editor, asset inspector and plugin host for Bevy.
+//! The editor binary. `cargo run -- <project folder>` opens a project.
 
-mod dev;
-mod editing;
-mod editor_camera;
-mod grid;
-mod ui;
+use std::path::PathBuf;
 
-use bevy::{prelude::*, window::WindowResolution};
+use bevy::prelude::*;
+use bevy_editor::EditorPlugin;
 
 fn main() {
+    let project = std::env::args_os().nth(1).map(PathBuf::from);
     App::new()
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                title: "Bevy Editor".into(),
-                // Sized like the design's window; the editor draws its own title bar.
-                resolution: WindowResolution::new(1660, 880),
-                decorations: false,
-                ..default()
-            }),
+        .add_plugins(EditorPlugin {
+            project,
             ..default()
-        }))
-        .add_plugins((
-            ui::EditorUiPlugin,
-            editing::EditingPlugin,
-            editor_camera::EditorCameraPlugin,
-            grid::InfiniteGridPlugin,
-            dev::DevPlugin,
-        ))
+        })
         .run();
 }

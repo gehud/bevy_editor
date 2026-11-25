@@ -124,7 +124,8 @@ fn viewport_toolbar(active: bool) -> impl Scene {
 }
 
 /// Sample content standing in for the design's "Stanford Dragon".
-pub(super) fn spawn_demo_scene(
+/// The built-in demo scene: a light and a stylized dragon (see `EditorPlugin::demo_scene`).
+pub fn spawn_demo_scene(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,

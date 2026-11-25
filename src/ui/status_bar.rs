@@ -1,8 +1,10 @@
-//! Footer: VCS branch, project build, error / warning counters.
+//! Footer: VCS branch, project name, error / warning counters.
+//!
+//! The project name is real ([`ProjectRoot`]); the branch and counters are the design's sample.
 
 use bevy::prelude::*;
 
-use crate::ui::icons;
+use crate::{ProjectRoot, ui::icons};
 
 use super::style::{icon, icon_sq, ink, label};
 
@@ -24,7 +26,8 @@ pub fn status_bar() -> impl Scene {
                 @label("feature-branch (a1b2c3d)", ink::E6.with_alpha(0.8))
             ]
             --
-            @label("bevy-editor-2025-03 (e4f5g6h)", ink::A4A4)
+            @label("No project", ink::A4A4)
+            ProjectLabel
             --
             Node { column_gap: px(8), align_items: AlignItems::Center }
             Children [
@@ -43,5 +46,24 @@ pub fn status_bar() -> impl Scene {
                 ]
             ]
         ]
+    }
+}
+
+/// Marks the status bar's project name.
+#[derive(Component, Clone, Default)]
+pub(super) struct ProjectLabel;
+
+pub(super) fn update_project_label(
+    project: Option<Res<ProjectRoot>>,
+    mut labels: Query<(Ref<ProjectLabel>, &mut Text)>,
+) {
+    // `name` touches the file system: only look it up when something changed.
+    let project_changed = project.as_ref().is_some_and(|p| p.is_changed());
+    for (marker, mut label) in &mut labels {
+        if marker.is_added() || project_changed {
+            label.0 = project
+                .as_ref()
+                .map_or_else(|| "No project".to_owned(), |p| p.name());
+        }
     }
 }

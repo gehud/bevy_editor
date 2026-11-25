@@ -1,0 +1,14 @@
+[package]
+name = "sample_project"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "A small Bevy game used to test the editor: `cargo run -p sample_project`."
+
+[features]
+# Same as the editor's `dev` feature, so both reuse one Bevy build.
+default = ["dev"]
+dev = ["bevy/dynamic_linking"]
+
+[dependencies]
+bevy = { workspace = true }
