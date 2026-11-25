@@ -122,6 +122,9 @@ cargo fmt && cargo clippy --all-targets
   or they are not laid out.
 - Picking events are concrete types (`PointerClick`, `PointerPress`, `PointerDrag…`), not
   `Pointer<Click>`. `event.entity` is the current target while an event bubbles.
+- `ui_widgets::Button` stops `PointerClick`, `PointerPress`, `PointerRelease` and
+  `PointerDragEnd` from bubbling, but **not** `PointerDragStart`/`PointerDrag`. A drag handler
+  on a button's parent must check `original_event_target()`, or it starts drags that never end.
 - `ViewportNode::camera` is `Option<Entity>`. `Window` has no maximized getter: read
   `WINIT_WINDOWS` on the main thread (`NonSendMarker`).
 - `commands.entity(e).apply_scene(..)` spawns immediately. `queue_*` variants may land a frame

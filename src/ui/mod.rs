@@ -81,6 +81,7 @@ impl Plugin for EditorUiPlugin {
                     style::update_hover_backgrounds,
                     (
                         hierarchy::scene_tree_shortcuts,
+                        hierarchy::cancel_lost_drag,
                         hierarchy::sync_scene_tree,
                         hierarchy::init_rename_fields,
                     )

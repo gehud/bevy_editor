@@ -711,6 +711,19 @@ pub(super) fn setup_drop_indicator(mut commands: Commands) {
     ));
 }
 
+/// Drops a row drag whose `PointerDragEnd` never arrived (the button is already up), so the
+/// tree, which doesn't rebuild during a drag, can't stay frozen.
+pub(super) fn cancel_lost_drag(
+    mouse: Res<ButtonInput<MouseButton>>,
+    mut state: ResMut<SceneTreeState>,
+    mut indicator: Single<&mut Node, With<DropIndicator>>,
+) {
+    if state.drag.is_some() && !mouse.pressed(MouseButton::Left) {
+        state.drag = None;
+        indicator.display = Display::None;
+    }
+}
+
 fn start_row_drag(
     mut drag: On<PointerDragStart>,
     rows: Query<&RowEntity, With<TreeRow>>,
@@ -720,7 +733,10 @@ fn start_row_drag(
         return;
     };
     drag.propagate(false);
-    if drag.button == PointerButton::Primary && state.renaming.is_none() {
+    // Only drags that start on the row itself move it. The chevron and eye are `Button`s, which
+    // stop `PointerDragEnd` from bubbling, so a drag started on them would never end here.
+    let on_row = drag.original_event_target() == drag.entity;
+    if on_row && drag.button == PointerButton::Primary && state.renaming.is_none() {
         state.drag = Some(RowDrag {
             row: drag.entity,
             grabbed: *entity,
