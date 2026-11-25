@@ -67,6 +67,7 @@ impl Plugin for EditorUiPlugin {
                 (
                     setup_ui_camera,
                     viewport::spawn_demo_scene,
+                    hierarchy::setup_drop_indicator,
                     editor_root.spawn(),
                 ),
             )
@@ -78,7 +79,12 @@ impl Plugin for EditorUiPlugin {
                 Update,
                 (
                     style::update_hover_backgrounds,
-                    hierarchy::sync_scene_tree,
+                    (
+                        hierarchy::scene_tree_shortcuts,
+                        hierarchy::sync_scene_tree,
+                        hierarchy::init_rename_fields,
+                    )
+                        .chain(),
                     (
                         window_frame::sync_window_maximized,
                         (

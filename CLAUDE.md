@@ -64,7 +64,8 @@ cargo fmt && cargo clippy --all-targets
 - `main.rs`: borderless window (`decorations: false`), adds `EditorUiPlugin`, `EditingPlugin`,
   `EditorCameraPlugin`, `InfiniteGridPlugin`, `DevPlugin`.
 - `editing.rs`: `EditorOnly` marker (editor entities hidden from scene views; UI nodes count as
-  editor-only automatically) and the `Selection` resource. **Mark every editor-owned entity
+  editor-only automatically) and the `Selection` resource (multi-selection, in selection order;
+  the last entity is the primary one). **Mark every editor-owned entity
   that has a `Transform` with `EditorOnly`.**
 - `grid.rs`: infinite ground grid (custom `Material`; the vertex shader recenters a unit quad
   under whichever camera renders it, so it works in every viewport; `NoFrustumCulling`).
@@ -87,7 +88,10 @@ cargo fmt && cargo clippy --all-targets
 - `ui/panels.rs`: `PanelKind` registry (title, content scene) and the default layout, which
   reproduces the Figma arrangement (with a Console placeholder tab next to Assets).
 - Panel contents: `hierarchy.rs` (Scene Tree: live world hierarchy; rebuilt only when a row
-  snapshot changes; select, expand/collapse, visibility toggle, Add Entity),
+  snapshot changes, and never while a rename field is open or a row is dragged; Ctrl/Shift
+  multi-select, expand/collapse, visibility toggle, Add Entity, Delete, F2/double-click rename
+  of the whole selection, drag-and-drop reorder/reparent keeping world transforms; root order
+  lives in `SceneTreeState::root_order`),
   `project_files.rs` (Project Files), `viewport.rs` (toolbar, view, demo
   scene), `axis_gizmo.rs` (orientation gizmo per viewport, UI nodes positioned from the camera
   rotation each frame; clicking an axis calls `look_along`), `asset_browser.rs`, `inspector.rs` (Components), plus `title_bar.rs`,

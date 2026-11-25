@@ -2,19 +2,38 @@
 //!
 //! Each frame a [`Row`] snapshot of the visible tree is computed from the world; the rows are
 //! rebuilt only when that snapshot changes (an entity spawned, despawned, renamed, reparented,
-//! hidden, expanded, selected, …).
+//! hidden, expanded, selected, …). Rebuilds wait while a row is renamed or dragged, so the text
+//! field and the dragged row stay alive.
 //!
-//! - Click a row to select its entity ([`Selection`]).
+//! - Click a row to select its entity ([`Selection`]); Ctrl+click adds or removes it, Shift+click
+//!   selects the range from the last clicked row.
 //! - Click the chevron to collapse or expand its children.
 //! - Click the eye to hide or show the entity ([`Visibility`]).
+//! - Delete removes the selected entities (with their descendants).
+//! - F2 or a double-click renames in place: Enter (or clicking elsewhere) applies the name to
+//!   every selected entity, Escape cancels.
+//! - Drag rows to reorder or reparent them: the top or bottom quarter of a row drops before or
+//!   after it, the middle drops into it as the last child, and the empty space below the rows
+//!   moves to the end of the root list. Dragging a selected row moves the whole selection;
+//!   reparented entities keep their world transform.
 
 use bevy::{
     camera::Camera,
+    ecs::system::SystemParam,
+    feathers::{
+        controls::{FeathersTextInput, FeathersTextInputContainer},
+        theme::ThemeBackgroundColor,
+        tokens,
+    },
+    input::keyboard::{Key, KeyboardInput},
+    input_focus::{AutoFocus, FocusLost, FocusedInput, InputFocus},
     light::{DirectionalLight, PointLight, SpotLight},
-    picking::events::PointerClick,
+    picking::events::{PointerClick, PointerDrag, PointerDragEnd, PointerDragStart},
     platform::collections::HashSet,
     prelude::*,
-    ui_widgets::Button,
+    text::{EditableText, TextEdit},
+    ui::UiGlobalTransform,
+    ui_widgets::{Button, TextInput},
 };
 
 use super::{
@@ -26,6 +45,12 @@ use crate::editing::{EditorOnly, Selection};
 
 /// Indentation per hierarchy level, in pixels.
 const INDENT: f32 = 8.0;
+/// Vertical gap between rows, in pixels.
+const ROW_GAP: f32 = 3.0;
+/// How far the pointer must move before pressing a row turns into dragging it, in pixels.
+const DRAG_THRESHOLD: f32 = 4.0;
+/// Longest interval between the two clicks of a double-click, in seconds.
+const DOUBLE_CLICK_SECS: f64 = 0.4;
 
 /// Entities that are part of the edited scene.
 type SceneFilter = (With<Transform>, Without<EditorOnly>, Without<Node>);
@@ -52,7 +77,7 @@ pub fn scene_tree_content() -> impl Scene {
             --
             Node {
                 flex_direction: FlexDirection::Column,
-                row_gap: px(3),
+                row_gap: px(ROW_GAP),
                 width: percent(100),
                 flex_grow: 1.0,
                 min_height: px(0),
@@ -67,10 +92,50 @@ pub fn scene_tree_content() -> impl Scene {
 #[derive(Component, Clone, Default)]
 pub struct SceneTreeRows;
 
-/// Which entities are collapsed in the Scene Tree (everything else is expanded).
+/// Scene Tree state that is not part of the scene.
 #[derive(Resource, Default)]
 pub struct SceneTreeState {
+    /// Entities whose children are hidden (everything else is expanded).
     collapsed: HashSet<Entity>,
+    /// Order of the root entities, which have no `Children` list to keep one. New roots go last.
+    root_order: Vec<Entity>,
+    /// The entity whose name is being edited.
+    renaming: Option<Entity>,
+    /// The row of the last plain or Ctrl click: where a Shift+click range starts.
+    anchor: Option<Entity>,
+    /// The last plain click and when it happened (in real seconds), to detect double-clicks.
+    /// (Rows are rebuilt on selection changes, so picking's own click count doesn't work here.)
+    last_click: Option<(Entity, f64)>,
+    /// The row being dragged, if any.
+    drag: Option<RowDrag>,
+    /// Row snapshot of the last rebuild, top to bottom.
+    rows: Vec<Row>,
+}
+
+/// A row drag in progress.
+struct RowDrag {
+    /// The row node the drag started on.
+    row: Entity,
+    /// The entity of that row.
+    grabbed: Entity,
+    /// The entities the drop moves, in tree order; empty until the pointer passes
+    /// [`DRAG_THRESHOLD`].
+    entities: Vec<Entity>,
+    /// Where they would land.
+    target: Option<DropTarget>,
+}
+
+/// Where dragged entities land.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum DropTarget {
+    /// Right before this entity, under the same parent.
+    Before(Entity),
+    /// Right after this entity, under the same parent.
+    After(Entity),
+    /// Into `parent`, as its first or last child.
+    Into { parent: Entity, first: bool },
+    /// At the end of the root list.
+    RootEnd,
 }
 
 /// What a row reads from its entity.
@@ -109,26 +174,41 @@ struct Row {
     /// Hidden itself or by an ancestor: the row is drawn faded.
     faded: bool,
     selected: bool,
+    /// The entity is the primary (most recently selected) one.
+    active: bool,
+    /// The row shows a text field to rename its entity.
+    renaming: bool,
 }
-
-/// Row snapshot of the last rebuild.
-#[derive(Default)]
-pub(super) struct LastRows(Vec<Row>);
 
 pub(super) fn sync_scene_tree(
     mut commands: Commands,
     container: Single<Entity, With<SceneTreeRows>>,
     roots: Query<Entity, (SceneFilter, Without<ChildOf>)>,
     scene: Query<RowData, SceneFilter>,
-    state: Res<SceneTreeState>,
+    tree_rows: Query<(), With<TreeRow>>,
+    mut state: ResMut<SceneTreeState>,
     selection: Res<Selection>,
-    mut last: Local<LastRows>,
 ) {
-    let mut rows = Vec::new();
-    let mut roots: Vec<Entity> = roots.iter().collect();
-    roots.sort();
-    let mut stack: Vec<(Entity, usize)> = roots.into_iter().rev().map(|e| (e, 0)).collect();
+    let state = &mut *state;
 
+    // Keep the dragged row alive until the drop. If it vanished anyway, give up the drag.
+    if let Some(drag) = &state.drag {
+        if tree_rows.contains(drag.row) {
+            return;
+        }
+        state.drag = None;
+    }
+
+    // Known roots keep their order; new roots go last, in spawn order.
+    let current: HashSet<Entity> = roots.iter().collect();
+    state.root_order.retain(|root| current.contains(root));
+    let known: HashSet<Entity> = state.root_order.iter().copied().collect();
+    let mut new_roots: Vec<Entity> = current.into_iter().filter(|e| !known.contains(e)).collect();
+    new_roots.sort();
+    state.root_order.extend(new_roots);
+
+    let mut rows = Vec::new();
+    let mut stack: Vec<(Entity, usize)> = state.root_order.iter().rev().map(|e| (*e, 0)).collect();
     while let Some((entity, depth)) = stack.pop() {
         let Ok((name, children, visibility, inherited, camera, dir_light, point, spot, mesh)) =
             scene.get(entity)
@@ -160,14 +240,30 @@ pub(super) fn sync_scene_tree(
             expanded,
             visible,
             faded: !visible || inherited.is_some_and(|v| !v.get()),
-            selected: selection.0 == Some(entity),
+            selected: selection.contains(entity),
+            active: selection.primary() == Some(entity),
+            renaming: state.renaming == Some(entity),
         });
         if expanded {
             stack.extend(scene_children.into_iter().rev().map(|c| (c, depth + 1)));
         }
     }
 
-    if rows == last.0 {
+    if let Some(renaming) = state.renaming {
+        // A rename whose row is gone (despawned, or inside a collapsed parent) is dropped.
+        if !rows.iter().any(|row| row.entity == renaming) {
+            state.renaming = None;
+        // While the text field is up, keep it (and the rows around it) as they are.
+        } else if state
+            .rows
+            .iter()
+            .any(|row| row.renaming && row.entity == renaming)
+        {
+            return;
+        }
+    }
+
+    if rows == state.rows {
         return;
     }
     let scenes = rows.iter().map(row_scene).collect::<Vec<_>>();
@@ -175,7 +271,7 @@ pub(super) fn sync_scene_tree(
         .entity(*container)
         .despawn_related::<Children>()
         .apply_scene(bsn! { Children [ {scenes} ] });
-    last.0 = rows;
+    state.rows = rows;
 }
 
 /// Identifies the entity a row (or a button in it) acts on.
@@ -187,6 +283,10 @@ impl Default for RowEntity {
         Self(Entity::PLACEHOLDER)
     }
 }
+
+/// Marks a row node (as opposed to the buttons inside it).
+#[derive(Component, Clone, Copy, Default)]
+pub(super) struct TreeRow;
 
 /// Marks a row's expand/collapse chevron.
 #[derive(Component, Clone, Copy, Default)]
@@ -214,13 +314,13 @@ fn row_scene(row: &Row) -> impl Scene + use<> {
     } else {
         (icons::EYE_OFF, ink::DDD)
     };
-    // Selected rows are outlined; expanded parents keep a background, as in the design.
-    let background = if row.selected || (row.has_children && row.expanded) {
+    // Selected rows get a background; only the active (primary) one is outlined.
+    let background = if row.selected {
         colors::ITEM_BG
     } else {
         Color::NONE
     };
-    let (border, border_width) = if row.selected {
+    let (border, border_width) = if row.active {
         (colors::ACCENT, 2.0)
     } else {
         (Color::NONE, 0.0)
@@ -232,6 +332,14 @@ fn row_scene(row: &Row) -> impl Scene + use<> {
     };
     let indent = row.depth as f32 * INDENT;
     let name = row.name.clone();
+    let label: Box<dyn Scene> = if row.renaming {
+        Box::new(rename_field(row.entity, name))
+    } else {
+        Box::new(bsn! {
+            @text(name, 12.0, weight, ink::DDD.with_alpha(alpha))
+            Pickable::IGNORE
+        })
+    };
 
     bsn! {
         Button
@@ -242,6 +350,7 @@ fn row_scene(row: &Row) -> impl Scene + use<> {
             padding: UiRect { left: px(6), right: px(8), top: px(4), bottom: px(4) },
             align_items: AlignItems::Center,
             justify_content: JustifyContent::SpaceBetween,
+            column_gap: px(4),
             border: UiRect::all(px(border_width)),
             border_radius: BorderRadius::all(px(4)),
         }
@@ -249,9 +358,18 @@ fn row_scene(row: &Row) -> impl Scene + use<> {
         HoverBackground { normal: background, hover: colors::ITEM_BG }
         BorderColor { top: border, bottom: border, left: border, right: border }
         target
+        TreeRow
         on(select_row)
+        on(start_row_drag)
+        on(drag_row)
+        on(end_row_drag)
         Children [
-            Node { column_gap: px(4), align_items: AlignItems::Center, min_width: px(0) }
+            Node {
+                column_gap: px(4),
+                align_items: AlignItems::Center,
+                flex_grow: 1.0,
+                min_width: px(0),
+            }
             Pickable::IGNORE
             Children [
                 Button
@@ -264,8 +382,7 @@ fn row_scene(row: &Row) -> impl Scene + use<> {
                 @icon_sq(kind_icon, 15.0, kind_color.with_alpha(alpha))
                 Pickable::IGNORE
                 --
-                @text(name, 12.0, weight, ink::DDD.with_alpha(alpha))
-                Pickable::IGNORE
+                @{label}
             ]
             --
             Button
@@ -280,16 +397,69 @@ fn row_scene(row: &Row) -> impl Scene + use<> {
 
 fn select_row(
     mut click: On<PointerClick>,
-    rows: Query<&RowEntity, (Without<ExpandToggle>, Without<VisibilityToggle>)>,
+    rows: Query<&RowEntity, With<TreeRow>>,
+    keys: Res<ButtonInput<KeyCode>>,
+    time: Res<Time<Real>>,
+    mut state: ResMut<SceneTreeState>,
     mut selection: ResMut<Selection>,
 ) {
     let Ok(RowEntity(entity)) = rows.get(click.entity) else {
         return;
     };
     click.propagate(false);
-    if click.button == PointerButton::Primary {
-        selection.0 = Some(*entity);
+    // The release that ends a drag is not a click.
+    let dragging = state.drag.as_ref().is_some_and(|d| !d.entities.is_empty());
+    if click.button != PointerButton::Primary || dragging {
+        return;
     }
+    let entity = *entity;
+    let ctrl = keys.any_pressed([
+        KeyCode::ControlLeft,
+        KeyCode::ControlRight,
+        KeyCode::SuperLeft,
+        KeyCode::SuperRight,
+    ]);
+    let shift = keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]);
+    let state = &mut *state;
+
+    if shift && let Some(range) = state.anchor.and_then(|a| row_range(&state.rows, a, entity)) {
+        if !ctrl {
+            selection.clear();
+        }
+        for e in range {
+            selection.add(e);
+        }
+        // The clicked row becomes the primary selection.
+        selection.add(entity);
+    } else if ctrl {
+        selection.toggle(entity);
+        state.anchor = Some(entity);
+    } else {
+        selection.select(entity);
+        state.anchor = Some(entity);
+        let now = time.elapsed_secs_f64();
+        let double = state
+            .last_click
+            .is_some_and(|(last, at)| last == entity && now - at < DOUBLE_CLICK_SECS);
+        if double {
+            state.renaming = Some(entity);
+            state.last_click = None;
+        } else {
+            state.last_click = Some((entity, now));
+        }
+    }
+}
+
+/// The entities of the rows from `a` to `b` (inclusive, in either order).
+fn row_range(rows: &[Row], a: Entity, b: Entity) -> Option<Vec<Entity>> {
+    let a = rows.iter().position(|row| row.entity == a)?;
+    let b = rows.iter().position(|row| row.entity == b)?;
+    Some(
+        rows[a.min(b)..=a.max(b)]
+            .iter()
+            .map(|row| row.entity)
+            .collect(),
+    )
 }
 
 fn toggle_expanded(
@@ -325,7 +495,7 @@ fn toggle_visibility(
     }
 }
 
-/// "Add Entity": spawns an empty entity (child of the selection, if any) and selects it.
+/// "Add Entity": spawns an empty entity (child of the primary selection, if any) and selects it.
 fn add_entity(
     click: On<PointerClick>,
     mut commands: Commands,
@@ -340,8 +510,475 @@ fn add_entity(
         Transform::default(),
         Visibility::default(),
     ));
-    if let Some(parent) = selection.0.filter(|parent| scene.contains(*parent)) {
+    if let Some(parent) = selection.primary().filter(|parent| scene.contains(*parent)) {
         entity.insert(ChildOf(parent));
     }
-    selection.0 = Some(entity.id());
+    selection.select(entity.id());
+}
+
+/// The entities of `entities` that have no ancestor in `entities`.
+fn topmost(entities: &[Entity], parents: &Query<&ChildOf>) -> Vec<Entity> {
+    entities
+        .iter()
+        .copied()
+        .filter(|entity| {
+            !parents
+                .iter_ancestors(*entity)
+                .any(|ancestor| entities.contains(&ancestor))
+        })
+        .collect()
+}
+
+/// Keyboard shortcuts: Delete removes the selection, F2 renames it.
+#[expect(clippy::too_many_arguments, reason = "a Bevy system")]
+pub(super) fn scene_tree_shortcuts(
+    keys: Res<ButtonInput<KeyCode>>,
+    focus: Res<InputFocus>,
+    text_inputs: Query<(), With<TextInput>>,
+    mut commands: Commands,
+    mut state: ResMut<SceneTreeState>,
+    selection: Res<Selection>,
+    parents: Query<&ChildOf>,
+    scene: Query<(), SceneFilter>,
+) {
+    // Keys typed into a text field are not shortcuts.
+    if focus
+        .get()
+        .is_some_and(|entity| text_inputs.contains(entity))
+    {
+        return;
+    }
+    if keys.just_pressed(KeyCode::Delete) {
+        // Despawning an entity takes its descendants along.
+        for entity in topmost(selection.entities(), &parents) {
+            if scene.contains(entity) {
+                commands.entity(entity).try_despawn();
+            }
+        }
+    }
+    if keys.just_pressed(KeyCode::F2)
+        && let Some(primary) = selection.primary()
+        && scene.contains(primary)
+    {
+        state.renaming = Some(primary);
+    }
+}
+
+// --- Renaming ---------------------------------------------------------------------------------
+
+/// The text field that renames `target`; it starts out holding `initial`.
+#[derive(Component, Clone)]
+pub(super) struct RenameField {
+    target: Entity,
+    initial: String,
+}
+
+impl Default for RenameField {
+    fn default() -> Self {
+        Self {
+            target: Entity::PLACEHOLDER,
+            initial: String::new(),
+        }
+    }
+}
+
+fn rename_field(target: Entity, initial: String) -> impl Scene {
+    let field = RenameField { target, initial };
+    bsn! {
+        @FeathersTextInputContainer
+        Node {
+            height: px(18),
+            flex_grow: 1.0,
+            min_width: px(0),
+            padding: UiRect::horizontal(px(4)),
+            border_radius: BorderRadius::all(px(3)),
+        }
+        // The theme owns the container's background, so the darker color is set as a token.
+        ThemeBackgroundColor(tokens::WINDOW_BG)
+        Children [
+            @FeathersTextInput
+            field
+            AutoFocus
+            on(rename_keys)
+            on(rename_focus_lost)
+            on(keep_click)
+            on(keep_drag_start)
+        ]
+    }
+}
+
+/// Fills newly spawned rename fields with the current name, all selected.
+pub(super) fn init_rename_fields(
+    mut fields: Query<(&RenameField, &mut EditableText), Added<RenameField>>,
+) {
+    for (field, mut text) in &mut fields {
+        text.editor_mut().set_text(&field.initial);
+        text.queue_edit(TextEdit::SelectAll);
+    }
+}
+
+/// Ends a rename, applying the typed name or not.
+#[derive(SystemParam)]
+struct Rename<'w, 's> {
+    commands: Commands<'w, 's>,
+    fields: Query<'w, 's, (&'static RenameField, &'static EditableText)>,
+    state: ResMut<'w, SceneTreeState>,
+    selection: Res<'w, Selection>,
+    focus: ResMut<'w, InputFocus>,
+}
+
+impl Rename<'_, '_> {
+    fn finish(&mut self, field: Entity, apply: bool) {
+        let Ok((RenameField { target, initial }, text)) = self.fields.get(field) else {
+            return;
+        };
+        // Enter and the focus loss it causes both end up here; only the first one counts.
+        if self.state.renaming != Some(*target) {
+            return;
+        }
+        self.state.renaming = None;
+        if self.focus.get() == Some(field) {
+            self.focus.clear();
+        }
+        let typed = text.value().to_string();
+        let name = typed.trim();
+        if !apply || name.is_empty() || name == initial {
+            return;
+        }
+        // Renaming one of the selected entities renames all of them.
+        let targets = if self.selection.contains(*target) {
+            self.selection.entities().to_vec()
+        } else {
+            vec![*target]
+        };
+        for entity in targets {
+            self.commands
+                .entity(entity)
+                .try_insert(Name::new(name.to_owned()));
+        }
+    }
+}
+
+/// Enter applies the new name, Escape cancels.
+fn rename_keys(mut key: On<FocusedInput<KeyboardInput>>, mut rename: Rename) {
+    if !key.input.state.is_pressed() {
+        return;
+    }
+    let apply = match key.input.logical_key {
+        Key::Enter => true,
+        Key::Escape => false,
+        _ => return,
+    };
+    key.propagate(false);
+    rename.finish(key.focused_entity, apply);
+}
+
+/// Clicking elsewhere applies the new name.
+fn rename_focus_lost(lost: On<FocusLost>, mut rename: Rename) {
+    rename.finish(lost.entity, true);
+}
+
+/// Clicks in the rename field must not reach the row (which would change the selection).
+fn keep_click(mut click: On<PointerClick>) {
+    click.propagate(false);
+}
+
+/// Selecting text in the rename field must not drag the row.
+fn keep_drag_start(mut drag: On<PointerDragStart>) {
+    drag.propagate(false);
+}
+
+// --- Drag and drop ----------------------------------------------------------------------------
+
+/// Line (or outline) showing where dragged rows will land.
+#[derive(Component, Clone, Default)]
+pub(super) struct DropIndicator;
+
+pub(super) fn setup_drop_indicator(mut commands: Commands) {
+    commands.spawn((
+        Name::new("Scene Tree Drop Indicator"),
+        DropIndicator,
+        Node {
+            position_type: PositionType::Absolute,
+            display: Display::None,
+            border_radius: BorderRadius::all(px(4)),
+            ..default()
+        },
+        BackgroundColor(colors::ACCENT),
+        BorderColor::all(colors::ACCENT),
+        GlobalZIndex(i32::MAX - 1),
+        Pickable::IGNORE,
+    ));
+}
+
+fn start_row_drag(
+    mut drag: On<PointerDragStart>,
+    rows: Query<&RowEntity, With<TreeRow>>,
+    mut state: ResMut<SceneTreeState>,
+) {
+    let Ok(RowEntity(entity)) = rows.get(drag.entity) else {
+        return;
+    };
+    drag.propagate(false);
+    if drag.button == PointerButton::Primary && state.renaming.is_none() {
+        state.drag = Some(RowDrag {
+            row: drag.entity,
+            grabbed: *entity,
+            entities: Vec::new(),
+            target: None,
+        });
+    }
+}
+
+/// A node's rectangle in logical pixels.
+fn logical_rect(node: &ComputedNode, transform: &UiGlobalTransform) -> Rect {
+    let scale = node.inverse_scale_factor;
+    Rect::from_center_size(transform.translation * scale, node.size * scale)
+}
+
+fn drag_row(
+    mut drag: On<PointerDrag>,
+    row_nodes: Query<(&RowEntity, &ComputedNode, &UiGlobalTransform), With<TreeRow>>,
+    container: Single<(&ComputedNode, &UiGlobalTransform), With<SceneTreeRows>>,
+    mut state: ResMut<SceneTreeState>,
+    selection: Res<Selection>,
+    parents: Query<&ChildOf>,
+    mut indicator: Single<(&mut Node, &mut BackgroundColor), With<DropIndicator>>,
+) {
+    if !row_nodes.contains(drag.entity) {
+        return;
+    }
+    drag.propagate(false);
+    let state = &mut *state;
+    let Some(row_drag) = state.drag.as_mut().filter(|d| d.row == drag.entity) else {
+        return;
+    };
+    if row_drag.entities.is_empty() {
+        if drag.distance.length() < DRAG_THRESHOLD {
+            return;
+        }
+        // A selected row drags the whole selection; an unselected one drags just itself.
+        let mut entities = if selection.contains(row_drag.grabbed) {
+            topmost(selection.entities(), &parents)
+        } else {
+            vec![row_drag.grabbed]
+        };
+        entities.sort_by_key(|e| state.rows.iter().position(|row| row.entity == *e));
+        row_drag.entities = entities;
+    }
+
+    let pointer = drag.pointer.position;
+    let area = logical_rect(container.0, container.1);
+    let mut rows: Vec<(Entity, Rect)> = row_nodes
+        .iter()
+        .map(|(RowEntity(entity), node, transform)| (*entity, logical_rect(node, transform)))
+        .collect();
+    rows.sort_by(|a, b| a.1.min.y.total_cmp(&b.1.min.y));
+
+    // The target, and the indicator: a line at `y` from `x` to the right edge, or an outline.
+    let hit = if !area.contains(pointer) {
+        None
+    } else if let Some(&(entity, rect)) = rows
+        .iter()
+        .find(|(_, rect)| pointer.y < rect.max.y + ROW_GAP / 2.0)
+    {
+        let row = state.rows.iter().find(|row| row.entity == entity);
+        let local = (pointer.y - rect.min.y) / rect.height();
+        if local < 0.25 {
+            Some((
+                DropTarget::Before(entity),
+                Indicator::Line(rect.min.x, rect.min.y - ROW_GAP / 2.0),
+            ))
+        } else if local > 0.75 {
+            // Below an expanded parent is where its first child goes.
+            if row.is_some_and(|row| row.has_children && row.expanded) {
+                let target = DropTarget::Into {
+                    parent: entity,
+                    first: true,
+                };
+                Some((
+                    target,
+                    Indicator::Line(rect.min.x + INDENT, rect.max.y + ROW_GAP / 2.0),
+                ))
+            } else {
+                Some((
+                    DropTarget::After(entity),
+                    Indicator::Line(rect.min.x, rect.max.y + ROW_GAP / 2.0),
+                ))
+            }
+        } else {
+            let target = DropTarget::Into {
+                parent: entity,
+                first: false,
+            };
+            Some((target, Indicator::Outline(rect)))
+        }
+    } else {
+        // Empty space below the rows.
+        let y = rows
+            .last()
+            .map_or(area.min.y, |(_, rect)| rect.max.y + ROW_GAP / 2.0);
+        Some((DropTarget::RootEnd, Indicator::Line(area.min.x, y)))
+    };
+    let hit = hit.filter(|(target, _)| drop_allowed(*target, &row_drag.entities, &parents));
+
+    row_drag.target = hit.map(|(target, _)| target);
+    let (node, background) = &mut *indicator;
+    match hit.map(|(_, indicator)| indicator) {
+        None => node.display = Display::None,
+        Some(Indicator::Line(x, y)) => {
+            node.display = Display::Flex;
+            node.left = px(x);
+            node.top = px(y - 1.0);
+            node.width = px((area.max.x - x).max(0.0));
+            node.height = px(2);
+            node.border = UiRect::ZERO;
+            background.0 = colors::ACCENT;
+        }
+        Some(Indicator::Outline(rect)) => {
+            node.display = Display::Flex;
+            node.left = px(rect.min.x);
+            node.top = px(rect.min.y);
+            node.width = px(rect.width());
+            node.height = px(rect.height());
+            node.border = UiRect::all(px(2));
+            background.0 = colors::ACCENT.with_alpha(0.2);
+        }
+    }
+}
+
+/// How the drop indicator looks.
+#[derive(Clone, Copy)]
+enum Indicator {
+    /// A horizontal line starting at `(x, y)`.
+    Line(f32, f32),
+    /// An outline around a row.
+    Outline(Rect),
+}
+
+/// Entities can't be dropped next to or into themselves or their descendants.
+fn drop_allowed(target: DropTarget, dragged: &[Entity], parents: &Query<&ChildOf>) -> bool {
+    let inside_dragged = |entity: Entity| {
+        dragged.contains(&entity)
+            || parents
+                .iter_ancestors(entity)
+                .any(|ancestor| dragged.contains(&ancestor))
+    };
+    match target {
+        DropTarget::Before(entity) | DropTarget::After(entity) => !inside_dragged(entity),
+        DropTarget::Into { parent, .. } => !inside_dragged(parent),
+        DropTarget::RootEnd => true,
+    }
+}
+
+fn end_row_drag(
+    mut drag: On<PointerDragEnd>,
+    mut commands: Commands,
+    mut state: ResMut<SceneTreeState>,
+    mut indicator: Single<&mut Node, With<DropIndicator>>,
+    parents: Query<&ChildOf>,
+    children: Query<&Children>,
+    transforms: Query<&GlobalTransform>,
+) {
+    if state.drag.as_ref().is_none_or(|d| d.row != drag.entity) {
+        return;
+    }
+    drag.propagate(false);
+    indicator.display = Display::None;
+    if let Some(RowDrag {
+        entities,
+        target: Some(target),
+        ..
+    }) = state.drag.take()
+        && !entities.is_empty()
+    {
+        drop_entities(
+            &mut commands,
+            &mut state,
+            target,
+            &entities,
+            &parents,
+            &children,
+            &transforms,
+        );
+    }
+}
+
+/// Moves `entities` (none an ancestor of another, in tree order) to `target`, keeping their
+/// world transforms.
+fn drop_entities(
+    commands: &mut Commands,
+    state: &mut SceneTreeState,
+    target: DropTarget,
+    entities: &[Entity],
+    parents: &Query<&ChildOf>,
+    children: &Query<&Children>,
+    transforms: &Query<&GlobalTransform>,
+) {
+    let siblings_of = |parent: Option<Entity>| -> Vec<Entity> {
+        match parent {
+            Some(parent) => children.get(parent).map(|c| c.to_vec()).unwrap_or_default(),
+            None => state.root_order.clone(),
+        }
+    };
+    // The new parent (`None`: the root list), its current child list, and the insertion index.
+    let (parent, siblings, index) = match target {
+        DropTarget::Before(entity) | DropTarget::After(entity) => {
+            let parent = parents.get(entity).ok().map(ChildOf::parent);
+            let siblings = siblings_of(parent);
+            let position = siblings.iter().position(|e| *e == entity);
+            let index = position.map_or(siblings.len(), |p| {
+                p + usize::from(matches!(target, DropTarget::After(_)))
+            });
+            (parent, siblings, index)
+        }
+        DropTarget::Into { parent, first } => {
+            let siblings = siblings_of(Some(parent));
+            let index = if first { 0 } else { siblings.len() };
+            (Some(parent), siblings, index)
+        }
+        DropTarget::RootEnd => {
+            let siblings = siblings_of(None);
+            let index = siblings.len();
+            (None, siblings, index)
+        }
+    };
+    // Moved entities that sit before the insertion point leave a gap behind.
+    let index = index
+        - siblings[..index.min(siblings.len())]
+            .iter()
+            .filter(|e| entities.contains(e))
+            .count();
+
+    for &entity in entities {
+        let old_parent = parents.get(entity).ok().map(ChildOf::parent);
+        if old_parent == parent {
+            continue;
+        }
+        if let Ok(global) = transforms.get(entity) {
+            let transform = match parent.and_then(|p| transforms.get(p).ok()) {
+                Some(parent_global) => global.reparented_to(parent_global),
+                None => global.compute_transform(),
+            };
+            commands.entity(entity).insert(transform);
+        }
+    }
+
+    match parent {
+        Some(parent) => {
+            // Show where the entities went.
+            state.collapsed.remove(&parent);
+            commands.entity(parent).insert_children(index, entities);
+        }
+        None => {
+            for &entity in entities {
+                commands.entity(entity).remove::<ChildOf>();
+            }
+            state.root_order.retain(|e| !entities.contains(e));
+            let index = index.min(state.root_order.len());
+            state
+                .root_order
+                .splice(index..index, entities.iter().copied());
+        }
+    }
 }
