@@ -2,19 +2,21 @@
 
 use std::{
     collections::BTreeMap,
-    ffi::OsStr,
     fs,
     path::{Path, PathBuf},
     time::{Duration, Instant},
 };
 
 use bevy::{
-    asset::io::{ErasedAssetReader, embedded::EMBEDDED},
+    asset::{
+        AssetPath,
+        io::{ErasedAssetReader, embedded::EMBEDDED},
+    },
     prelude::*,
     tasks::{IoTaskPool, Task, futures::check_ready, futures_lite::StreamExt},
 };
 
-use crate::ProjectRoot;
+use crate::{ProjectRoot, project::PROJECT_ASSET_SOURCE};
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub(super) enum Source {
@@ -63,27 +65,74 @@ impl Folder {
 #[derive(PartialEq, Eq)]
 pub(super) struct Entry {
     pub(super) name: String,
-    pub(super) folder: Option<Folder>,
+    pub(super) kind: EntryKind,
+}
+
+#[derive(PartialEq, Eq)]
+pub(super) enum EntryKind {
+    Folder(Folder),
+    File(AssetPath<'static>),
 }
 
 impl Entry {
-    fn folder(folder: Folder) -> Self {
+    fn directory(folder: Folder) -> Self {
         Self {
             name: folder.name(),
-            folder: Some(folder),
+            kind: EntryKind::Folder(folder),
         }
     }
 
-    fn file(name: &OsStr) -> Self {
+    fn file(path: PathBuf, source: &'static str) -> Self {
         Self {
-            name: name.to_string_lossy().into_owned(),
-            folder: None,
+            name: path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .into_owned(),
+            kind: EntryKind::File(AssetPath::from_path_buf(path).with_source(source)),
         }
+    }
+
+    pub(super) fn folder(&self) -> Option<&Folder> {
+        match &self.kind {
+            EntryKind::Folder(folder) => Some(folder),
+            EntryKind::File(_) => None,
+        }
+    }
+
+    fn sort_key(&self) -> (bool, &str, &Path) {
+        let path = match &self.kind {
+            EntryKind::Folder(Folder::Asset(_, path)) => path,
+            EntryKind::Folder(Folder::Sources) => Path::new(""),
+            EntryKind::File(path) => path.path(),
+        };
+        (self.folder().is_none(), &self.name, path)
     }
 }
 
 #[derive(Default, Resource, PartialEq, Eq)]
 pub(super) struct Catalog(pub BTreeMap<Folder, Result<Vec<Entry>, &'static str>>);
+
+impl Catalog {
+    pub(super) fn contains_file(&self, path: &AssetPath) -> bool {
+        let source = match path.source().as_str() {
+            Some(PROJECT_ASSET_SOURCE) => Source::Project,
+            Some(EMBEDDED) => Source::Embedded,
+            _ => return false,
+        };
+        let Some(parent) = path.path().parent() else {
+            return false;
+        };
+        self.0
+            .get(&Folder::Asset(source, parent.into()))
+            .and_then(|listing| listing.as_ref().ok())
+            .is_some_and(|entries| {
+                entries
+                    .iter()
+                    .any(|entry| matches!(&entry.kind, EntryKind::File(file) if file == path))
+            })
+    }
+}
 
 #[derive(Default)]
 pub(super) struct Scan {
@@ -124,8 +173,8 @@ async fn build_catalog(project_assets: Option<PathBuf>, server: AssetServer) -> 
     catalog.0.insert(
         Folder::Sources,
         Ok(vec![
-            Entry::folder(project.clone()),
-            Entry::folder(embedded.clone()),
+            Entry::directory(project.clone()),
+            Entry::directory(embedded.clone()),
         ]),
     );
     if let Some(root) = project_assets {
@@ -167,10 +216,13 @@ fn scan_project(root: &Path, catalog: &mut Catalog) {
             let name = child.file_name();
             if kind.is_dir() {
                 let path = path.join(name);
-                entries.push(Entry::folder(Folder::Asset(Source::Project, path.clone())));
+                entries.push(Entry::directory(Folder::Asset(
+                    Source::Project,
+                    path.clone(),
+                )));
                 pending.push(path);
             } else if kind.is_file() {
-                entries.push(Entry::file(&name));
+                entries.push(Entry::file(path.join(name), PROJECT_ASSET_SOURCE));
             }
         }
         save_listing(folder, entries, catalog);
@@ -189,17 +241,17 @@ async fn scan_embedded(reader: &dyn ErasedAssetReader, catalog: &mut Catalog) {
         };
         let mut entries = Vec::new();
         while let Some(child) = children.next().await {
-            let Some(name) = child.file_name() else {
+            if child.file_name().is_none() {
                 continue;
-            };
+            }
             if reader.is_directory(&child).await == Ok(true) {
-                entries.push(Entry::folder(Folder::Asset(
+                entries.push(Entry::directory(Folder::Asset(
                     Source::Embedded,
                     child.clone(),
                 )));
                 pending.push(child);
             } else {
-                entries.push(Entry::file(name));
+                entries.push(Entry::file(child, EMBEDDED));
             }
         }
         save_listing(Folder::Asset(Source::Embedded, path), entries, catalog);
@@ -207,12 +259,6 @@ async fn scan_embedded(reader: &dyn ErasedAssetReader, catalog: &mut Catalog) {
 }
 
 fn save_listing(folder: Folder, mut entries: Vec<Entry>, catalog: &mut Catalog) {
-    entries.sort_by(|a, b| {
-        a.folder
-            .is_none()
-            .cmp(&b.folder.is_none())
-            .then_with(|| a.name.cmp(&b.name))
-            .then_with(|| a.folder.cmp(&b.folder))
-    });
+    entries.sort_by(|a, b| a.sort_key().cmp(&b.sort_key()));
     catalog.0.insert(folder, Ok(entries));
 }

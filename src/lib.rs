@@ -36,6 +36,16 @@ impl Default for EditorPlugin {
 
 impl Plugin for EditorPlugin {
     fn build(&self, app: &mut App) {
+        if let Some(root) = &self.project {
+            if !root.is_dir() {
+                warn!("project folder {} does not exist", root.display());
+            }
+            app.insert_resource(ProjectRoot(root.clone()));
+        }
+        if let Some(ProjectRoot(root)) = app.world().get_resource::<ProjectRoot>().cloned() {
+            project::register_asset_source(app, &root);
+        }
+        ui::register_asset_inspection_source(app);
         app.add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "Bevy Editor".into(),
@@ -55,12 +65,6 @@ impl Plugin for EditorPlugin {
         ));
         if self.demo_scene {
             app.add_systems(Startup, ui::spawn_demo_scene);
-        }
-        if let Some(root) = &self.project {
-            if !root.is_dir() {
-                warn!("project folder {} does not exist", root.display());
-            }
-            app.insert_resource(ProjectRoot(root.clone()));
         }
     }
 }

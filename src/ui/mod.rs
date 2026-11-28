@@ -39,6 +39,7 @@ use bevy::{
 
 use style::colors;
 
+pub(crate) use asset_browser::register_asset_inspection_source;
 pub use viewport::{ViewportSlot, spawn_demo_scene};
 
 /// Theme tokens the editor adds on top of the feathers dark theme.
