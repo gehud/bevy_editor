@@ -7,6 +7,7 @@
 
 mod interact;
 mod layout;
+mod tab_menu;
 mod view;
 
 use bevy::{prelude::*, ui::UiSystems};

@@ -21,6 +21,7 @@ use crate::ui::icons;
 use super::{
     interact,
     layout::{Axis, DockLayout, DockNode, NodeId, PanelId},
+    tab_menu,
 };
 use crate::ui::{
     panels::Panels,
@@ -287,6 +288,7 @@ fn tab(look: Box<dyn Scene>, leaf: NodeId, index: usize, panel: PanelId) -> impl
         DockTab { leaf: leaf, index: index }
         handle
         on(interact::click_tab)
+        on(tab_menu::open)
         on(interact::start_panel_drag)
         on(interact::drag_panel)
         on(interact::end_panel_drag)
