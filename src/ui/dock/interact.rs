@@ -16,6 +16,8 @@ use crate::ui::style::colors;
 
 /// Smallest size a split child can be resized to, in logical pixels.
 const MIN_CHILD_SIZE: f32 = 60.0;
+/// How far the pointer must move from the press before a tab starts dragging, in logical pixels.
+const TAB_DRAG_THRESHOLD: f32 = 8.0;
 /// Fraction of a leaf's width/height, measured from each edge, that drops as a split.
 const EDGE_ZONE: f32 = 0.25;
 
@@ -23,6 +25,7 @@ const EDGE_ZONE: f32 = 0.25;
 #[derive(Resource, Default)]
 pub(super) struct DockDrag {
     panel: Option<PanelId>,
+    past_threshold: bool,
     target: Option<(NodeId, DropZone)>,
 }
 
@@ -62,16 +65,17 @@ pub(super) fn click_tab(
 
 pub(super) fn start_panel_drag(
     mut drag: On<PointerDragStart>,
-    handles: Query<&DragsPanel>,
+    handles: Query<(&DragsPanel, Has<DockTab>)>,
     mut state: ResMut<DockDrag>,
 ) {
-    let Ok(DragsPanel(panel)) = handles.get(drag.entity) else {
+    let Ok((DragsPanel(panel), is_tab)) = handles.get(drag.entity) else {
         return;
     };
     drag.propagate(false);
     if drag.button == PointerButton::Primary {
         *state = DockDrag {
             panel: Some(*panel),
+            past_threshold: !is_tab,
             target: None,
         };
     }
@@ -86,8 +90,14 @@ pub(super) fn drag_panel(
     mut preview: Single<(&mut Node, &mut BackgroundColor), With<DropPreview>>,
 ) {
     drag.propagate(false);
-    if state.panel.is_none() {
+    if drag.button != PointerButton::Primary || state.panel.is_none() {
         return;
+    }
+    if !state.past_threshold {
+        if drag.distance.length_squared() < TAB_DRAG_THRESHOLD * TAB_DRAG_THRESHOLD {
+            return;
+        }
+        state.past_threshold = true;
     }
     let bar_hit = bars.iter().find_map(|(bar, node, transform)| {
         let scale = node.inverse_scale_factor;
@@ -161,9 +171,13 @@ pub(super) fn end_panel_drag(
     mut preview: Single<&mut Node, With<DropPreview>>,
 ) {
     drag.propagate(false);
+    if drag.button != PointerButton::Primary {
+        return;
+    }
     if let DockDrag {
         panel: Some(panel),
         target: Some((leaf, zone)),
+        ..
     } = *state
     {
         // Only touch the layout (and trigger a rebuild) when the drop changes something.
