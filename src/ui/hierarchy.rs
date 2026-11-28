@@ -10,6 +10,7 @@
 //! - Type in the filter field to show only entities whose name contains the text (ignoring
 //!   case), with their ancestors (dimmed) and everything expanded.
 //! - Click the chevron to collapse or expand its children.
+//! - Scene instance roots have a stacked-square icon and an "Instance" badge.
 //! - Click the eye to hide or show the entity ([`Visibility`]).
 //! - Delete removes the selected entities (with their descendants).
 //! - F2 or a double-click renames in place: Enter (or clicking elsewhere) applies the name to
@@ -161,6 +162,7 @@ type RowData = (
     Option<&'static Children>,
     Option<&'static Visibility>,
     Option<&'static InheritedVisibility>,
+    (Has<WorldAssetRoot>, Has<DynamicWorldRoot>),
     Has<Camera>,
     Has<DirectionalLight>,
     Has<PointLight>,
@@ -171,6 +173,7 @@ type RowData = (
 /// What kind of icon a row shows.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum RowKind {
+    SceneInstance,
     Camera,
     Light,
     Mesh,
@@ -289,8 +292,19 @@ pub(super) fn sync_scene_tree(
         .map(|e| (*e, 0))
         .collect();
     while let Some((entity, depth)) = stack.pop() {
-        let Ok((_, name, children, visibility, inherited, camera, dir_light, point, spot, mesh)) =
-            scene.get(entity)
+        let Ok((
+            _,
+            name,
+            children,
+            visibility,
+            inherited,
+            (world_asset, dynamic_world),
+            camera,
+            dir_light,
+            point,
+            spot,
+            mesh,
+        )) = scene.get(entity)
         else {
             continue;
         };
@@ -306,7 +320,9 @@ pub(super) fn sync_scene_tree(
             entity,
             depth,
             name: display_name(entity, name),
-            kind: if camera {
+            kind: if world_asset || dynamic_world {
+                RowKind::SceneInstance
+            } else if camera {
                 RowKind::Camera
             } else if dir_light || point || spot {
                 RowKind::Light
@@ -396,6 +412,7 @@ fn row_scene(row: &Row) -> impl Scene + use<> {
         (true, true) => (icons::CHEVRON_DOWN, ink::E6),
     };
     let (kind_icon, kind_color) = match row.kind {
+        RowKind::SceneInstance => (icons::SQUARES_OVERLAPPING, ink::E6),
         RowKind::Camera => (icons::VIDEO, ink::DDD),
         RowKind::Light => (icons::LIGHTBULB, ink::E6),
         RowKind::Mesh | RowKind::Empty => (icons::BOX, ink::E6),
@@ -432,6 +449,22 @@ fn row_scene(row: &Row) -> impl Scene + use<> {
             Pickable::IGNORE
         })
     };
+    let instance_badge = (row.kind == RowKind::SceneInstance && !row.renaming).then(|| {
+        bsn! {
+            Node {
+                align_items: AlignItems::Center,
+                padding: UiRect::horizontal(px(4)),
+                flex_shrink: 0.0,
+                border_radius: BorderRadius::all(px(3)),
+            }
+            BackgroundColor({colors::ITEM_BG_ACTIVE.with_alpha(alpha)})
+            Pickable::IGNORE
+            Children [
+                @text("Instance", 10.0, Weight::Medium, ink::DDD.with_alpha(alpha))
+                Pickable::IGNORE
+            ]
+        }
+    });
 
     bsn! {
         Button
@@ -461,6 +494,7 @@ fn row_scene(row: &Row) -> impl Scene + use<> {
                 align_items: AlignItems::Center,
                 flex_grow: 1.0,
                 min_width: px(0),
+                overflow: Overflow::clip(),
             }
             Pickable::IGNORE
             Children [
@@ -476,6 +510,8 @@ fn row_scene(row: &Row) -> impl Scene + use<> {
                 --
                 @{label}
             ]
+            --
+            @{instance_badge}
             --
             Button
             Node { flex_shrink: 0.0 }
