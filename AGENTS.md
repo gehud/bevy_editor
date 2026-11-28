@@ -1,5 +1,9 @@
 # Bevy Editor
 
+This file is the shared project guidance for coding agents. Read it in full before
+working in this repository, and follow any additional `AGENTS.md` instructions in
+directories you work in, including the `bevy/` submodule.
+
 An editor for the Bevy game engine: scene editing, asset inspection, and (planned) custom editor
 plugins. The UI is built with `bevy_feathers` and follows a Figma design.
 
@@ -160,6 +164,12 @@ cargo fmt && cargo fmt -p sample_project && cargo clippy --workspace --all-targe
 
 ## Workflow
 
-- Commit directly to `dev` and push to `origin dev` (no feature branches). Commit only when asked.
+- Make only changes needed for the requested task; preserve existing user changes.
+- Do not commit or push unless explicitly requested. When requested, commit directly to
+  `dev` and push to `origin dev` (no feature branches); publish fork changes first as above.
+- Run checks appropriate to the changes using the commands above. Avoid `cargo fmt --all`;
+  the Bevy fork is a separate workspace. State any checks you could not run.
 - Verify UI changes with the screenshot hook. For interaction paths that can't be clicked from a
   script, a temporary system that mutates `DockLayout` on a fixed frame works; remove it afterwards.
+  Use the screenshot hook when graphics support is available, and remove temporary
+  screenshot/test instrumentation before finishing.
