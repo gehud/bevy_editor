@@ -13,10 +13,12 @@ use bevy::prelude::*;
 use bevy_editor::EditorPlugin;
 
 fn main() {
+    let project_root = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/sample_project");
     App::new()
+        .add_plugins(scene::SampleAssetsPlugin { project_root })
         .add_plugins(EditorPlugin {
             demo_scene: false,
-            project: Some(concat!(env!("CARGO_MANIFEST_DIR"), "/examples/sample_project").into()),
+            project: Some(project_root.into()),
         })
         // The game's types and scene, but not its systems: the editor doesn't play the game.
         .add_plugins(scene::SampleTypesPlugin)

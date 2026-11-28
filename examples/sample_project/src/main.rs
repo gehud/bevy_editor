@@ -6,6 +6,9 @@ use bevy::prelude::*;
 
 fn main() {
     App::new()
+        .add_plugins(scene::SampleAssetsPlugin {
+            project_root: env!("CARGO_MANIFEST_DIR"),
+        })
         .add_plugins((DefaultPlugins, scene::SampleTypesPlugin))
         .add_systems(Startup, (scene::spawn_scene, spawn_camera))
         .add_systems(Update, scene::spin)
