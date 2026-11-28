@@ -4,7 +4,7 @@ mod catalog;
 mod inspection;
 
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{BTreeSet, HashSet},
     path::Path,
 };
 
@@ -13,13 +13,12 @@ use bevy::{
     input_focus::tab_navigation::TabIndex,
     prelude::*,
     text::EditableText,
-    ui::UiSystems,
-    ui_widgets::{Activate, Button, ScrollArea, ScrollIntoView},
+    ui_widgets::{Activate, Button, ScrollArea},
 };
 
 use self::catalog::{Catalog, Entry, EntryKind, Folder, refresh_catalog};
 pub(crate) use self::inspection::register_asset_inspection_source;
-use self::inspection::{AssetDetails, DetailsLoader, load_details};
+use self::inspection::{AssetDetails, DetailsLoader, Inspections};
 use super::{
     icons,
     style::{HoverBackground, colors, icon_sq, ink, label},
@@ -34,9 +33,7 @@ impl Plugin for AssetBrowserPlugin {
             .init_resource::<Catalog>()
             .init_asset::<AssetDetails>()
             .init_asset_loader::<DetailsLoader>()
-            .add_message::<RevealFile>()
-            .add_systems(Update, (refresh_catalog, read_filter, sync_browser).chain())
-            .add_systems(PostUpdate, reveal_file.after(UiSystems::PostLayout));
+            .add_systems(Update, (refresh_catalog, read_filter, sync_browser).chain());
     }
 }
 
@@ -52,7 +49,7 @@ pub(super) struct AssetBrowserState {
     pub(super) view: AssetView,
     folder: Folder,
     expanded: BTreeSet<Folder>,
-    expanded_files: HashMap<AssetPath<'static>, Handle<AssetDetails>>,
+    expanded_files: HashSet<AssetPath<'static>>,
     filter: String,
 }
 
@@ -82,14 +79,7 @@ struct OpenFolder {
 }
 
 #[derive(Component, Clone)]
-struct OpenFile {
-    path: AssetPath<'static>,
-    /// A tile opens its file in Tree view; a file row toggles its children.
-    from_folder: Option<Folder>,
-}
-
-#[derive(Message)]
-struct RevealFile(AssetPath<'static>);
+struct ToggleFile(AssetPath<'static>);
 
 pub(super) fn asset_browser_content() -> impl Scene {
     bsn! {
@@ -169,46 +159,21 @@ fn open_folder(
 
 fn toggle_file(
     event: On<Activate>,
-    files: Query<&OpenFile>,
-    server: Res<AssetServer>,
+    files: Query<&ToggleFile>,
     mut state: ResMut<AssetBrowserState>,
-    mut reveal: MessageWriter<RevealFile>,
 ) {
-    let Ok(OpenFile { path, from_folder }) = files.get(event.entity) else {
+    let Ok(ToggleFile(path)) = files.get(event.entity) else {
         return;
     };
-    if let Some(folder) = from_folder {
-        state.view = AssetView::Tree;
-        state.expand_path(folder.clone());
-        reveal.write(RevealFile(path.clone()));
-    } else if state.expanded_files.remove(path).is_some() {
-        return;
-    }
-    if !state.expanded_files.contains_key(path)
-        && let Some(handle) = load_details(&server, path)
-    {
-        state.expanded_files.insert(path.clone(), handle);
-    }
-}
-
-fn reveal_file(
-    mut reveal: MessageReader<RevealFile>,
-    rows: Query<(Entity, &OpenFile)>,
-    mut commands: Commands,
-) {
-    if let Some(RevealFile(path)) = reveal.read().last()
-        && let Some((entity, _)) = rows
-            .iter()
-            .find(|(_, file)| file.from_folder.is_none() && &file.path == path)
-    {
-        commands.trigger(ScrollIntoView { entity });
+    if !state.expanded_files.remove(path) {
+        state.expanded_files.insert(path.clone());
     }
 }
 
 fn sync_browser(
     mut state: ResMut<AssetBrowserState>,
     catalog: Res<Catalog>,
-    details: Res<Assets<AssetDetails>>,
+    mut inspections: Inspections,
     breadcrumbs: Single<(Entity, Option<&Children>), With<Breadcrumbs>>,
     entries: Single<
         (Entity, &mut Node, &mut ScrollPosition, Option<&Children>),
@@ -219,15 +184,16 @@ fn sync_browser(
 ) {
     if !state.is_changed()
         && !catalog.is_changed()
-        && !(state.view == AssetView::Tree && details.is_changed())
+        && !inspections.is_changed()
         && previous.is_some()
     {
         return;
     }
-    if catalog.is_changed() && !state.expanded_files.is_empty() {
+    if catalog.is_changed() {
+        inspections.retain_files(&catalog);
         state
             .expanded_files
-            .retain(|path, _| catalog.contains_file(path));
+            .retain(|path| catalog.contains_file(path));
     }
     while let Some(parent) = state.folder.parent() {
         if catalog.0.contains_key(&state.folder) {
@@ -273,8 +239,15 @@ fn sync_browser(
 
     let mut scenes = Vec::new();
     match state.view {
-        AssetView::Tree => tree_rows(&Folder::Sources, &state, &catalog, &details, 0, &mut scenes),
-        AssetView::ActiveFolder => folder_tiles(&state, &catalog, &mut scenes),
+        AssetView::Tree => tree_rows(
+            &Folder::Sources,
+            &state,
+            &catalog,
+            &mut inspections,
+            0,
+            &mut scenes,
+        ),
+        AssetView::ActiveFolder => folder_tiles(&state, &catalog, &mut inspections, &mut scenes),
     }
     if scenes.is_empty() {
         let message = if state.filter.is_empty() {
@@ -335,7 +308,7 @@ fn tree_rows(
     folder: &Folder,
     state: &AssetBrowserState,
     catalog: &Catalog,
-    details: &Assets<AssetDetails>,
+    inspections: &mut Inspections,
     depth: usize,
     scenes: &mut Vec<Box<dyn Scene>>,
 ) {
@@ -355,26 +328,34 @@ fn tree_rows(
     };
     for entry in entries {
         let folder = entry.folder();
-        let file = match &entry.kind {
-            EntryKind::File(path) => state.expanded_files.get(path),
-            EntryKind::Folder(_) => None,
-        };
-        let expanded = file.is_some()
-            || folder.is_some_and(|folder| filtering || state.expanded.contains(folder));
         let matches = !filtering || entry.name.to_lowercase().contains(&state.filter);
+        if !matches && folder.is_none() {
+            continue;
+        }
         let index = scenes.len();
         let active = folder == Some(&state.folder);
-        let details_for_file = file.and_then(|handle| details.get(handle));
-        let root_type = details_for_file
-            .and_then(|details| details.0.as_ref().ok())
-            .map(|labels| labels.root_type);
+        let file = entry.asset_path();
+        let details = file.and_then(|path| inspections.get(path));
+        let expanded = if let Some(folder) = folder {
+            Some(filtering || state.expanded.contains(folder))
+        } else {
+            details
+                .filter(|details| !details.labels.is_empty())
+                .zip(file)
+                .map(|(_, path)| state.expanded_files.contains(path))
+        };
+        let root_type = details.map(|details| details.root_type);
         scenes.push(Box::new(tree_row(
             entry, active, depth, expanded, matches, root_type,
         )));
-        if expanded && let Some(folder) = folder {
-            tree_rows(folder, state, catalog, details, depth + 1, scenes);
-        } else if file.is_some() && matches {
-            label_rows(depth + 1, details_for_file, scenes);
+        if expanded == Some(true) {
+            if let Some(folder) = folder {
+                tree_rows(folder, state, catalog, inspections, depth + 1, scenes);
+            } else if let Some(details) = details {
+                for (name, kind) in &details.labels {
+                    scenes.push(Box::new(label_row(depth + 1, format!("#{name}"), kind)));
+                }
+            }
         }
         if !matches && scenes.len() == index + 1 {
             scenes.pop();
@@ -386,13 +367,13 @@ fn tree_row(
     entry: &Entry,
     active: bool,
     depth: usize,
-    expanded: bool,
+    expanded: Option<bool>,
     matches: bool,
     root_type: Option<&'static str>,
 ) -> impl Scene {
-    let button = entry_button(entry, None);
+    let button = entry_button(entry, AssetView::Tree, expanded.is_some());
     let background = if active { colors::ITEM_BG } else { Color::NONE };
-    let chevron = if expanded {
+    let chevron = if expanded == Some(true) {
         icons::CHEVRON_DOWN
     } else {
         icons::CHEVRON_RIGHT
@@ -401,6 +382,11 @@ fn tree_row(
     let color = if matches { ink::E6 } else { ink::DIM };
     let name = entry.name.clone();
     let icon = asset_icon(entry, false);
+    let chevron_visibility = if expanded.is_some() {
+        Visibility::Inherited
+    } else {
+        Visibility::Hidden
+    };
     let type_label = root_type.map(|kind| bsn! { @label(kind, ink::DIM) Pickable::IGNORE });
     bsn! {
         @{button}
@@ -416,7 +402,7 @@ fn tree_row(
         BackgroundColor(background)
         HoverBackground { normal: background, hover: colors::ITEM_BG_ACTIVE }
         Children [
-            @icon_sq(chevron, 15.0, ink::C8C8) Pickable::IGNORE
+            @icon_sq(chevron, 15.0, ink::C8C8) chevron_visibility Pickable::IGNORE
             --
             @icon_sq(icon, 15.0, color) Pickable::IGNORE
             --
@@ -428,25 +414,8 @@ fn tree_row(
     }
 }
 
-fn label_rows(depth: usize, details: Option<&AssetDetails>, scenes: &mut Vec<Box<dyn Scene>>) {
-    let status = match details.map(|details| &details.0) {
-        Some(Ok(details)) if !details.labels.is_empty() => {
-            for (name, kind) in &details.labels {
-                scenes.push(Box::new(label_row(depth, format!("#{name}"), Some(kind))));
-            }
-            return;
-        }
-        Some(Ok(_)) => "No labeled assets",
-        Some(Err(error)) => error,
-        None => "Loading asset…",
-    };
-    scenes.push(Box::new(label_row(depth, status.to_owned(), None)));
-}
-
-fn label_row(depth: usize, name: String, kind: Option<&'static str>) -> impl Scene {
+fn label_row(depth: usize, name: String, kind: &'static str) -> impl Scene {
     let left = depth as f32 * 16.0 + 46.0;
-    let color = if kind.is_some() { ink::E6 } else { ink::DIM };
-    let type_label = kind.map(|kind| bsn! { @label(kind, ink::DIM) Pickable::IGNORE });
     bsn! {
         Node {
             min_height: px(24),
@@ -457,27 +426,67 @@ fn label_row(depth: usize, name: String, kind: Option<&'static str>) -> impl Sce
         }
         Pickable::IGNORE
         Children [
-            @label(name, color)
+            @label(name, ink::E6)
             TextLayout { linebreak: LineBreak::WordOrCharacter }
             Node { flex_grow: 1.0, min_width: px(0) }
             Pickable::IGNORE
             --
-            @{type_label}
+            @label(kind, ink::DIM) Pickable::IGNORE
         ]
     }
 }
 
-fn folder_tiles(state: &AssetBrowserState, catalog: &Catalog, scenes: &mut Vec<Box<dyn Scene>>) {
-    match listing(catalog, &state.folder) {
-        Ok(entries) => scenes.extend(
-            entries
+fn folder_tiles(
+    state: &AssetBrowserState,
+    catalog: &Catalog,
+    inspections: &mut Inspections,
+    scenes: &mut Vec<Box<dyn Scene>>,
+) {
+    let entries = match listing(catalog, &state.folder) {
+        Ok(entries) => entries,
+        Err(message) => {
+            scenes.push(Box::new(label(message, ink::DIM)));
+            return;
+        }
+    };
+    for entry in entries {
+        if !state.filter.is_empty() && !entry.name.to_lowercase().contains(&state.filter) {
+            continue;
+        }
+        let file = entry.asset_path();
+        let details = file
+            .and_then(|path| inspections.get(path))
+            .filter(|details| !details.labels.is_empty());
+        let expanded = details
+            .zip(file)
+            .map(|(_, path)| state.expanded_files.contains(path));
+        let button = entry_button(entry, AssetView::ActiveFolder, expanded.is_some());
+        let root = tile(
+            entry.name.clone(),
+            asset_icon(entry, true),
+            button,
+            expanded,
+            None,
+        );
+        if let Some(details) = details.filter(|_| expanded == Some(true)) {
+            let children: Vec<Box<dyn Scene>> = details
+                .labels
                 .iter()
-                .filter(|entry| {
-                    state.filter.is_empty() || entry.name.to_lowercase().contains(&state.filter)
+                .map(|(name, kind)| {
+                    let child = tile(
+                        format!("#{name}"),
+                        labeled_asset_icon(kind),
+                        None,
+                        None,
+                        Some(kind),
+                    );
+                    Box::new(child) as Box<dyn Scene>
                 })
-                .map(|entry| Box::new(asset_tile(entry, &state.folder)) as Box<dyn Scene>),
-        ),
-        Err(message) => scenes.push(Box::new(label(message, ink::DIM))),
+                .collect();
+            scenes.push(Box::new(expanded_tiles(root, children)));
+        } else {
+            scenes.push(Box::new(root));
+        }
     }
 }
 
@@ -493,51 +502,110 @@ fn folder_button(folder: Folder, toggle: bool) -> impl Scene {
     }
 }
 
-fn entry_button(entry: &Entry, folder: Option<&Folder>) -> Box<dyn Scene> {
+fn entry_button(entry: &Entry, view: AssetView, expandable: bool) -> Option<Box<dyn Scene>> {
     match &entry.kind {
-        EntryKind::Folder(target) => Box::new(folder_button(target.clone(), folder.is_none())),
-        EntryKind::File(path) => {
-            let action = OpenFile {
-                path: path.clone(),
-                from_folder: folder.cloned(),
-            };
-            Box::new(bsn! {
+        EntryKind::Folder(folder) => Some(Box::new(folder_button(
+            folder.clone(),
+            view == AssetView::Tree,
+        ))),
+        EntryKind::File(path) if expandable => {
+            let action = ToggleFile(path.clone());
+            Some(Box::new(bsn! {
                 Button
                 TabIndex(0)
                 action
                 on(toggle_file)
-            })
+            }))
         }
+        EntryKind::File(_) => None,
     }
 }
 
-fn asset_tile(entry: &Entry, folder: &Folder) -> impl Scene {
-    let button = entry_button(entry, Some(folder));
-    let icon = asset_icon(entry, true);
-    let name = entry.name.clone();
+fn expanded_tiles(root: impl Scene, children: Vec<Box<dyn Scene>>) -> impl Scene {
+    bsn! {
+        Node {
+            width: percent(100),
+            flex_shrink: 0.0,
+            flex_wrap: FlexWrap::Wrap,
+            row_gap: px(3),
+            column_gap: px(3),
+            border_radius: BorderRadius::all(px(5)),
+        }
+        BackgroundColor(colors::WINDOW_BG)
+        Children [
+            @{root}
+            --
+            {children}
+        ]
+    }
+}
+
+fn tile(
+    name: String,
+    icon: &'static str,
+    button: Option<Box<dyn Scene>>,
+    expanded: Option<bool>,
+    kind: Option<&'static str>,
+) -> impl Scene {
+    let background = if expanded == Some(true) {
+        colors::ITEM_BG
+    } else {
+        Color::NONE
+    };
+    let hover = button.as_ref().map(|_| {
+        bsn! { HoverBackground { normal: background, hover: colors::ITEM_BG_ACTIVE } }
+    });
+    let chevron = expanded.map(|expanded| {
+        let icon = if expanded {
+            icons::CHEVRON_DOWN
+        } else {
+            icons::CHEVRON_RIGHT
+        };
+        bsn! {
+            @icon_sq(icon, 15.0, ink::C8C8)
+            Node { position_type: PositionType::Absolute, top: px(13), right: px(5) }
+            Pickable::IGNORE
+        }
+    });
+    let type_label = kind.map(|kind| bsn! { @label(kind, ink::DIM) Pickable::IGNORE });
     bsn! {
         @{button}
+        @{hover}
         Node {
             width: px(108),
+            max_width: percent(100),
             height: px(88),
             flex_shrink: 0.0,
             flex_direction: FlexDirection::Column,
             align_items: AlignItems::Center,
-            row_gap: px(6),
+            row_gap: px(3),
             padding: UiRect::all(px(5)),
             border_radius: BorderRadius::all(px(5)),
             overflow: Overflow::clip(),
         }
-        BackgroundColor(Color::NONE)
-        HoverBackground { normal: Color::NONE, hover: colors::ITEM_BG_ACTIVE }
+        BackgroundColor(background)
         Children [
             @icon_sq(icon, 30.0, ink::C8C8) Pickable::IGNORE
             --
             @label(name, ink::C8C8)
             TextLayout { linebreak: LineBreak::WordOrCharacter, justify: Justify::Center }
-            Node { max_width: percent(100) }
+            Node { max_width: percent(100), overflow: Overflow::clip() }
             Pickable::IGNORE
+            --
+            @{type_label}
+            --
+            @{chevron}
         ]
+    }
+}
+
+fn labeled_asset_icon(kind: &str) -> &'static str {
+    match kind {
+        "WorldAsset" => icons::SQUARES_OVERLAPPING,
+        "Mesh" | "GltfMesh" => icons::BOX,
+        "Image" => icons::FILE_IMAGE,
+        "StandardMaterial" | "GltfMaterial" => icons::CIRCLE_FILLED,
+        _ => icons::FILE,
     }
 }
 

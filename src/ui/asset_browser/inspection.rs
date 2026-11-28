@@ -1,14 +1,20 @@
 //! Read-only inspection of the root asset and labels emitted by Bevy's asset loaders.
 
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
 use bevy::{
     asset::{
         AssetLoader, AssetPath, LoadContext,
         io::{AssetReader, AssetReaderError, AssetSourceBuilder, PathStream, Reader, VecReader},
     },
+    ecs::system::SystemParam,
     prelude::*,
 };
+
+use super::catalog::Catalog;
 
 const INSPECTION_SOURCE: &str = "editor_inspection";
 
@@ -42,7 +48,7 @@ impl AssetReader for InspectionReader {
 }
 
 #[derive(Asset, TypePath)]
-pub(super) struct AssetDetails(pub(super) Result<FileLabels, String>);
+pub(super) struct AssetDetails(Option<FileLabels>);
 
 pub(super) struct FileLabels {
     pub(super) root_type: &'static str,
@@ -70,9 +76,9 @@ impl AssetLoader for DetailsLoader {
             .ok_or("Asset inspection request has no source")?
             .to_owned();
         let path = AssetPath::from_path_buf(parts.as_path().into()).with_source(source);
-        let loaded = match context.load_builder().load_untyped_value(path).await {
-            Ok(loaded) => loaded,
-            Err(error) => return Ok(AssetDetails(Err(error.to_string()))),
+        let Ok(loaded) = context.load_builder().load_untyped_value(path).await else {
+            // The catalog includes regular files that Bevy may not know how to load.
+            return Ok(AssetDetails(None));
         };
         let mut labels = loaded
             .iter_labels()
@@ -84,18 +90,39 @@ impl AssetLoader for DetailsLoader {
             })
             .collect::<Vec<_>>();
         labels.sort_unstable_by(|(a, _), (b, _)| a.cmp(b));
-        Ok(AssetDetails(Ok(FileLabels {
+        Ok(AssetDetails(Some(FileLabels {
             root_type: short_type(loaded.asset_type_name()),
             labels,
         })))
     }
 }
 
-pub(super) fn load_details(server: &AssetServer, path: &AssetPath) -> Option<Handle<AssetDetails>> {
-    let source = path.source().as_str()?;
-    let request = AssetPath::from_path_buf(PathBuf::from(source).join(path.path()))
-        .with_source(INSPECTION_SOURCE);
-    Some(server.load(request))
+#[derive(SystemParam)]
+pub(super) struct Inspections<'w, 's> {
+    server: Res<'w, AssetServer>,
+    assets: Res<'w, Assets<AssetDetails>>,
+    handles: Local<'s, HashMap<AssetPath<'static>, Handle<AssetDetails>>>,
+}
+
+impl Inspections<'_, '_> {
+    pub(super) fn is_changed(&self) -> bool {
+        self.assets.is_changed()
+    }
+
+    pub(super) fn retain_files(&mut self, catalog: &Catalog) {
+        self.handles.retain(|path, _| catalog.contains_file(path));
+    }
+
+    pub(super) fn get(&mut self, path: &AssetPath<'static>) -> Option<&FileLabels> {
+        // Inspect files when the browser lists them, and keep the result across view changes.
+        let source = path.source().as_str()?;
+        let handle = self.handles.entry(path.clone()).or_insert_with(|| {
+            let request = AssetPath::from_path_buf(PathBuf::from(source).join(path.path()))
+                .with_source(INSPECTION_SOURCE);
+            self.server.load(request)
+        });
+        self.assets.get(handle)?.0.as_ref()
+    }
 }
 
 fn short_type(name: &str) -> &str {

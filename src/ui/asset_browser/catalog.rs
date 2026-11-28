@@ -100,6 +100,13 @@ impl Entry {
         }
     }
 
+    pub(super) fn asset_path(&self) -> Option<&AssetPath<'static>> {
+        match &self.kind {
+            EntryKind::Folder(_) => None,
+            EntryKind::File(path) => Some(path),
+        }
+    }
+
     fn sort_key(&self) -> (bool, &str, &Path) {
         let path = match &self.kind {
             EntryKind::Folder(Folder::Asset(_, path)) => path,
