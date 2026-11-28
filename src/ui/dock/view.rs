@@ -25,7 +25,7 @@ use super::{
     tab_menu,
 };
 use crate::ui::{
-    panels::Panels,
+    panels::{PanelKind, Panels},
     style::{HoverBackground, colors, icon_sq, ink, label},
 };
 
@@ -296,17 +296,37 @@ fn tab(look: Box<dyn Scene>, leaf: NodeId, index: usize, panel: PanelId) -> impl
     }
 }
 
-/// Decorative grip at the end of a tab bar.
-fn grip() -> impl Scene {
+/// The grip opens pane options when the active pane provides them.
+fn grip(has_options: bool) -> impl Scene {
+    let options = has_options.then(|| {
+        bsn! {
+            Name::new("Assets View Options")
+            Button
+            TabIndex(0)
+            tab_menu::AssetsOptionsButton
+            EntityCursor::System(SystemCursorIcon::Pointer)
+            BackgroundColor(Color::NONE)
+            HoverBackground { normal: Color::NONE, hover: colors::ITEM_BG_ACTIVE }
+            on(tab_menu::open_assets_options)
+        }
+    });
+    let pickable = if has_options {
+        Pickable::default()
+    } else {
+        Pickable::IGNORE
+    };
     bsn! {
+        @{options}
         Node {
             width: px(12),
+            height: px(22),
             padding: UiRect::axes(px(1), px(3)),
             align_items: AlignItems::Center,
             justify_content: JustifyContent::Center,
             flex_shrink: 0.0,
+            border_radius: BorderRadius::all(px(3)),
         }
-        Pickable::IGNORE
+        pickable
         Children [ @icon_sq(icons::GRIP_VERTICAL, 12.0, ink::B3B3) Pickable::IGNORE ]
     }
 }
@@ -354,8 +374,9 @@ fn tab_bar(
             tab(look, leaf, index, *panel)
         })
         .collect::<Vec<_>>();
-    let grip = (!tabs.is_empty())
-        .then(|| Box::new(grip()) as Box<dyn Scene>)
+    let grip = tabs
+        .get(active)
+        .map(|panel| grip(panels.get(*panel) == PanelKind::Assets))
         .into_iter()
         .collect::<Vec<_>>();
     let scroll = ScrollPosition(Vec2::new(scroll_offset, 0.0));

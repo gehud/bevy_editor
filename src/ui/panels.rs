@@ -5,7 +5,7 @@ use bevy::prelude::*;
 use super::{
     asset_browser,
     dock::{Axis, DockLayout, PanelId},
-    hierarchy, inspector, project_files,
+    hierarchy, inspector,
     style::{colors, ink, label},
     viewport,
 };
@@ -15,7 +15,6 @@ use super::{
 pub enum PanelKind {
     SceneTree,
     Import,
-    ProjectFiles,
     Viewport(u8),
     Console,
     Assets,
@@ -29,7 +28,6 @@ impl PanelKind {
         match self {
             PanelKind::SceneTree => "Scene Tree".into(),
             PanelKind::Import => "Import".into(),
-            PanelKind::ProjectFiles => "Project Files".into(),
             PanelKind::Viewport(index) => format!("Viewport {}", index + 1),
             PanelKind::Console => "Console".into(),
             PanelKind::Assets => "Assets".into(),
@@ -43,7 +41,6 @@ impl PanelKind {
     pub fn content(self) -> Box<dyn Scene> {
         match self {
             PanelKind::SceneTree => Box::new(hierarchy::scene_tree_content()),
-            PanelKind::ProjectFiles => Box::new(project_files::project_files_content()),
             PanelKind::Viewport(index) => Box::new(viewport::viewport_content(index, index == 0)),
             PanelKind::Assets => Box::new(asset_browser::asset_browser_content()),
             PanelKind::Components => Box::new(inspector::components_content()),
@@ -77,7 +74,6 @@ impl Default for Panels {
         Self(vec![
             PanelKind::SceneTree,
             PanelKind::Import,
-            PanelKind::ProjectFiles,
             PanelKind::Viewport(0),
             PanelKind::Viewport(1),
             PanelKind::Viewport(2),
@@ -97,11 +93,6 @@ pub fn default_layout(panels: &Panels) -> DockLayout {
     let mut layout = DockLayout::default();
 
     let scene_tree = layout.add_leaf(vec![id(SceneTree), id(Import)]);
-    let project_files = layout.add_leaf(vec![id(ProjectFiles)]);
-    let left = layout.add_split(
-        Axis::Vertical,
-        vec![(scene_tree, 376.0), (project_files, 442.0)],
-    );
 
     let main_view = layout.add_leaf(vec![id(Viewport(0))]);
     let side_view_top = layout.add_leaf(vec![id(Viewport(1))]);
@@ -123,7 +114,7 @@ pub fn default_layout(panels: &Panels) -> DockLayout {
 
     let root = layout.add_split(
         Axis::Horizontal,
-        vec![(left, 266.0), (middle, 1068.0), (inspector, 310.0)],
+        vec![(scene_tree, 266.0), (middle, 1068.0), (inspector, 310.0)],
     );
     layout.set_root(root);
     layout

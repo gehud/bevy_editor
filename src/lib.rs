@@ -21,7 +21,7 @@ pub use project::ProjectRoot;
 pub struct EditorPlugin {
     /// Spawn the built-in demo scene (a light and a stylized dragon).
     pub demo_scene: bool,
-    /// The project folder to open; its name is shown in the status bar.
+    /// The project folder to open. The Assets pane browses its `assets/` directory.
     pub project: Option<PathBuf>,
 }
 

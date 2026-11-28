@@ -7,9 +7,9 @@
 //! ┌ title bar ──────────────────────────────────────────────────────────────┐
 //! │ Scene Tree    │ main viewport              │ viewport │ Components      │
 //! │               │                            ├──────────┤ (inspector)     │
-//! ├───────────────┤                            │ viewport │                 │
-//! │ Project Files ├────────────────────────────┴──────────┤                 │
-//! │               │ asset browser                         │                 │
+//! │               │                            │ viewport │                 │
+//! │               ├────────────────────────────┴──────────┤                 │
+//! │               │ Assets                                │                 │
 //! └ status bar ─────────────────────────────────────────────────────────────┘
 //! ```
 
@@ -20,7 +20,6 @@ mod hierarchy;
 pub mod icons;
 mod inspector;
 mod panels;
-mod project_files;
 mod status_bar;
 mod style;
 mod title_bar;
@@ -57,6 +56,7 @@ impl Plugin for EditorUiPlugin {
         let panels = panels::Panels::default();
         let layout = panels::default_layout(&panels);
         app.add_plugins((FeathersPlugins, bevy_ui_svg::SvgPlugin, dock::DockPlugin))
+            .add_plugins(asset_browser::AssetBrowserPlugin)
             .insert_resource(UiTheme(editor_theme()))
             .insert_resource(panels)
             .insert_resource(layout)

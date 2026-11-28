@@ -1,4 +1,4 @@
-//! Menus for closing and adding dock tabs.
+//! Menus for closing and adding dock tabs and configuring the active pane.
 
 use bevy::{
     feathers::{
@@ -15,7 +15,10 @@ use bevy::{
     },
 };
 
-use crate::ui::panels::Panels;
+use crate::ui::{
+    asset_browser::{AssetBrowserState, AssetView},
+    panels::Panels,
+};
 
 use super::{
     layout::{DockLayout, NodeId, PanelId},
@@ -30,6 +33,12 @@ struct CloseTab(PanelId);
 
 #[derive(Component, Clone)]
 pub(super) struct AddTabButton(pub NodeId);
+
+#[derive(Component, Clone, Default)]
+pub(super) struct AssetsOptionsButton;
+
+#[derive(Component, Clone, Copy)]
+struct SetAssetView(AssetView);
 
 #[derive(Component, Clone)]
 struct AddTab {
@@ -114,6 +123,57 @@ pub(super) fn open_add(
         node.size() * node.inverse_scale_factor,
     );
     show_menu(anchor, *root, &menus, items, &mut commands);
+}
+
+pub(super) fn open_assets_options(
+    activate: On<Activate>,
+    buttons: Query<(&ComputedNode, &UiGlobalTransform), With<AssetsOptionsButton>>,
+    root: Single<(Entity, &ComputedNode, &UiGlobalTransform), With<DockRoot>>,
+    menus: Query<Entity, With<TabMenu>>,
+    browser: Res<AssetBrowserState>,
+    mut commands: Commands,
+) {
+    let Ok((node, transform)) = buttons.get(activate.entity) else {
+        return;
+    };
+    let items = [
+        (AssetView::Tree, "Tree"),
+        (AssetView::ActiveFolder, "Active Folder"),
+    ]
+    .into_iter()
+    .map(|(view, title)| {
+        let title = if browser.view == view {
+            format!("✓  {title}")
+        } else {
+            format!("    {title}")
+        };
+        let action = SetAssetView(view);
+        Box::new(bsn! {
+            @FeathersMenuItem {
+                @caption: bsn! { @caption(title) Pickable::IGNORE }
+            }
+            action
+            on(set_asset_view)
+        }) as Box<dyn Scene>
+    })
+    .collect();
+    let anchor = Rect::from_center_size(
+        transform.translation * node.inverse_scale_factor,
+        node.size() * node.inverse_scale_factor,
+    );
+    show_menu(anchor, *root, &menus, items, &mut commands);
+}
+
+fn set_asset_view(
+    activate: On<Activate>,
+    items: Query<&SetAssetView>,
+    mut browser: ResMut<AssetBrowserState>,
+) {
+    if let Ok(&SetAssetView(view)) = items.get(activate.entity)
+        && browser.view != view
+    {
+        browser.view = view;
+    }
 }
 
 fn show_menu(
