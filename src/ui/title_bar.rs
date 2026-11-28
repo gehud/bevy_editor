@@ -9,7 +9,6 @@ use bevy::{
     app::AppExit,
     picking::events::{PointerClick, PointerPress},
     prelude::*,
-    text::{FontSourceTemplate, FontWeight},
     ui_widgets::Button,
     window::WindowPosition,
 };
@@ -235,19 +234,23 @@ fn caption_buttons() -> impl Scene {
     bsn! {
         Node { width: px(138), height: px(32), border_radius: BorderRadius::top_right(px(7)) }
         Children [
-            @caption_button(CaptionButton::Minimize, "\u{E921}", colors::CAPTION_HOVER)
+            @caption_button(CaptionButton::Minimize, icons::MINUS, 1.0, colors::CAPTION_HOVER)
             --
-            @caption_button(CaptionButton::Maximize, MAXIMIZE_GLYPH, colors::CAPTION_HOVER)
+            @caption_button(CaptionButton::Maximize, icons::SQUARE, 10.0, colors::CAPTION_HOVER)
             --
-            @caption_button(CaptionButton::Close, "\u{E8BB}", colors::CAPTION_CLOSE_HOVER)
+            @caption_button(CaptionButton::Close, icons::X, 10.0, colors::CAPTION_CLOSE_HOVER)
             Node { border_radius: BorderRadius::top_right(px(7)) }
         ]
     }
 }
 
-/// A Windows-style caption button. The glyphs come from the system icon font
-/// (Segoe Fluent Icons on Windows 11, Segoe MDL2 Assets on Windows 10).
-fn caption_button(kind: CaptionButton, glyph: &'static str, hover: Color) -> impl Scene {
+/// A caption button using SVG artwork rather than platform-specific icon fonts.
+fn caption_button(
+    kind: CaptionButton,
+    path: &'static str,
+    height: f32,
+    hover: Color,
+) -> impl Scene {
     bsn! {
         Button
         Node {
@@ -261,13 +264,7 @@ fn caption_button(kind: CaptionButton, glyph: &'static str, hover: Color) -> imp
         kind
         on(caption_button_click)
         Children [
-            Text(glyph)
-            TextFont {
-                font: FontSourceTemplate::Families("Segoe Fluent Icons, Segoe MDL2 Assets"),
-                font_size: FontSize::Px(10.0),
-                weight: FontWeight::NORMAL,
-            }
-            TextColor(ink::E6)
+            @icon(path, 10.0, height, ink::E6)
         ]
     }
 }
@@ -291,30 +288,28 @@ fn caption_button_click(
     }
 }
 
-/// Glyphs of the maximize button: "maximize" normally, "restore" while maximized.
-const MAXIMIZE_GLYPH: &str = "\u{E922}";
-const RESTORE_GLYPH: &str = "\u{E923}";
-
-/// Switches the maximize button between its maximize and restore glyphs.
-pub(super) fn update_maximize_glyph(
+/// Switches the maximize button between its maximize and restore SVGs.
+pub(super) fn update_maximize_icon(
     maximized: Res<WindowMaximized>,
     buttons: Query<(&CaptionButton, &Children)>,
-    mut texts: Query<&mut Text>,
+    mut icons: Query<&mut SvgIcon>,
+    assets: Res<AssetServer>,
 ) {
-    let glyph = if maximized.0 {
-        RESTORE_GLYPH
+    let path = if maximized.0 {
+        icons::SQUARES_OVERLAPPING
     } else {
-        MAXIMIZE_GLYPH
+        icons::SQUARE
     };
+    let svg = assets.load(path);
     for (button, children) in &buttons {
         if *button != CaptionButton::Maximize {
             continue;
         }
         for &child in children {
-            if let Ok(mut text) = texts.get_mut(child)
-                && text.0 != glyph
+            if let Ok(mut icon) = icons.get_mut(child)
+                && icon.svg != svg
             {
-                text.0 = glyph.to_string();
+                icon.svg = svg.clone();
             }
         }
     }

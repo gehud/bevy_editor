@@ -23,6 +23,7 @@ pub const GIT_PULL_REQUEST_ARROW: &str = "icons/git-pull-request-arrow.svg";
 pub const GRIP_VERTICAL: &str = "icons/grip-vertical.svg";
 pub const LIGHTBULB: &str = "icons/lightbulb.svg";
 pub const MAGNET: &str = "icons/magnet.svg";
+pub const MINUS: &str = "icons/minus.svg";
 pub const MOVE_3D: &str = "icons/move-3d.svg";
 pub const MOVE_3D_SMALL: &str = "icons/move-3d-small.svg";
 pub const PACKAGE_PLUS: &str = "icons/package-plus.svg";
@@ -32,10 +33,13 @@ pub const PLUS: &str = "icons/plus.svg";
 pub const ROTATE_3D: &str = "icons/rotate-3d.svg";
 pub const SCALE_3D: &str = "icons/scale-3d.svg";
 pub const SEARCH: &str = "icons/search.svg";
+pub const SQUARE: &str = "icons/square.svg";
+pub const SQUARES_OVERLAPPING: &str = "icons/squares-overlapping.svg";
 pub const TAB_CORNER: &str = "icons/tab-corner.svg";
 pub const TRIANGLE_ALERT: &str = "icons/triangle-alert.svg";
 pub const VIDEO: &str = "icons/video.svg";
 pub const X_SMALL: &str = "icons/x-small.svg";
+pub const X: &str = "icons/x.svg";
 /// The Bevy birds, in their own colors.
 pub const BEVY_LOGO: &str = "icons/bevy-logo.svg";
 /// Select tool in its active state; full color (background and shadow included).

@@ -99,7 +99,7 @@ impl Plugin for EditorUiPlugin {
                     (
                         window_frame::sync_window_maximized,
                         (
-                            title_bar::update_maximize_glyph,
+                            title_bar::update_maximize_icon,
                             window_frame::toggle_resize_handles,
                             window_frame::toggle_window_outline,
                         ),
