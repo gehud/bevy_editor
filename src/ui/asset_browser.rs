@@ -236,7 +236,6 @@ fn sync_browser(
         state.folder = parent;
     }
 
-    let (crumbs, old_crumbs) = breadcrumbs.into_inner();
     let (body, mut node, mut scroll, old_entries) = entries.into_inner();
     let current = (state.view, state.folder.clone());
     if previous.as_ref() != Some(&current) {
@@ -259,13 +258,16 @@ fn sync_browser(
         node.row_gap = px(3);
         node.column_gap = px(3);
 
+        let (crumbs, old_crumbs) = breadcrumbs.into_inner();
         for &child in old_crumbs.into_iter().flatten() {
             commands.entity(child).despawn();
         }
-        let crumbs_list = breadcrumb_scenes(&state.folder);
-        commands
-            .entity(crumbs)
-            .apply_scene(bsn! { Children [ {crumbs_list} ] });
+        if state.view == AssetView::ActiveFolder {
+            let crumbs_list = breadcrumb_scenes(&state.folder);
+            commands
+                .entity(crumbs)
+                .apply_scene(bsn! { Children [ {crumbs_list} ] });
+        }
         *previous = Some(current);
     }
 
