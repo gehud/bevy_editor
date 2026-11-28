@@ -6,7 +6,14 @@
 //! Contents not on screen wait in a hidden "stash" node.
 
 use bevy::{
-    picking::cursor::EntityCursor, prelude::*, ui_widgets::Button, window::SystemCursorIcon,
+    feathers::controls::FeathersScrollbar,
+    math::BVec2,
+    picking::cursor::EntityCursor,
+    platform::collections::HashMap,
+    prelude::*,
+    ui::IgnoreScroll,
+    ui_widgets::{Button, ControlOrientation},
+    window::SystemCursorIcon,
 };
 
 use crate::ui::icons;
@@ -73,9 +80,9 @@ pub struct DockTab {
 }
 
 #[derive(Component, Clone, Default)]
-pub struct DockTabBar(pub NodeId);
+pub struct DockTabStrip(pub NodeId);
 
-/// Dragging this entity (a tab or a tab bar's grip) moves the panel to another place.
+/// Dragging this tab moves the panel to another place.
 #[derive(Component, Clone, Default)]
 pub struct DragsPanel(pub PanelId);
 
@@ -117,10 +124,15 @@ pub(super) fn rebuild_dock(
     root: Single<(Entity, Option<&Children>), With<DockRoot>>,
     stash: Single<Entity, With<DockStash>>,
     contents: Query<Entity, With<PanelContent>>,
+    tab_strips: Query<(&DockTabStrip, &ScrollPosition)>,
 ) {
     if !layout.is_changed() {
         return;
     }
+    let tab_offsets = tab_strips
+        .iter()
+        .map(|(strip, scroll)| (strip.0, scroll.x))
+        .collect();
     // Move contents to safety first: despawning the chrome despawns its descendants.
     for content in &contents {
         commands.entity(content).insert(ChildOf(*stash));
@@ -131,7 +143,7 @@ pub(super) fn rebuild_dock(
     }
     // Spawn immediately rather than queued: a queued spawn can land a frame later, which
     // would show the dock empty for a frame (visible as flicker on every tab switch or drop).
-    let tree = vec![node_scene(&layout, &panels, layout.root())];
+    let tree = vec![node_scene(&layout, &panels, layout.root(), &tab_offsets)];
     commands
         .entity(root)
         .apply_scene(bsn! { Children [ {tree} ] });
@@ -162,9 +174,17 @@ pub(super) fn place_panel_contents(
     }
 }
 
-fn node_scene(layout: &DockLayout, panels: &Panels, id: NodeId) -> Box<dyn Scene> {
+fn node_scene(
+    layout: &DockLayout,
+    panels: &Panels,
+    id: NodeId,
+    tab_offsets: &HashMap<NodeId, f32>,
+) -> Box<dyn Scene> {
     match layout.node(id) {
-        DockNode::Leaf { tabs, active } => Box::new(leaf_scene(panels, id, tabs, *active)),
+        DockNode::Leaf { tabs, active } => {
+            let offset = tab_offsets.get(&id).copied().unwrap_or_default();
+            Box::new(leaf_scene(panels, id, tabs, *active, offset))
+        }
         DockNode::Split {
             axis,
             children,
@@ -175,7 +195,7 @@ fn node_scene(layout: &DockLayout, panels: &Panels, id: NodeId) -> Box<dyn Scene
                 if index > 0 {
                     items.push(Box::new(splitter(id, index - 1, *axis)));
                 }
-                let child = node_scene(layout, panels, *child);
+                let child = node_scene(layout, panels, *child, tab_offsets);
                 let size = *size;
                 items.push(Box::new(bsn! {
                     @{child}
@@ -226,7 +246,13 @@ fn splitter(split: NodeId, index: usize, axis: Axis) -> impl Scene {
     }
 }
 
-fn leaf_scene(panels: &Panels, leaf: NodeId, tabs: &[PanelId], active: usize) -> impl Scene {
+fn leaf_scene(
+    panels: &Panels,
+    leaf: NodeId,
+    tabs: &[PanelId],
+    active: usize,
+    scroll_offset: f32,
+) -> impl Scene {
     bsn! {
         Node {
             flex_grow: 1.0,
@@ -239,7 +265,7 @@ fn leaf_scene(panels: &Panels, leaf: NodeId, tabs: &[PanelId], active: usize) ->
         BackgroundColor(colors::PANE_BG)
         DockLeafArea(leaf)
         Children [
-            @tab_bar(panels, leaf, tabs, active)
+            @tab_bar(panels, leaf, tabs, active, scroll_offset)
             --
             Node {
                 flex_grow: 1.0,
@@ -267,33 +293,29 @@ fn tab(look: Box<dyn Scene>, leaf: NodeId, index: usize, panel: PanelId) -> impl
     }
 }
 
-/// The grip at the end of a tab bar; dragging it moves the leaf's active panel.
-fn grip(panel: Option<PanelId>) -> Vec<Box<dyn Scene>> {
-    panel
-        .map(|panel| -> Box<dyn Scene> {
-            let handle = DragsPanel(panel);
-            Box::new(bsn! {
-                Node {
-                    width: px(12),
-                    padding: UiRect::axes(px(1), px(3)),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::Center,
-                    flex_shrink: 0.0,
-                }
-                handle
-                EntityCursor::System(SystemCursorIcon::Grab)
-                on(interact::start_panel_drag)
-                on(interact::drag_panel)
-                on(interact::end_panel_drag)
-                Children [ @icon_sq(icons::GRIP_VERTICAL, 12.0, ink::B3B3) Pickable::IGNORE ]
-            })
-        })
-        .into_iter()
-        .collect()
+/// Decorative grip at the end of a tab bar.
+fn grip() -> impl Scene {
+    bsn! {
+        Node {
+            width: px(12),
+            padding: UiRect::axes(px(1), px(3)),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            flex_shrink: 0.0,
+        }
+        Pickable::IGNORE
+        Children [ @icon_sq(icons::GRIP_VERTICAL, 12.0, ink::B3B3) Pickable::IGNORE ]
+    }
 }
 
 /// Titled tabs along the top of the leaf.
-fn tab_bar(panels: &Panels, leaf: NodeId, tabs: &[PanelId], active: usize) -> impl Scene {
+fn tab_bar(
+    panels: &Panels,
+    leaf: NodeId,
+    tabs: &[PanelId],
+    active: usize,
+    scroll_offset: f32,
+) -> impl Scene {
     let tab_items = tabs
         .iter()
         .enumerate()
@@ -307,32 +329,58 @@ fn tab_bar(panels: &Panels, leaf: NodeId, tabs: &[PanelId], active: usize) -> im
             tab(look, leaf, index, *panel)
         })
         .collect::<Vec<_>>();
-    let grip = grip(tabs.get(active).copied());
+    let grip = (!tabs.is_empty())
+        .then(|| Box::new(grip()) as Box<dyn Scene>)
+        .into_iter()
+        .collect::<Vec<_>>();
+    let scroll = ScrollPosition(Vec2::new(scroll_offset, 0.0));
 
     bsn! {
-        DockTabBar(leaf)
         Node {
             height: px(30),
             width: percent(100),
             flex_shrink: 0.0,
             align_items: AlignItems::Center,
-            justify_content: JustifyContent::SpaceBetween,
-            padding: UiRect { left: px(6), right: px(8), top: px(1) },
+            padding: UiRect { right: px(8), top: px(1) },
             border: UiRect { left: px(1), right: px(1), top: px(1) },
             border_radius: BorderRadius::top(px(6)),
         }
         BackgroundColor(colors::WINDOW_BG)
         BorderColor { top: colors::PANEL_BORDER, left: colors::PANEL_BORDER, right: colors::PANEL_BORDER }
         Children [
+            #strip
             Node {
                 height: percent(100),
+                min_width: px(0),
+                flex_grow: 1.0,
                 align_items: AlignItems::Center,
+                padding: UiRect::left(px(6)),
+                overflow: Overflow::scroll_x(),
             }
+            DockTabStrip(leaf)
+            scroll
+            on(interact::scroll_tabs)
             Children [
                 {tab_items}
                 --
                 @icon_sq(icons::PLUS, 18.0, ink::A8A8)
-                Node { margin: UiRect::left(px(5)) }
+                Node { flex_shrink: 0.0, margin: UiRect::left(px(5)) }
+                --
+                @FeathersScrollbar {
+                    @target: #strip,
+                    @orientation: {ControlOrientation::Horizontal},
+                }
+                Node {
+                    position_type: PositionType::Absolute,
+                    left: px(0),
+                    right: px(0),
+                    bottom: px(0),
+                    height: px(4),
+                }
+                // Overlay the strip without scrolling along with the tabs.
+                IgnoreScroll(BVec2::new(true, false))
+                Visibility::Hidden
+                ZIndex(1)
             ]
             --
             {grip}
@@ -344,6 +392,7 @@ fn active_tab(title: String) -> impl Scene {
     bsn! {
         Node {
             height: percent(100),
+            flex_shrink: 0.0,
             align_items: AlignItems::Center,
             justify_content: JustifyContent::Center,
             padding: UiRect::horizontal(px(8)),
@@ -377,6 +426,7 @@ fn inactive_tab(title: String) -> impl Scene {
     bsn! {
         Node {
             height: percent(100),
+            flex_shrink: 0.0,
             align_items: AlignItems::Center,
             justify_content: JustifyContent::Center,
             padding: UiRect::horizontal(px(8)),

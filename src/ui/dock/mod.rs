@@ -1,5 +1,5 @@
 //! A docking layout: panels arranged in resizable splits and tab stacks, rearranged by
-//! dragging tabs (or a tab bar's grip) onto another area.
+//! dragging tabs onto another area.
 //!
 //! - [`layout`]: the data model, independent of the UI.
 //! - [`view`]: builds the UI from the model, keeping panel contents alive across rebuilds.

@@ -1,7 +1,8 @@
 //! Mouse interaction with the dock: switching tabs, resizing splits and moving panels.
 
 use bevy::{
-    picking::events::{PointerClick, PointerDrag, PointerDragEnd, PointerDragStart},
+    input::mouse::MouseScrollPixelsPerLine,
+    picking::events::{PointerClick, PointerDrag, PointerDragEnd, PointerDragStart, PointerScroll},
     prelude::*,
     ui::UiGlobalTransform,
 };
@@ -9,7 +10,8 @@ use bevy::{
 use super::{
     layout::{Axis, DockLayout, DropZone, NodeId, PanelId},
     view::{
-        DockLeafArea, DockSplitArea, DockSplitChild, DockTab, DockTabBar, DragsPanel, GAP, Splitter,
+        DockLeafArea, DockSplitArea, DockSplitChild, DockTab, DockTabStrip, DragsPanel, GAP,
+        Splitter,
     },
 };
 use crate::ui::style::colors;
@@ -63,20 +65,39 @@ pub(super) fn click_tab(
     }
 }
 
+pub(super) fn scroll_tabs(
+    mut scroll: On<PointerScroll>,
+    conversion: Res<MouseScrollPixelsPerLine>,
+    mut strips: Query<(&ComputedNode, &mut ScrollPosition), With<DockTabStrip>>,
+) {
+    let Ok((node, mut position)) = strips.get_mut(scroll.entity) else {
+        return;
+    };
+    let max_offset = (node.content_size().x - node.size().x).max(0.0) * node.inverse_scale_factor;
+    if max_offset == 0.0 {
+        return;
+    }
+
+    let delta = scroll.to_pixels(&conversion);
+    // Use the horizontal gesture when available; otherwise map the vertical wheel to it.
+    let delta = if delta.x != 0.0 { delta.x } else { delta.y };
+    position.x = (position.x.min(max_offset) - delta).clamp(0.0, max_offset);
+    scroll.propagate(false);
+}
+
 pub(super) fn start_panel_drag(
     mut drag: On<PointerDragStart>,
-    handles: Query<(&DragsPanel, Has<DockTab>)>,
+    handles: Query<&DragsPanel>,
     mut state: ResMut<DockDrag>,
 ) {
-    let Ok((DragsPanel(panel), is_tab)) = handles.get(drag.entity) else {
+    let Ok(DragsPanel(panel)) = handles.get(drag.entity) else {
         return;
     };
     drag.propagate(false);
     if drag.button == PointerButton::Primary {
         *state = DockDrag {
             panel: Some(*panel),
-            past_threshold: !is_tab,
-            target: None,
+            ..default()
         };
     }
 }
@@ -85,7 +106,8 @@ pub(super) fn drag_panel(
     mut drag: On<PointerDrag>,
     mut state: ResMut<DockDrag>,
     leaves: Query<(&DockLeafArea, &ComputedNode, &UiGlobalTransform)>,
-    bars: Query<(&DockTabBar, &ComputedNode, &UiGlobalTransform)>,
+    strips: Query<(&DockTabStrip, &ComputedNode, &UiGlobalTransform, &ChildOf)>,
+    nodes: Query<(&ComputedNode, &UiGlobalTransform)>,
     tabs: Query<(&DockTab, &ComputedNode, &UiGlobalTransform)>,
     mut preview: Single<(&mut Node, &mut BackgroundColor), With<DropPreview>>,
 ) {
@@ -99,37 +121,43 @@ pub(super) fn drag_panel(
         }
         state.past_threshold = true;
     }
-    let bar_hit = bars.iter().find_map(|(bar, node, transform)| {
+    let bar_hit = strips.iter().find_map(|(strip, node, transform, parent)| {
         let scale = node.inverse_scale_factor;
         let point = drag.pointer.position / scale;
-        if !node.contains_point(*transform, point) {
+        let (bar_node, bar_transform) = nodes.get(parent.parent()).ok()?;
+        if !bar_node.contains_point(*bar_transform, point) {
             return None;
         }
-        let bar_rect = Rect::from_center_size(transform.translation, node.size);
+        let strip_rect = Rect::from_center_size(transform.translation, node.size);
         let nearest = tabs
             .iter()
-            .filter(|(tab, _, _)| tab.leaf == bar.0)
-            .map(|(tab, node, transform)| {
-                let rect = Rect::from_center_size(transform.translation, node.size);
-                let after = point.x >= transform.translation.x;
+            .filter(|(tab, _, _)| tab.leaf == strip.0)
+            .filter_map(|(tab, node, transform)| {
+                let rect =
+                    Rect::from_center_size(transform.translation, node.size).intersect(strip_rect);
+                if rect.is_empty() {
+                    return None;
+                }
+                let after = point.x >= rect.center().x;
                 let edge = if after { rect.max.x } else { rect.min.x };
                 let distance = (point.x - edge).abs();
-                (distance, tab.index + usize::from(after), edge, rect)
+                Some((distance, tab.index + usize::from(after), edge, rect))
             })
             .min_by(|a, b| a.0.total_cmp(&b.0));
-        let (_, slot, edge, rect) = nearest.unwrap_or((0.0, 0, bar_rect.min.x, bar_rect));
+        let (_, slot, edge, rect) = nearest.unwrap_or((0.0, 0, strip_rect.min.x, strip_rect));
         // Center a two-logical-pixel stroke on the shared edge, snapped to device pixels.
         let width = (2.0 / scale).round().max(1.0);
-        let x = (edge - width * 0.5)
-            .round()
-            .clamp(bar_rect.min.x, (bar_rect.max.x - width).max(bar_rect.min.x));
+        let x = (edge - width * 0.5).round().clamp(
+            strip_rect.min.x,
+            (strip_rect.max.x - width).max(strip_rect.min.x),
+        );
         let marker = Rect::new(
             x * scale,
             rect.min.y.round() * scale,
             (x + width) * scale,
             rect.max.y.round() * scale,
         );
-        Some((bar.0, (DropZone::Tab(slot), marker)))
+        Some((strip.0, (DropZone::Tab(slot), marker)))
     });
     let hit = bar_hit.or_else(|| {
         leaves.iter().find_map(|(leaf, node, transform)| {

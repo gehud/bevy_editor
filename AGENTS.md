@@ -101,7 +101,7 @@ cargo fmt && cargo fmt -p sample_project && cargo clippy --workspace --all-targe
     **Panel contents are spawned once** (`PanelContent`) and re-parented into the active leaf's
     `LeafContentSlot`, or into a hidden stash, so their state survives layout changes.
   - `interact.rs`: tab clicks, splitter drags (edit sizes without change detection, update
-    `flex_grow` directly), and tab/grip drag-and-drop with a drop preview.
+    `flex_grow` directly), horizontal tab scrolling, and tab drag-and-drop with a drop preview.
   - Only horizontal tab bars exist, and every leaf shows one (no inlined panel headers).
 - `ui/panels.rs`: `PanelKind` registry (title, content scene) and the default layout, which
   reproduces the Figma arrangement (with a Console placeholder tab next to Assets).
