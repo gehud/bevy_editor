@@ -1,4 +1,4 @@
-//! The Assets pane: two views of the same project and embedded asset sources.
+//! The Assets pane: a folder tree and active folder grid for project and embedded assets.
 
 mod catalog;
 mod inspection;
@@ -37,16 +37,15 @@ impl Plugin for AssetBrowserPlugin {
     }
 }
 
-#[derive(Clone, Copy, Default, PartialEq, Eq)]
-pub(super) enum AssetView {
+#[derive(Component, Clone, Copy, PartialEq, Eq)]
+pub(super) enum AssetColumn {
     Tree,
-    #[default]
     ActiveFolder,
 }
 
 #[derive(Default, Resource)]
 pub(super) struct AssetBrowserState {
-    pub(super) view: AssetView,
+    hidden_column: Option<AssetColumn>,
     folder: Folder,
     expanded: BTreeSet<Folder>,
     expanded_files: HashSet<AssetPath<'static>>,
@@ -54,6 +53,20 @@ pub(super) struct AssetBrowserState {
 }
 
 impl AssetBrowserState {
+    pub(super) fn shows_column(&self, column: AssetColumn) -> bool {
+        self.hidden_column != Some(column)
+    }
+
+    pub(super) fn can_toggle_column(&self, column: AssetColumn) -> bool {
+        self.hidden_column.is_none_or(|hidden| hidden == column)
+    }
+
+    pub(super) fn toggle_column(&mut self, column: AssetColumn) {
+        if self.can_toggle_column(column) {
+            self.hidden_column = self.shows_column(column).then_some(column);
+        }
+    }
+
     fn expand_path(&mut self, folder: Folder) {
         let mut ancestor = Some(folder);
         while let Some(folder) = ancestor {
@@ -69,9 +82,6 @@ struct AssetFilter;
 #[derive(Component, Clone, Default)]
 struct Breadcrumbs;
 
-#[derive(Component, Clone, Default)]
-struct AssetEntries;
-
 #[derive(Component, Clone)]
 struct OpenFolder {
     folder: Folder,
@@ -82,6 +92,8 @@ struct OpenFolder {
 struct ToggleFile(AssetPath<'static>);
 
 pub(super) fn asset_browser_content() -> impl Scene {
+    let tree = AssetColumn::Tree;
+    let active_folder = AssetColumn::ActiveFolder;
     bsn! {
         Node {
             flex_grow: 1.0,
@@ -114,11 +126,40 @@ pub(super) fn asset_browser_content() -> impl Scene {
             Node {
                 flex_grow: 1.0,
                 min_height: px(0),
-                padding: UiRect::all(px(6)),
-                overflow: Overflow::scroll_y(),
+                min_width: px(0),
             }
-            ScrollArea
-            AssetEntries
+            Children [
+                tree
+                Name::new("Assets Tree")
+                ScrollArea
+                Node {
+                    width: percent(30),
+                    max_width: px(280),
+                    min_height: px(0),
+                    padding: UiRect::all(px(6)),
+                    border: UiRect::right(px(1)),
+                    overflow: Overflow::scroll_y(),
+                    flex_direction: FlexDirection::Column,
+                    row_gap: px(3),
+                }
+                BorderColor::all(colors::PANEL_BORDER)
+                --
+                active_folder
+                Name::new("Assets Active Folder")
+                ScrollArea
+                Node {
+                    flex_grow: 1.0,
+                    flex_basis: px(0),
+                    min_width: px(0),
+                    min_height: px(0),
+                    padding: UiRect::all(px(6)),
+                    overflow: Overflow::scroll_y(),
+                    align_content: AlignContent::FlexStart,
+                    flex_wrap: FlexWrap::Wrap,
+                    row_gap: px(3),
+                    column_gap: px(3),
+                }
+            ]
         ]
     }
 }
@@ -150,11 +191,14 @@ fn open_folder(
     let Ok(OpenFolder { folder, toggle }) = actions.get(event.entity) else {
         return;
     };
-    state.folder = folder.clone();
-    if *toggle && state.expanded.remove(folder) {
-        return;
+    if *toggle {
+        if !state.expanded.remove(folder) {
+            state.expanded.insert(folder.clone());
+        }
+    } else {
+        state.folder = folder.clone();
+        state.expand_path(folder.clone());
     }
-    state.expand_path(folder.clone());
 }
 
 fn toggle_file(
@@ -175,11 +219,14 @@ fn sync_browser(
     catalog: Res<Catalog>,
     mut inspections: Inspections,
     breadcrumbs: Single<(Entity, Option<&Children>), With<Breadcrumbs>>,
-    entries: Single<
-        (Entity, &mut Node, &mut ScrollPosition, Option<&Children>),
-        With<AssetEntries>,
-    >,
-    mut previous: Local<Option<(AssetView, Folder)>>,
+    mut columns: Query<(
+        Entity,
+        &AssetColumn,
+        &mut Node,
+        &mut ScrollPosition,
+        Option<&Children>,
+    )>,
+    mut previous: Local<Option<(Folder, bool)>>,
     mut commands: Commands,
 ) {
     if !state.is_changed()
@@ -202,33 +249,17 @@ fn sync_browser(
         state.folder = parent;
     }
 
-    let (body, mut node, mut scroll, old_entries) = entries.into_inner();
-    let current = (state.view, state.folder.clone());
+    let show_folder = state.shows_column(AssetColumn::ActiveFolder);
+    let folder_changed = previous
+        .as_ref()
+        .is_none_or(|(folder, _)| *folder != state.folder);
+    let current = (state.folder.clone(), show_folder);
     if previous.as_ref() != Some(&current) {
-        if previous
-            .as_ref()
-            .is_none_or(|(view, _)| *view != state.view)
-            || state.view == AssetView::ActiveFolder
-        {
-            scroll.0 = Vec2::ZERO;
-        }
-        node.flex_direction = match state.view {
-            AssetView::Tree => FlexDirection::Column,
-            AssetView::ActiveFolder => FlexDirection::Row,
-        };
-        node.flex_wrap = match state.view {
-            AssetView::Tree => FlexWrap::NoWrap,
-            AssetView::ActiveFolder => FlexWrap::Wrap,
-        };
-        node.align_content = AlignContent::FlexStart;
-        node.row_gap = px(3);
-        node.column_gap = px(3);
-
         let (crumbs, old_crumbs) = breadcrumbs.into_inner();
         for &child in old_crumbs.into_iter().flatten() {
             commands.entity(child).despawn();
         }
-        if state.view == AssetView::ActiveFolder {
+        if show_folder {
             let crumbs_list = breadcrumb_scenes(&state.folder);
             commands
                 .entity(crumbs)
@@ -237,32 +268,63 @@ fn sync_browser(
         *previous = Some(current);
     }
 
-    let mut scenes = Vec::new();
-    match state.view {
-        AssetView::Tree => tree_rows(
-            &Folder::Sources,
-            &state,
-            &catalog,
-            &mut inspections,
-            0,
-            &mut scenes,
-        ),
-        AssetView::ActiveFolder => folder_tiles(&state, &catalog, &mut inspections, &mut scenes),
-    }
-    if scenes.is_empty() {
-        let message = if state.filter.is_empty() {
-            "This folder is empty"
+    for (body, &column, mut node, mut scroll, old_entries) in &mut columns {
+        if column == AssetColumn::ActiveFolder && folder_changed {
+            scroll.0 = Vec2::ZERO;
+        }
+        let visible = state.shows_column(column);
+        let display = if visible {
+            Display::Flex
         } else {
-            "No matching assets"
+            Display::None
         };
-        scenes.push(Box::new(label(message, ink::DIM)));
+        if node.display != display {
+            node.display = display;
+        }
+        for &child in old_entries.into_iter().flatten() {
+            commands.entity(child).despawn();
+        }
+        if !visible {
+            continue;
+        }
+        let mut scenes = Vec::new();
+        match column {
+            AssetColumn::Tree => {
+                let (width, max_width, border) = if show_folder {
+                    (percent(30), px(280), px(1))
+                } else {
+                    (percent(100), Val::Auto, px(0))
+                };
+                if node.width != width {
+                    node.width = width;
+                    node.max_width = max_width;
+                    node.border.right = border;
+                }
+                tree_rows(
+                    &Folder::Sources,
+                    &state,
+                    &catalog,
+                    &mut inspections,
+                    0,
+                    &mut scenes,
+                );
+            }
+            AssetColumn::ActiveFolder => {
+                folder_tiles(&state, &catalog, &mut inspections, &mut scenes)
+            }
+        }
+        if scenes.is_empty() {
+            let message = if state.filter.is_empty() {
+                "This folder is empty"
+            } else {
+                "No matching assets"
+            };
+            scenes.push(Box::new(label(message, ink::DIM)));
+        }
+        commands
+            .entity(body)
+            .apply_scene(bsn! { Children [ {scenes} ] });
     }
-    for &child in old_entries.into_iter().flatten() {
-        commands.entity(child).despawn();
-    }
-    commands
-        .entity(body)
-        .apply_scene(bsn! { Children [ {scenes} ] });
 }
 
 fn breadcrumb_scenes(path_end: &Folder) -> Vec<Box<dyn Scene>> {
@@ -371,7 +433,7 @@ fn tree_row(
     matches: bool,
     root_type: Option<&'static str>,
 ) -> impl Scene {
-    let button = entry_button(entry, AssetView::Tree, expanded.is_some());
+    let button = entry_button(entry, expanded.is_some());
     let background = if active { colors::ITEM_BG } else { Color::NONE };
     let chevron = if expanded == Some(true) {
         icons::CHEVRON_DOWN
@@ -386,6 +448,18 @@ fn tree_row(
         Visibility::Inherited
     } else {
         Visibility::Hidden
+    };
+    let disclosure: Box<dyn Scene> = if let Some(folder) = entry.folder() {
+        let toggle = folder_button(folder.clone(), true);
+        Box::new(bsn! {
+            @{toggle}
+            Node { width: px(15), height: px(15), flex_shrink: 0.0 }
+            Children [ @icon_sq(chevron, 15.0, ink::C8C8) Pickable::IGNORE ]
+        })
+    } else {
+        Box::new(bsn! {
+            @icon_sq(chevron, 15.0, ink::C8C8) chevron_visibility Pickable::IGNORE
+        })
     };
     let type_label = root_type.map(|kind| bsn! { @label(kind, ink::DIM) Pickable::IGNORE });
     bsn! {
@@ -402,7 +476,7 @@ fn tree_row(
         BackgroundColor(background)
         HoverBackground { normal: background, hover: colors::ITEM_BG_ACTIVE }
         Children [
-            @icon_sq(chevron, 15.0, ink::C8C8) chevron_visibility Pickable::IGNORE
+            @{disclosure}
             --
             @icon_sq(icon, 15.0, color) Pickable::IGNORE
             --
@@ -460,7 +534,7 @@ fn folder_tiles(
         let expanded = details
             .zip(file)
             .map(|(_, path)| state.expanded_files.contains(path));
-        let button = entry_button(entry, AssetView::ActiveFolder, expanded.is_some());
+        let button = entry_button(entry, expanded.is_some());
         let root = tile(
             entry.name.clone(),
             asset_icon(entry, true),
@@ -502,12 +576,9 @@ fn folder_button(folder: Folder, toggle: bool) -> impl Scene {
     }
 }
 
-fn entry_button(entry: &Entry, view: AssetView, expandable: bool) -> Option<Box<dyn Scene>> {
+fn entry_button(entry: &Entry, expandable: bool) -> Option<Box<dyn Scene>> {
     match &entry.kind {
-        EntryKind::Folder(folder) => Some(Box::new(folder_button(
-            folder.clone(),
-            view == AssetView::Tree,
-        ))),
+        EntryKind::Folder(folder) => Some(Box::new(folder_button(folder.clone(), false))),
         EntryKind::File(path) if expandable => {
             let action = ToggleFile(path.clone());
             Some(Box::new(bsn! {

@@ -16,7 +16,7 @@ use bevy::{
 };
 
 use crate::ui::{
-    asset_browser::{AssetBrowserState, AssetView},
+    asset_browser::{AssetBrowserState, AssetColumn},
     panels::Panels,
 };
 
@@ -38,7 +38,7 @@ pub(super) struct AddTabButton(pub NodeId);
 pub(super) struct AssetsOptionsButton;
 
 #[derive(Component, Clone, Copy)]
-struct SetAssetView(AssetView);
+struct ToggleAssetColumn(AssetColumn);
 
 #[derive(Component, Clone)]
 struct AddTab {
@@ -137,23 +137,25 @@ pub(super) fn open_assets_options(
         return;
     };
     let items = [
-        (AssetView::Tree, "Tree"),
-        (AssetView::ActiveFolder, "Active Folder"),
+        (AssetColumn::Tree, "Tree"),
+        (AssetColumn::ActiveFolder, "Active Folder"),
     ]
     .into_iter()
-    .map(|(view, title)| {
-        let title = if browser.view == view {
+    .map(|(column, title)| {
+        let title = if browser.shows_column(column) {
             format!("✓  {title}")
         } else {
             format!("    {title}")
         };
-        let action = SetAssetView(view);
+        let action = ToggleAssetColumn(column);
+        let disabled = (!browser.can_toggle_column(column)).then_some(bsn! { InteractionDisabled });
         Box::new(bsn! {
             @FeathersMenuItem {
                 @caption: bsn! { @caption(title) Pickable::IGNORE }
             }
             action
-            on(set_asset_view)
+            @{disabled}
+            on(toggle_asset_column)
         }) as Box<dyn Scene>
     })
     .collect();
@@ -164,15 +166,13 @@ pub(super) fn open_assets_options(
     show_menu(anchor, *root, &menus, items, &mut commands);
 }
 
-fn set_asset_view(
+fn toggle_asset_column(
     activate: On<Activate>,
-    items: Query<&SetAssetView>,
+    items: Query<&ToggleAssetColumn>,
     mut browser: ResMut<AssetBrowserState>,
 ) {
-    if let Ok(&SetAssetView(view)) = items.get(activate.entity)
-        && browser.view != view
-    {
-        browser.view = view;
+    if let Ok(&ToggleAssetColumn(column)) = items.get(activate.entity) {
+        browser.toggle_column(column);
     }
 }
 
