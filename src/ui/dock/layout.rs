@@ -129,6 +129,19 @@ impl DockLayout {
         }
     }
 
+    /// Opens an undocked panel at the end of a tab stack and activates it.
+    pub fn add_panel(&mut self, panel: PanelId, leaf: NodeId) -> bool {
+        if self.leaf_of(panel).is_some() {
+            return false;
+        }
+        let Some(DockNode::Leaf { tabs, active }) = self.nodes.get_mut(&leaf) else {
+            return false;
+        };
+        *active = tabs.len();
+        tabs.push(panel);
+        true
+    }
+
     /// Mutable access to a split's sizes, for resizing.
     pub fn split_sizes_mut(&mut self, split: NodeId) -> Option<&mut Vec<f32>> {
         match self.nodes.get_mut(&split)? {
@@ -352,6 +365,17 @@ mod tests {
             DockNode::Leaf { tabs, .. } => tabs.clone(),
             DockNode::Split { .. } => panic!("not a leaf"),
         }
+    }
+
+    #[test]
+    fn closed_panel_can_reopen_in_another_leaf_without_duplicates() {
+        let (mut layout, left, right) = two_leaves();
+        assert!(!layout.add_panel(B, right));
+        layout.remove_panel(B);
+        assert!(layout.add_panel(B, right));
+        assert_eq!(tabs(&layout, left), vec![A]);
+        assert_eq!(tabs(&layout, right), vec![C, B]);
+        assert_eq!(layout.active_panel(right), Some(B));
     }
 
     #[test]

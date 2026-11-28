@@ -1,20 +1,25 @@
-//! Context menu for a dock tab.
+//! Menus for closing and adding dock tabs.
 
 use bevy::{
     feathers::{
         controls::{FeathersMenuItem, FeathersMenuPopup},
         display::caption,
     },
-    input_focus::tab_navigation::NavAction,
+    input_focus::{FocusGained, tab_navigation::NavAction},
     picking::events::PointerClick,
     prelude::*,
-    ui::UiGlobalTransform,
-    ui_widgets::{Activate, MenuAction, MenuEvent, MenuFocusState},
+    ui::{InteractionDisabled, UiGlobalTransform},
+    ui_widgets::{
+        Activate, MenuAction, MenuEvent, MenuFocusState, ScrollArea, ScrollIntoView,
+        popover::{Popover, PopoverAlign, PopoverPlacement, PopoverSide},
+    },
 };
 
+use crate::ui::panels::Panels;
+
 use super::{
-    layout::{DockLayout, PanelId},
-    view::{DockRoot, DragsPanel},
+    layout::{DockLayout, NodeId, PanelId},
+    view::{DockRoot, DockTabStrip, DragsPanel},
 };
 
 #[derive(Component)]
@@ -22,6 +27,18 @@ pub(super) struct TabMenu;
 
 #[derive(Component, Clone)]
 struct CloseTab(PanelId);
+
+#[derive(Component, Clone)]
+pub(super) struct AddTabButton(pub NodeId);
+
+#[derive(Component, Clone)]
+struct AddTab {
+    leaf: NodeId,
+    panel: PanelId,
+}
+
+#[derive(Message)]
+pub(super) struct PaneAdded(NodeId);
 
 pub(super) fn open(
     mut click: On<PointerClick>,
@@ -37,23 +54,104 @@ pub(super) fn open(
         return;
     };
     click.propagate(false);
-    for menu in &menus {
+    let cursor = click.pointer.position;
+    let close = CloseTab(panel);
+    let item = bsn! {
+        @FeathersMenuItem {
+            @caption: bsn! { @caption("Close") Pickable::IGNORE }
+        }
+        close
+        on(close_tab)
+    };
+    show_menu(
+        Rect::from_corners(cursor, cursor),
+        *root,
+        &menus,
+        vec![Box::new(item)],
+        &mut commands,
+    );
+}
+
+pub(super) fn open_add(
+    activate: On<Activate>,
+    buttons: Query<(&AddTabButton, &ComputedNode, &UiGlobalTransform)>,
+    root: Single<(Entity, &ComputedNode, &UiGlobalTransform), With<DockRoot>>,
+    menus: Query<Entity, With<TabMenu>>,
+    panels: Res<Panels>,
+    layout: Res<DockLayout>,
+    mut commands: Commands,
+) {
+    let Ok((&AddTabButton(leaf), node, transform)) = buttons.get(activate.entity) else {
+        return;
+    };
+    let mut items: Vec<Box<dyn Scene>> = panels
+        .ids()
+        .filter(|panel| layout.leaf_of(*panel).is_none())
+        .map(|panel| {
+            let title = panels.get(panel).title();
+            let action = AddTab { leaf, panel };
+            Box::new(bsn! {
+                @FeathersMenuItem {
+                    @caption: bsn! { @caption(title) Pickable::IGNORE }
+                }
+                Node { flex_shrink: 0.0 }
+                action
+                on(add_tab)
+                on(scroll_to_focused_item)
+            }) as Box<dyn Scene>
+        })
+        .collect();
+    if items.is_empty() {
+        items.push(Box::new(bsn! {
+            @FeathersMenuItem {
+                @caption: bsn! { @caption("No panes to add") Pickable::IGNORE }
+            }
+            InteractionDisabled
+        }));
+    }
+    let anchor = Rect::from_center_size(
+        transform.translation * node.inverse_scale_factor,
+        node.size() * node.inverse_scale_factor,
+    );
+    show_menu(anchor, *root, &menus, items, &mut commands);
+}
+
+fn show_menu(
+    anchor: Rect,
+    (root, node, transform): (Entity, &ComputedNode, &UiGlobalTransform),
+    menus: &Query<Entity, With<TabMenu>>,
+    items: Vec<Box<dyn Scene>>,
+    commands: &mut Commands,
+) {
+    for menu in menus {
         commands.entity(menu).try_despawn();
     }
 
-    // Anchor the menu at the click in dock-local coordinates, outside the clipped tab strip.
-    let (root, node, transform) = *root;
+    // Place the anchor in dock-local coordinates, outside the clipped tab strip.
     let origin = (transform.translation - node.size() * 0.5) * node.inverse_scale_factor;
-    let position = click.pointer.position - origin;
-    let close = CloseTab(panel);
+    let position = anchor.min - origin;
+    let placements = [
+        (PopoverSide::Bottom, PopoverAlign::Start),
+        (PopoverSide::Bottom, PopoverAlign::End),
+        (PopoverSide::Top, PopoverAlign::Start),
+        (PopoverSide::Top, PopoverAlign::End),
+    ]
+    .map(|(side, align)| PopoverPlacement {
+        side,
+        align,
+        gap: 2.0,
+    })
+    .to_vec();
     commands
         .spawn((
-            Name::new("Tab Context Menu"),
+            Name::new("Dock Tab Menu"),
             TabMenu,
             Node {
                 position_type: PositionType::Absolute,
                 left: px(position.x),
                 top: px(position.y),
+                width: px(anchor.width()),
+                height: px(anchor.height()),
                 ..default()
             },
             ChildOf(root),
@@ -63,16 +161,16 @@ pub(super) fn open(
         .apply_scene(bsn! {
             Children [
                 @FeathersMenuPopup
-                Node { min_width: px(100) }
+                Node {
+                    min_width: px(100),
+                    max_height: Val::Vh(42.0),
+                    overflow: Overflow::scroll_y(),
+                }
+                Popover { positions: placements }
+                ScrollArea
                 Visibility::Visible
                 MenuFocusState::Opening(NavAction::First)
-                Children [
-                    @FeathersMenuItem {
-                        @caption: bsn! { @caption("Close") Pickable::IGNORE }
-                    }
-                    close
-                    on(close_tab)
-                ]
+                Children [ {items} ]
             ]
         });
 }
@@ -87,5 +185,37 @@ fn dismiss(mut event: On<MenuEvent>, mut commands: Commands) {
 fn close_tab(activate: On<Activate>, items: Query<&CloseTab>, mut layout: ResMut<DockLayout>) {
     if let Ok(&CloseTab(panel)) = items.get(activate.entity) {
         layout.remove_panel(panel);
+    }
+}
+
+fn add_tab(
+    activate: On<Activate>,
+    items: Query<&AddTab>,
+    mut layout: ResMut<DockLayout>,
+    mut added: MessageWriter<PaneAdded>,
+) {
+    if let Ok(action) = items.get(activate.entity)
+        && layout.add_panel(action.panel, action.leaf)
+    {
+        added.write(PaneAdded(action.leaf));
+    }
+}
+
+fn scroll_to_focused_item(event: On<FocusGained>, mut commands: Commands) {
+    commands.trigger(ScrollIntoView {
+        entity: event.entity,
+    });
+}
+
+pub(super) fn reveal_added_tab(
+    mut added: MessageReader<PaneAdded>,
+    mut strips: Query<(&DockTabStrip, &ComputedNode, &mut ScrollPosition)>,
+) {
+    for &PaneAdded(leaf) in added.read() {
+        if let Some((_, node, mut offset)) = strips.iter_mut().find(|(strip, _, _)| strip.0 == leaf)
+        {
+            // The new tab and the plus button are at the end of the strip.
+            offset.x = (node.content_size().x - node.size().x).max(0.0) * node.inverse_scale_factor;
+        }
     }
 }

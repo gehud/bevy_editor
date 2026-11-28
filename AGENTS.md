@@ -102,7 +102,8 @@ cargo fmt && cargo fmt -p sample_project && cargo clippy --workspace --all-targe
     `LeafContentSlot`, or into a hidden stash, so their state survives layout changes.
   - `interact.rs`: tab clicks, splitter drags (edit sizes without change detection, update
     `flex_grow` directly), horizontal tab scrolling, and tab drag-and-drop with a drop preview.
-  - `tab_menu.rs`: the right-click menu for closing tabs.
+  - `tab_menu.rs`: the right-click menu for closing tabs and the "+" menu for opening registered
+    panes that aren't already docked.
   - Only horizontal tab bars exist, and every leaf shows one (no inlined panel headers).
 - `ui/panels.rs`: `PanelKind` registry (title, content scene) and the default layout, which
   reproduces the Figma arrangement (with a Console placeholder tab next to Assets).
@@ -129,8 +130,7 @@ cargo fmt && cargo fmt -p sample_project && cargo clippy --workspace --all-targe
   browser still show the design's **sample data**; next step: bind them to disk. Inspector
   gaps: enums, lists, maps and handles are read-only; "Add Component" and the card "…" menu do
   nothing; no undo.
-- Not done: layout persistence, the "+" button in tab bars, orthographic axis views, and window
-  corner rounding.
+- Not done: layout persistence, orthographic axis views, and window corner rounding.
 - Known issue: when a viewport changes size, its render looks stretched for one frame (Bevy
   updates the camera's target size a frame after `ViewportNode` resizes the image).
 

@@ -7,6 +7,7 @@
 
 use bevy::{
     feathers::controls::FeathersScrollbar,
+    input_focus::tab_navigation::TabIndex,
     math::BVec2,
     picking::cursor::EntityCursor,
     platform::collections::HashMap,
@@ -25,7 +26,7 @@ use super::{
 };
 use crate::ui::{
     panels::Panels,
-    style::{colors, icon_sq, ink, label},
+    style::{HoverBackground, colors, icon_sq, ink, label},
 };
 
 /// Space between docked areas; also the grab area of the splitters.
@@ -310,6 +311,28 @@ fn grip() -> impl Scene {
     }
 }
 
+fn add_tab_button(leaf: NodeId) -> impl Scene {
+    let button = tab_menu::AddTabButton(leaf);
+    bsn! {
+        Name::new("Add Pane")
+        Button
+        TabIndex(0)
+        button
+        EntityCursor::System(SystemCursorIcon::Pointer)
+        Node {
+            width: px(18),
+            height: px(18),
+            flex_shrink: 0.0,
+            margin: UiRect::left(px(5)),
+            border_radius: BorderRadius::all(px(3)),
+        }
+        BackgroundColor(Color::NONE)
+        HoverBackground { normal: Color::NONE, hover: colors::ITEM_BG_ACTIVE }
+        on(tab_menu::open_add)
+        Children [ @icon_sq(icons::PLUS, 18.0, ink::A8A8) Pickable::IGNORE ]
+    }
+}
+
 /// Titled tabs along the top of the leaf.
 fn tab_bar(
     panels: &Panels,
@@ -365,8 +388,7 @@ fn tab_bar(
             Children [
                 {tab_items}
                 --
-                @icon_sq(icons::PLUS, 18.0, ink::A8A8)
-                Node { flex_shrink: 0.0, margin: UiRect::left(px(5)) }
+                @add_tab_button(leaf)
                 --
                 @FeathersScrollbar {
                     @target: #strip,

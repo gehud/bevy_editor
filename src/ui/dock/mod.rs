@@ -20,11 +20,15 @@ pub struct DockPlugin;
 impl Plugin for DockPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<interact::DockDrag>()
+            .add_message::<tab_menu::PaneAdded>()
             .add_systems(Startup, (view::setup_dock, interact::setup_drop_preview))
             .add_systems(Update, view::rebuild_dock)
             .add_systems(
                 PostUpdate,
-                view::place_panel_contents.before(UiSystems::Prepare),
+                (
+                    view::place_panel_contents.before(UiSystems::Prepare),
+                    tab_menu::reveal_added_tab.after(UiSystems::PostLayout),
+                ),
             );
     }
 }
