@@ -173,3 +173,13 @@ cargo fmt && cargo fmt -p sample_project && cargo clippy --workspace --all-targe
   script, a temporary system that mutates `DockLayout` on a fixed frame works; remove it afterwards.
   Use the screenshot hook when graphics support is available, and remove temporary
   screenshot/test instrumentation before finishing.
+
+## Git conventions
+
+- Use Conventional Commit subjects: `<type>: <summary>`. Common types are `feat` for new
+  functionality, `fix` for behavior corrections, `docs` for documentation, and `chore` for
+  maintenance. Add a scope (`fix(dock): …`) only when it helps identify the area.
+- Start the summary with a lowercase imperative verb, keep it concise, and omit the trailing
+  period. For example: `fix: increase dock tab drag threshold`.
+- Keep each commit focused on one change. Add a body when the reason for the change needs more
+  context than the subject provides.
