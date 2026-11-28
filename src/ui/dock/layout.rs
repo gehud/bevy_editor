@@ -40,6 +40,8 @@ pub enum DropZone {
     /// Add it as a tab of the leaf.
     #[default]
     Center,
+    /// Insert before this tab index, measured before removing the dragged panel.
+    Tab(usize),
     Left,
     Right,
     Top,
@@ -144,25 +146,39 @@ impl DockLayout {
             return false;
         }
         if source == target {
-            let DockNode::Leaf { tabs, .. } = &self.nodes[&source] else {
+            let Some(DockNode::Leaf { tabs, active }) = self.nodes.get_mut(&source) else {
                 unreachable!()
             };
+            let from = tabs.iter().position(|p| *p == panel).unwrap();
+            if let DropZone::Tab(slot) = zone {
+                let to = slot.min(tabs.len()) - usize::from(from < slot);
+                if from == to {
+                    return false;
+                }
+                tabs.remove(from);
+                tabs.insert(to, panel);
+                *active = to;
+                return true;
+            }
             // Dropping a panel on its own leaf: show it, or split it off from its siblings.
             if zone == DropZone::Center || tabs.len() == 1 {
-                let index = tabs.iter().position(|p| *p == panel).unwrap();
-                self.activate(source, index);
-                return false;
+                let changed = *active != from;
+                *active = from;
+                return changed;
             }
         }
 
         self.remove_panel(panel);
         match zone {
-            DropZone::Center => {
+            DropZone::Center | DropZone::Tab(_) => {
                 let DockNode::Leaf { tabs, active } = self.nodes.get_mut(&target).unwrap() else {
                     unreachable!()
                 };
-                tabs.push(panel);
-                *active = tabs.len() - 1;
+                *active = match zone {
+                    DropZone::Tab(slot) => slot.min(tabs.len()),
+                    _ => tabs.len(),
+                };
+                tabs.insert(*active, panel);
             }
             _ => self.split_leaf(target, panel, zone),
         }
@@ -177,7 +193,11 @@ impl DockLayout {
         let DockNode::Leaf { tabs, active } = self.nodes.get_mut(&leaf).unwrap() else {
             unreachable!()
         };
-        tabs.retain(|p| *p != panel);
+        let from = tabs.iter().position(|p| *p == panel).unwrap();
+        tabs.remove(from);
+        if from < *active {
+            *active -= 1;
+        }
         *active = (*active).min(tabs.len().saturating_sub(1));
         if tabs.is_empty() && leaf != self.root {
             self.detach(leaf);
@@ -241,7 +261,7 @@ impl DockLayout {
             DropZone::Right => (Axis::Horizontal, false),
             DropZone::Top => (Axis::Vertical, true),
             DropZone::Bottom => (Axis::Vertical, false),
-            DropZone::Center => unreachable!(),
+            DropZone::Center | DropZone::Tab(_) => unreachable!(),
         };
         let new_leaf = self.add_leaf(vec![panel]);
 
@@ -331,6 +351,25 @@ mod tests {
         match layout.node(leaf) {
             DockNode::Leaf { tabs, .. } => tabs.clone(),
             DockNode::Split { .. } => panic!("not a leaf"),
+        }
+    }
+
+    #[test]
+    fn tab_bar_drops_insert_at_the_indicated_gap() {
+        let (mut layout, left, _) = two_leaves();
+        assert!(layout.move_panel(C, left, DropZone::Tab(1)));
+        assert_eq!(layout.root(), left);
+        assert_eq!(tabs(&layout, left), vec![A, C, B]);
+        assert_eq!(layout.active_panel(left), Some(C));
+        assert!(layout.move_panel(A, left, DropZone::Tab(3)));
+        assert_eq!(tabs(&layout, left), vec![C, B, A]);
+        assert_eq!(layout.active_panel(left), Some(A));
+        assert!(layout.move_panel(A, left, DropZone::Tab(0)));
+        assert_eq!(tabs(&layout, left), vec![A, C, B]);
+        let unchanged = layout.clone();
+        for slot in [1, 2] {
+            assert!(!layout.move_panel(C, left, DropZone::Tab(slot)));
+            assert_eq!(layout, unchanged);
         }
     }
 

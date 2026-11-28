@@ -8,7 +8,9 @@ use bevy::{
 
 use super::{
     layout::{Axis, DockLayout, DropZone, NodeId, PanelId},
-    view::{DockLeafArea, DockSplitArea, DockSplitChild, DockTab, DragsPanel, GAP, Splitter},
+    view::{
+        DockLeafArea, DockSplitArea, DockSplitChild, DockTab, DockTabBar, DragsPanel, GAP, Splitter,
+    },
 };
 use crate::ui::style::colors;
 
@@ -35,8 +37,6 @@ pub(super) fn setup_drop_preview(mut commands: Commands) {
         Node {
             position_type: PositionType::Absolute,
             display: Display::None,
-            border: UiRect::all(px(2)),
-            border_radius: BorderRadius::all(px(6)),
             ..default()
         },
         BackgroundColor(colors::ACCENT.with_alpha(0.2)),
@@ -81,20 +81,66 @@ pub(super) fn drag_panel(
     mut drag: On<PointerDrag>,
     mut state: ResMut<DockDrag>,
     leaves: Query<(&DockLeafArea, &ComputedNode, &UiGlobalTransform)>,
-    mut preview: Single<&mut Node, With<DropPreview>>,
+    bars: Query<(&DockTabBar, &ComputedNode, &UiGlobalTransform)>,
+    tabs: Query<(&DockTab, &ComputedNode, &UiGlobalTransform)>,
+    mut preview: Single<(&mut Node, &mut BackgroundColor), With<DropPreview>>,
 ) {
     drag.propagate(false);
     if state.panel.is_none() {
         return;
     }
-    let hit = leaves.iter().find_map(|(leaf, node, transform)| {
-        let point = drag.pointer.position / node.inverse_scale_factor;
-        node.contains_point(*transform, point)
-            .then(|| (leaf.0, drop_target(node, transform, point)))
+    let bar_hit = bars.iter().find_map(|(bar, node, transform)| {
+        let scale = node.inverse_scale_factor;
+        let point = drag.pointer.position / scale;
+        if !node.contains_point(*transform, point) {
+            return None;
+        }
+        let bar_rect = Rect::from_center_size(transform.translation, node.size);
+        let nearest = tabs
+            .iter()
+            .filter(|(tab, _, _)| tab.leaf == bar.0)
+            .map(|(tab, node, transform)| {
+                let rect = Rect::from_center_size(transform.translation, node.size);
+                let after = point.x >= transform.translation.x;
+                let edge = if after { rect.max.x } else { rect.min.x };
+                let distance = (point.x - edge).abs();
+                (distance, tab.index + usize::from(after), edge, rect)
+            })
+            .min_by(|a, b| a.0.total_cmp(&b.0));
+        let (_, slot, edge, rect) = nearest.unwrap_or((0.0, 0, bar_rect.min.x, bar_rect));
+        // Center a two-logical-pixel stroke on the shared edge, snapped to device pixels.
+        let width = (2.0 / scale).round().max(1.0);
+        let x = (edge - width * 0.5)
+            .round()
+            .clamp(bar_rect.min.x, (bar_rect.max.x - width).max(bar_rect.min.x));
+        let marker = Rect::new(
+            x * scale,
+            rect.min.y.round() * scale,
+            (x + width) * scale,
+            rect.max.y.round() * scale,
+        );
+        Some((bar.0, (DropZone::Tab(slot), marker)))
     });
+    let hit = bar_hit.or_else(|| {
+        leaves.iter().find_map(|(leaf, node, transform)| {
+            let point = drag.pointer.position / node.inverse_scale_factor;
+            node.contains_point(*transform, point)
+                .then(|| (leaf.0, drop_target(node, transform, point)))
+        })
+    });
+    let (preview, fill) = &mut *preview;
     match hit {
         Some((leaf, (zone, rect))) => {
             state.target = Some((leaf, zone));
+            if matches!(zone, DropZone::Tab(_)) {
+                fill.0 = colors::ACCENT;
+                preview.border = UiRect::ZERO;
+                preview.border_radius = BorderRadius::ZERO;
+            } else {
+                fill.0 = colors::ACCENT.with_alpha(0.2);
+                preview.border = UiRect::all(px(2));
+                preview.border_radius = BorderRadius::all(px(6));
+            }
             preview.display = Display::Flex;
             preview.left = px(rect.min.x);
             preview.top = px(rect.min.y);
@@ -162,6 +208,7 @@ fn drop_target(
     let half = rect.size() / 2.0;
     let target = match zone {
         DropZone::Center => rect,
+        DropZone::Tab(_) => unreachable!(),
         DropZone::Left => Rect::from_corners(rect.min, rect.min + Vec2::new(half.x, rect.height())),
         DropZone::Right => Rect::from_corners(rect.min + Vec2::new(half.x, 0.0), rect.max),
         DropZone::Top => Rect::from_corners(rect.min, rect.min + Vec2::new(rect.width(), half.y)),

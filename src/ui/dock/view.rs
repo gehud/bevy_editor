@@ -72,6 +72,9 @@ pub struct DockTab {
     pub index: usize,
 }
 
+#[derive(Component, Clone, Default)]
+pub struct DockTabBar(pub NodeId);
+
 /// Dragging this entity (a tab or a tab bar's grip) moves the panel to another place.
 #[derive(Component, Clone, Default)]
 pub struct DragsPanel(pub PanelId);
@@ -307,6 +310,7 @@ fn tab_bar(panels: &Panels, leaf: NodeId, tabs: &[PanelId], active: usize) -> im
     let grip = grip(tabs.get(active).copied());
 
     bsn! {
+        DockTabBar(leaf)
         Node {
             height: px(30),
             width: percent(100),
@@ -323,12 +327,12 @@ fn tab_bar(panels: &Panels, leaf: NodeId, tabs: &[PanelId], active: usize) -> im
             Node {
                 height: percent(100),
                 align_items: AlignItems::Center,
-                column_gap: px(5),
             }
             Children [
                 {tab_items}
                 --
                 @icon_sq(icons::PLUS, 18.0, ink::A8A8)
+                Node { margin: UiRect::left(px(5)) }
             ]
             --
             {grip}
